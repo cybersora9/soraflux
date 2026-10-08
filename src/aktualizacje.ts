@@ -1,7 +1,7 @@
 // Aktualizacje apki (updater Tauri, GitHub Releases, podpis sprawdzany kluczem publicznym).
 // Sprawdzenie ręczne w Ustawieniach; nic nie dzieje się bez zgody użytkownika.
 import { api } from "./api";
-import { t } from "./i18n";
+import { t, tekstBledu } from "./i18n";
 import { pokazDymek } from "./sklep";
 
 export async function sprawdzAktualizacje(reczne: boolean): Promise<void> {
@@ -16,6 +16,6 @@ export async function sprawdzAktualizacje(reczne: boolean): Promise<void> {
       await api.zainstalujAktualizacje();
     }
   } catch (e) {
-    if (reczne) pokazDymek(t("aktualizacje.blad", { blad: String(e) }), "blad");
+    if (reczne) pokazDymek(t("aktualizacje.blad", { blad: tekstBledu(e) }), "blad");
   }
 }

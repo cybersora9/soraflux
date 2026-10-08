@@ -1,12 +1,14 @@
-// Zrzuty GUI: build Vite + atrapa backendu (bez Tauri) → zrzuty/v1_2-*.png.
+// Zrzuty GUI: build Vite + atrapa backendu (bez Tauri) → zrzuty/v1_2-*.png (PL) albo zrzuty/en/ (EN).
 // Każdy z 6 motywów × jasny/ciemny na Konwertuj, plus Pobierz, Obrazy, Kolejka, Ustawienia → Wygląd.
-// Użycie: npm run build && npm run zrzuty
+// Użycie: npm run build && npm run zrzuty   (angielski: npm run zrzuty:en, czyli ZRZUTY_JEZYK=en)
 import { preview } from "vite";
 import { chromium } from "playwright-core";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 const PRZEGLADARKA = process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium";
-const WYJSCIE = "zrzuty";
+const JEZYK = process.env.ZRZUTY_JEZYK ?? "pl";
+const SLOWNIK = JSON.parse(readFileSync(`src/i18n/${JEZYK}.json`, "utf8"));
+const WYJSCIE = JEZYK === "pl" ? "zrzuty" : `zrzuty/${JEZYK}`;
 const PREFIKS = "v1_2";
 const MOTYWY = ["sora-a", "sora-b", "sora-c", "jp-a", "jp-b", "jp-c"];
 mkdirSync(WYJSCIE, { recursive: true });
@@ -16,7 +18,7 @@ const adres = "http://localhost:4174/";
 const przegladarka = await chromium.launch({ executablePath: PRZEGLADARKA });
 let bledy = 0;
 
-async function strona(motyw, parametry = "", jezyk = "pl") {
+async function strona(motyw, parametry = "", jezyk = JEZYK) {
   const kontekst = await przegladarka.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1, colorScheme: motyw });
   const s = await kontekst.newPage();
   s.on("pageerror", (e) => {
@@ -80,7 +82,7 @@ for (const motyw of ["dark", "light"]) {
   await zakladka(s, "obrazy");
   await s.click(".widok-obrazy .strefa");
   await s.waitForSelector(".widok-obrazy .plik");
-  await s.click(".widok-obrazy >> text=Obrazy na stronę WebP 1600 px");
+  await s.click(`.widok-obrazy >> text=${SLOWNIK["preset.webp_1600"]}`);
   await zdj(s, `obrazy-${motyw}`);
 
   // Kolejka (dane demo: w toku, błąd, gotowe z ostrzeżeniem o uciętym pliku)
@@ -90,7 +92,7 @@ for (const motyw of ["dark", "light"]) {
 
   // Ustawienia → Wygląd z edytorem własnego motywu
   await zakladka(s, "ustawienia");
-  await s.click("text=Nowy motyw");
+  await s.click(`text=${SLOWNIK["motyw.nowy"]}`);
   await s.waitForSelector(".edytor-motywu");
   await s.evaluate(() => document.querySelector(".motywy").scrollIntoView({ block: "start" }));
   await zdj(s, `ustawienia-wyglad-${motyw}`);
@@ -103,11 +105,13 @@ for (const motyw of ["dark", "light"]) {
   await s.context().close();
 }
 
-// Angielski, jeden przykład
-const s = await strona("dark", "&demo=1", "en");
-await s.click(".strefa");
-await s.waitForSelector(".plik");
-await zdj(s, "convert-en-dark");
+// Angielski, jeden przykład obok polskich (pełny zestaw EN: npm run zrzuty:en)
+if (JEZYK === "pl") {
+  const s = await strona("dark", "&demo=1", "en");
+  await s.click(".strefa");
+  await s.waitForSelector(".plik");
+  await zdj(s, "convert-en-dark");
+}
 
 await przegladarka.close();
 await serwer.close();

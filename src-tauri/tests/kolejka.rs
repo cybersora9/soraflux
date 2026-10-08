@@ -1,6 +1,7 @@
 //! Kolejka z prawdziwym ffmpeg: równoległość, zdarzenia postępu, anulowanie,
 //! korekta docelowego rozmiaru.
 
+use soraconverter_lib::blad;
 use soraconverter_lib::kolejka::{InfoZadania, Kolejka, Nadajnik, NoweZadanie, RodzajZadania, Stan};
 use soraconverter_lib::narzedzia::{self, Sciezki};
 use soraconverter_lib::postep::Postep;
@@ -481,7 +482,7 @@ async fn a7_pobranie_403_po_ludzku() {
     let id = k.dodaj(pobranie("https://example.com/film", None, tmp.path()));
     let w = czekaj_na(&k, &[id], Duration::from_secs(30)).await;
     let Stan::Blad { komunikat } = &w[0].stan else { panic!("{w:?}") };
-    assert!(komunikat.starts_with("Serwis zablokował pobieranie. Kliknij Aktualizuj yt-dlp"), "{komunikat}");
+    assert_eq!(blad::klucz(komunikat).as_deref(), Some(soraconverter_lib::pobieracz::BLOKADA), "{komunikat}");
     assert!(komunikat.contains("HTTP Error 403"), "surowy błąd do raportu");
 }
 
@@ -573,7 +574,7 @@ async fn wybrany_folder_tworzy_sie_sam() {
     assert_eq!(wyjscie, &nowy.join("a.mp3"));
     let Stan::Blad { komunikat } = &w[1].stan else { panic!("{w:?}") };
     assert!(
-        komunikat.starts_with("nie można użyć folderu") && komunikat.contains("zmień folder zapisu"),
+        blad::klucz(komunikat).as_deref() == Some("folder_zapisu") && blad::parametr(komunikat, "folder").is_some(),
         "{komunikat}"
     );
 }

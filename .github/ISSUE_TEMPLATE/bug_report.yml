@@ -1,0 +1,53 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems: please don't use this form, see SECURITY.md.
+        Don't paste links to copyrighted videos or music; describe the kind of site or use a public test file instead.
+  - type: input
+    id: wersja
+    attributes:
+      label: SoraFlux version
+      description: Settings → About, or the top of the copied report.
+      placeholder: "1.2.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other (write below)
+    validations:
+      required: true
+  - type: textarea
+    id: kroki
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Convert tab, drop a 2-minute MP4 from a phone
+        2. Quick action "For phones"
+        3. Convert
+    validations:
+      required: true
+  - type: textarea
+    id: oczekiwane
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: raport
+    attributes:
+      label: Report from "Copy report"
+      description: Settings → "Copy report" copies versions, system and recent errors (without your folder paths). Paste it here.
+      render: text
+  - type: textarea
+    id: dodatkowe
+    attributes:
+      label: Screenshots or anything else

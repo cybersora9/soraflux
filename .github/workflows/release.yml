@@ -1,7 +1,7 @@
-# Wydanie Windows: instalator NSIS (z bootstrapperem WebView2), sumy SHA256,
-# opcjonalny podpis SignPath, podpis aktualizacji (updater Tauri) i SZKIC wydania.
-# Uruchamiane ręcznie albo tagiem v*. Szkic publikuje maisa ręcznie po sprawdzeniu.
-name: Wydanie
+# Windows release: NSIS installer (with the WebView2 bootstrapper), SHA256 checksums,
+# optional SignPath signing, updater signature (Tauri updater) and a DRAFT release.
+# Runs manually or on a v* tag. The maintainer publishes the draft after checking it.
+name: Release
 
 on:
   workflow_dispatch:
@@ -15,10 +15,10 @@ jobs:
   windows:
     runs-on: windows-latest
     env:
-      # Podpis SignPath włączamy zmienną repozytorium SIGNPATH_WLACZONE=true
-      # dopiero po akceptacji wniosku (docs/PODPIS.md).
+      # SignPath signing is switched on with the repository variable SIGNPATH_WLACZONE=true
+      # ("wlaczone" = enabled) once the application is accepted (docs/SIGNING.md).
       SIGNPATH_WLACZONE: ${{ vars.SIGNPATH_WLACZONE }}
-      # Klucz prywatny updatera tylko w sekretach repozytorium (docs/AKTUALIZACJE.md).
+      # The updater private key lives only in repository secrets (docs/UPDATES.md).
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
@@ -35,13 +35,13 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Zależności
+      - name: Install dependencies
         run: npm ci
 
       - name: Build (NSIS)
         run: npx tauri build --bundles nsis
 
-      - name: Znajdź instalator
+      - name: Find the installer
         id: plik
         shell: pwsh
         run: |
@@ -49,7 +49,7 @@ jobs:
           "sciezka=$($exe.FullName)" >> $env:GITHUB_OUTPUT
           "nazwa=$($exe.Name)" >> $env:GITHUB_OUTPUT
 
-      - name: Wyślij instalator do podpisu
+      - name: Upload the installer for signing
         id: niepodpisany
         if: env.SIGNPATH_WLACZONE == 'true'
         uses: actions/upload-artifact@v4
@@ -57,7 +57,7 @@ jobs:
           name: niepodpisany
           path: ${{ steps.plik.outputs.sciezka }}
 
-      - name: Podpis SignPath (wyłączony, dopóki SIGNPATH_WLACZONE != true)
+      - name: SignPath signing (off while SIGNPATH_WLACZONE != true)
         if: env.SIGNPATH_WLACZONE == 'true'
         uses: signpath/github-action-submit-signing-request@v1
         with:
@@ -69,17 +69,17 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: podpisany
 
-      - name: Podmień na podpisany
+      - name: Replace with the signed installer
         if: env.SIGNPATH_WLACZONE == 'true'
         shell: pwsh
         run: Copy-Item "podpisany/${{ steps.plik.outputs.nazwa }}" "${{ steps.plik.outputs.sciezka }}" -Force
 
-      # Podpis aktualizacji liczony na końcowym (ewentualnie podpisanym) instalatorze.
-      - name: Podpis aktualizacji (updater)
+      # The updater signature is computed on the final (possibly signed) installer.
+      - name: Updater signature
         if: env.TAURI_SIGNING_PRIVATE_KEY != ''
         run: npx tauri signer sign "${{ steps.plik.outputs.sciezka }}"
 
-      - name: latest.json i sumy SHA256
+      - name: latest.json and SHA256 checksums
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force wydanie | Out-Null
@@ -95,7 +95,7 @@ jobs:
           name: soraflux-windows
           path: wydanie/*
 
-      - name: Szkic wydania (tylko z tagu)
+      - name: Draft release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:

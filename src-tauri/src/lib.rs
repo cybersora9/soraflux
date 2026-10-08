@@ -1,6 +1,7 @@
 //! SoraConverter: rdzeń aplikacji. Front tylko rysuje, tu budujemy komendy,
 //! uruchamiamy ffmpeg i raportujemy postęp.
 
+pub mod blad;
 pub mod budowniczy;
 pub mod dziennik;
 pub mod kolejka;

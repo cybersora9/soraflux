@@ -46,8 +46,9 @@ sterowników producenta karty.
 | sha2 | MIT OR Apache-2.0 |
 | zip | MIT |
 
-Pełna lista zależności przechodnich: `cargo tree` w `src-tauri/`
-(wszystkie na licencjach permisywnych: MIT, Apache-2.0, ISC, BSD, Zlib, Unicode-3.0).
+Full list of transitive dependencies: `cargo tree` in `src-tauri/`
+(all under permissive licenses: MIT, Apache-2.0, ISC, BSD, Zlib, Unicode-3.0).
+/ Pełna lista zależności przechodnich: `cargo tree` w `src-tauri/`.
 
 ### JavaScript (package.json)
 
@@ -64,9 +65,11 @@ TypeScript (Apache-2.0), Vitest (MIT), jsdom (MIT), playwright-core
 - Windows: Microsoft Edge WebView2 (systemowy / system component).
 - Linux: WebKitGTK (LGPL-2.1).
 
-## Fonty (wbudowane w program, SIL Open Font License 1.1)
-- **M PLUS Rounded 1c**, The Rounded M+ Project Authors, przez pakiet `@fontsource/m-plus-rounded-1c`
-- **Dela Gothic One**, artakana, przez pakiet `@fontsource/dela-gothic-one`
-- **M PLUS 1 Code**, The M+ Project Authors, przez pakiet `@fontsource/m-plus-1-code`
+## Fonts / Fonty (bundled in the app, SIL Open Font License 1.1)
+- **M PLUS Rounded 1c**, The Rounded M+ Project Authors, via the package `@fontsource/m-plus-rounded-1c`
+- **Dela Gothic One**, artakana, via the package `@fontsource/dela-gothic-one`
+- **M PLUS 1 Code**, The M+ Project Authors, via the package `@fontsource/m-plus-1-code`
 
-Dołączamy tylko podzbiory latin i latin-ext (polskie znaki), bez Google Fonts: program działa offline. Tekst licencji: https://openfontlicense.org
+Only the latin and latin-ext subsets are included (covers Polish characters), and nothing is loaded from Google Fonts, so the app works offline. License text: https://openfontlicense.org
+
+Dołączamy tylko podzbiory latin i latin-ext (polskie znaki), bez Google Fonts: program działa offline.

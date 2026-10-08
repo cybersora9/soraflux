@@ -12,4 +12,5 @@ echo "== cargo test";         (cd src-tauri && cargo test -- --test-threads=2)
 echo "== npm run build";      npm run build
 echo "== vitest";             npm test
 echo "== zrzuty";             npm run zrzuty
+echo "== zrzuty (EN)";        npm run zrzuty:en
 echo "Bramka zielona."

@@ -1,6 +1,5 @@
-# Bramka w CI: cargo fmt/clippy/test (z prawdziwym ffmpeg) + build i vitest.
-# Ruszy po upublicznieniu repozytorium (darmowe Actions).
-name: Testy
+# CI gate: cargo fmt/clippy/test (with real ffmpeg) + frontend build and vitest.
+name: Tests
 
 on:
   push:
@@ -8,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  testy:
+  tests:
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +29,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Biblioteki systemowe i ffmpeg (Linux)
+      - name: System libraries and ffmpeg (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -40,9 +39,12 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ffmpeg -y --no-progress
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+      - name: Install dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Frontend tests (vitest)
+        run: npm test
 
       - name: cargo fmt
         working-directory: src-tauri

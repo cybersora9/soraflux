@@ -4,7 +4,7 @@
 // użytkownik sam wybrał klawiaturą; patrz `aktywujKafel` (usterka 5 z testów 07.10).
 import { api } from "../api";
 import { h } from "../dom";
-import { t } from "../i18n";
+import { t, tekstBledu } from "../i18n";
 import {
   EDYTOWALNE,
   WBUDOWANE,
@@ -62,7 +62,7 @@ export function sekcjaMotywow(): HTMLElement {
     if (!k) return;
     const konfig = { ...k, ...doKonfigu(stan) };
     sklep.ustaw({ konfig });
-    void api.konfigZapisz(konfig).catch((e) => pokazDymek(String(e), "blad"));
+    void api.konfigZapisz(konfig).catch((e) => pokazDymek(tekstBledu(e), "blad"));
   }
 
   function wybierz(id: string) {

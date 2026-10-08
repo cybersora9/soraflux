@@ -1,3 +1,5 @@
+[English → ../UPDATES.md]
+
 # Aktualizacje apki (updater Tauri + GitHub Releases)
 
 SoraFlux sprawdza aktualizacje **tylko na żądanie** (Ustawienia → „Sprawdź aktualizacje”), pobiera

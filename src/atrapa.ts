@@ -248,7 +248,7 @@ if (parametry.get("demo") === "1") {
     ["Wykład: sieci neuronowe [test01]", { typ: "trwa" }, 28, "pobranie"],
     ["podcast-odc-14.wav → m4a", { typ: "oczekuje" }, 0, "konwersja"],
     ["zrzut-ekranu.png → webp", { typ: "gotowe", wyjscie: "C:/Obrazy/zrzut-ekranu.webp" }, 100, "konwersja"],
-    ["stary-film.avi → mkv", { typ: "blad", komunikat: "ffmpeg zakończył się kodem 1:\nInvalid data found when processing input" }, 13, "konwersja"],
+    ["stary-film.avi → mkv", { typ: "blad", komunikat: '@i18n {"k":"ffmpeg_kod","a":{"kod":"1"}}\n\nInvalid data found when processing input' }, 13, "konwersja"],
     ["piosenka-uszkodzona.mp3", { typ: "gotowe", wyjscie: "C:/Muzyka/Gotowe/piosenka-uszkodzona.m4a" }, 100, "konwersja"],
   ];
   for (const [nazwa, stan, procent, rodzaj] of przyklady) {

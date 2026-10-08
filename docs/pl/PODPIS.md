@@ -1,3 +1,5 @@
+[English → ../SIGNING.md]
+
 # Podpis kodu: SignPath Foundation (darmowy dla open source)
 
 Bez podpisu Windows pokazuje przy instalatorze „System Windows ochronił ten komputer” (SmartScreen).
@@ -6,7 +8,7 @@ Workflow `.github/workflows/release.yml` ma już krok podpisu, **wyłączony** d
 
 ## Warunki (stan repo)
 - Licencja OSI: MIT (`LICENSE`) ✔
-- Kod publiczny: **repo musi być publiczne** (teraz prywatne, decyzja maisy).
+- Kod publiczny: repo jest publiczne ✔
 - Build w całości z repo przez GitHub Actions: `release.yml` ✔ (bez binarek w repo; ffmpeg nie jest dołączany).
 - Aktywny projekt, opis w README, polityka prywatności (README: „Prywatność”) ✔
 - Brak treści naruszających prawa (zero linków do cudzych utworów w repozytorium) ✔
