@@ -291,6 +291,7 @@ export const atrapa: Api = {
   sonda: (s) => opoznij(mediaDla(s)),
   planKomendy: (w, m, p) => opoznij(plan(w, m, p), 30),
   szacuj: (m, p) => opoznij(szacuj(m, p), 30),
+  szacujZProbki: () => opoznij(null, 30),
   async dodajZadania(nowe: NoweZadanie[]) {
     const ids: number[] = [];
     for (const n of nowe) {

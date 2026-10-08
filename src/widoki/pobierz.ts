@@ -6,7 +6,7 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { t } from "../i18n";
-import { etykietaWysokosci, formatujCzas, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, ZRODLA_POBIERANIA } from "../logika";
+import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, ZRODLA_POBIERANIA, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
 import { folderWyjscia } from "../komponenty/wspolne";
@@ -66,14 +66,33 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
     );
   }
 
+  // Potwierdzenie „to najnowsze wydanie” (z przycisku Aktualizuj) wycisza ostrzeżenie o wieku na 14 dni.
+  const KLUCZ_NAJNOWSZEJ = "soraflux:ytdlp-najnowsza";
+  const czytajNajnowsza = (): NajnowszyYtdlp | null => {
+    try {
+      return JSON.parse(localStorage.getItem(KLUCZ_NAJNOWSZEJ) ?? "null") as NajnowszyYtdlp | null;
+    } catch {
+      return null;
+    }
+  };
+
   // Aktualizujemy tylko WŁASNĄ kopię (pobranie oficjalnego wydania), nigdy pipa użytkownika.
   async function aktualizuj() {
     aktualizacja = "trwa";
     rysuj();
     try {
+      const przed = sklep.stan.narzedzia?.ytdlp?.wersja ?? null;
       const narzedzia = await api.ytdlpAktualizuj();
       sklep.ustaw({ narzedzia });
-      pokazDymek(t("pobierz.zaktualizowano", { w: narzedzia.ytdlp?.wersja ?? "?" }));
+      const po = narzedzia.ytdlp?.wersja ?? null;
+      if (po) {
+        try {
+          localStorage.setItem(KLUCZ_NAJNOWSZEJ, JSON.stringify({ wersja: po, kiedy: Date.now() } satisfies NajnowszyYtdlp));
+        } catch {
+          /* brak magazynu: ostrzeżenie zostanie, nic poza tym */
+        }
+      }
+      pokazDymek(po && po === przed ? t("pobierz.najnowsza", { w: po }) : t("pobierz.zaktualizowano", { w: po ?? "?" }));
     } catch (e) {
       pokazDymek(String(e), "blad");
     }
@@ -102,7 +121,7 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
     const n = sklep.stan.narzedzia;
     const lista: HTMLElement[] = [];
     const y = n?.ytdlp;
-    if (y?.stary && y.wiek_dni !== null) {
+    if (y && y.wiek_dni !== null && pokazOstrzezenieWieku(y, czytajNajnowsza(), Date.now())) {
       lista.push(
         uwaga(
           "uwaga",

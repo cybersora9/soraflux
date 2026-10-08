@@ -28,6 +28,8 @@ export interface Api {
   sonda(sciezka: string): Promise<Media>;
   planKomendy(wejscie: string, media: Media, profil: Profil): Promise<PodgladPlanu>;
   szacuj(media: Media, profil: Profil): Promise<Szacunek>;
+  /** GIF/WebP: rozmiar z 2-sekundowej próbki (`null` = nie dotyczy albo za krótki klip). */
+  szacujZProbki(wejscie: string, media: Media, profil: Profil): Promise<number | null>;
   dodajZadania(zadania: NoweZadanie[]): Promise<number[]>;
   listaZadan(): Promise<InfoZadania[]>;
   anulujZadanie(id: number): Promise<void>;
@@ -95,6 +97,7 @@ const tauri: Api = {
   sonda: (sciezka) => invoke("sonda", { sciezka }),
   planKomendy: (wejscie, media, profil) => invoke("plan_komendy", { wejscie, media, profil }),
   szacuj: (media, profil) => invoke("szacuj", { media, profil }),
+  szacujZProbki: (wejscie, media, profil) => invoke("szacuj_z_probki", { wejscie, media, profil }),
   dodajZadania: (zadania) => invoke("dodaj_zadania", { zadania }),
   listaZadan: () => invoke("lista_zadan"),
   anulujZadanie: (id) => invoke("anuluj_zadanie", { id }),

@@ -63,6 +63,10 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   const stopka = h("footer", { class: "pasek-akcji" });
 
   const zMedia = () => pliki.filter((p) => p.media);
+  // Szacunek animacji z próbki (wolny, ~1–2 s na plik): przychodzi po szybkim szacunku i go zastępuje.
+  // `pokolenie` odrzuca spóźnione wyniki po zmianie ustawień albo plików.
+  let pokolenie = 0;
+  const animacja = () => !!profil.gif && (profil.kontener === "gif" || profil.kontener === "webp");
   const biezacy = () => {
     const p = pliki[wybrany] ?? pliki.find((x) => x.media);
     return p?.media ? { sciezka: p.sciezka, media: p.media } : null;
@@ -246,6 +250,18 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
       const dokladny = wyniki.every((w) => w.dokladny);
       const ostrz = wyniki.find((w) => w.ostrzezenie)?.ostrzezenie ?? null;
       const zrodloKbps = wyniki.find((w) => w.zrodlo_kbps)?.zrodlo_kbps ?? null;
+      const moje = ++pokolenie;
+      if (animacja()) {
+        const probki = lista.slice(0, 5);
+        void Promise.all(probki.map((p) => api.szacujZProbki(p.sciezka, p.media!, profil).catch(() => null))).then((b) => {
+          if (moje !== pokolenie || b.some((x) => x === null)) return;
+          const zProbki = (b as number[]).reduce((s, x) => s + x, 0);
+          // pozostałe pliki (ponad 5) dokładamy z szybkiego szacunku
+          const reszta = wyniki.slice(probki.length).reduce((s, w) => s + (w.bajty ?? 0), 0);
+          szacunek = { ...szacunek, tekst: opisSzacunku(zProbki + reszta, false) };
+          rysujStopke();
+        });
+      }
       szacunek = {
         tekst: znane.length ? opisSzacunku(suma, dokladny) : t("szacunek.brak"),
         ostrzezenie: ostrz === "ogromny" ? t("szacunek.ogromny") : ostrz === "wiekszy_niz_zrodlo" ? t("szacunek.wiekszy") : zrodloKbps ? t("szacunek.zrodlo_kbps", { n: zrodloKbps }) : null,

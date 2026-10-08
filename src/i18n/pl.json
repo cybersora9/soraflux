@@ -326,6 +326,7 @@
   "pobierz.aktualizuj": "Aktualizuj yt-dlp",
   "pobierz.aktualizuje": "Aktualizuję…",
   "pobierz.zaktualizowano": "yt-dlp zaktualizowany: {w}",
+  "pobierz.najnowsza": "Masz najnowszą wersję yt-dlp ({w}).",
   "pobierz.wiek": "yt-dlp ma {n} dni, serwisy mogą odmawiać.",
   "pobierz.z_path": "To kopia z systemu (np. pip). Aktualizuj pobierze własną kopię SoraFlux, systemowej nie ruszamy.",
   "pobierz.wlasna_pobrana": "Pobrano aktualny yt-dlp (stary z systemu zostaje nietknięty)",

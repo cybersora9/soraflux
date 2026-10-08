@@ -338,3 +338,29 @@ export function wierszeInformacji(m: import("./typy").Media): [string, string][]
   if (m.rozmiar_b) w.push(["info.rozmiar", formatujRozmiar(m.rozmiar_b)]);
   return w;
 }
+
+/** Potwierdzenie z „Aktualizuj yt-dlp”, że zainstalowana wersja jest najnowszym wydaniem. */
+export interface NajnowszyYtdlp {
+  wersja: string;
+  /** ms od epoki */
+  kiedy: number;
+}
+
+/** Ile dni potwierdzenie „to najnowsza wersja” wycisza ostrzeżenie o wieku. */
+export const WAZNOSC_NAJNOWSZEJ_DNI = 14;
+
+/**
+ * Czy pokazać „yt-dlp ma N dni, serwisy mogą odmawiać”. Wiek liczy się od daty wydania, więc bez tego
+ * ostrzeżenie świeciło też przy najnowszej wersji (yt-dlp wydaje się nieregularnie; test na żywo 08.10:
+ * 2026.08.19 = najnowsza, a apka pisała „ma 50 dni”). Kopia z PATH zawsze ostrzega (nie my ją aktualizujemy).
+ */
+export function pokazOstrzezenieWieku(
+  y: { wersja: string | null; stary: boolean; pochodzenie: string } | null | undefined,
+  najnowszy: NajnowszyYtdlp | null,
+  teraz: number,
+): boolean {
+  if (!y?.stary) return false;
+  if (y.pochodzenie === "path") return true;
+  const swieze = najnowszy !== null && teraz - najnowszy.kiedy < WAZNOSC_NAJNOWSZEJ_DNI * 86_400_000;
+  return !(swieze && najnowszy.wersja === y.wersja);
+}

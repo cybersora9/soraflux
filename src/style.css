@@ -318,7 +318,8 @@ h1, h2, h3, p { margin: 0; }
   align-items: center;
   gap: var(--odstep-5);
   padding: var(--odstep-4) 0 var(--odstep-5);
-  background: linear-gradient(to bottom, transparent, var(--tlo) 30%);
+  /* przejście tylko w górnym odstępie: przy 30% prześwitywały podpisy pod suwakiem (test na żywo 1.2.1, okno 800 px) */
+  background: linear-gradient(to bottom, transparent, var(--tlo) var(--odstep-3));
   flex-wrap: wrap;
 }
 .folder { display: flex; align-items: center; gap: var(--odstep-2); min-width: 0; flex: 1; font-size: var(--rozmiar-s); color: var(--tekst-2); }

@@ -71,6 +71,7 @@ pub fn komendy_apki<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bo
         komendy::konfig_wczytaj,
         komendy::konfig_zapisz,
         komendy::szacuj,
+        komendy::szacuj_z_probki,
         komendy::presety_lista,
         komendy::preset_zapisz,
         komendy::preset_usun,

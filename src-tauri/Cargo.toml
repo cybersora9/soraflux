@@ -1,6 +1,6 @@
 [package]
 name = "soraconverter"
-version = "1.2.1"
+version = "1.2.2"
 description = "SoraFlux: lokalny konwerter wideo, audio, obrazów i GIF z pobieraniem"
 authors = ["cybersora9"]
 license = "MIT"

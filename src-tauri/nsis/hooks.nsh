@@ -4,8 +4,16 @@
 ; pliki wideo, audio i obrazy (Windows sam zna ich typy), bez przejmowania skojarzeń.
 ; Kilka zaznaczonych plików = kilka uruchomień; single-instance przekazuje je do jednego okna.
 
+!include LogicLib.nsh
+
 !macro SORA_DODAJ_MENU TYP
-  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux" "" "$(SoraMenu)"
+  ; Etykieta wprost, nie LangString: ten plik jest wczytywany PRZED MUI_LANGUAGE, więc ${LANG_POLISH}
+  ; jeszcze nie istniał i $(SoraMenu) dawał pusty napis (test na żywo 1.2.1, 08.10). 1045 = polski.
+  ${If} $LANGUAGE == 1045
+    WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux" "" "Konwertuj w SoraFlux"
+  ${Else}
+    WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux" "" "Convert with SoraFlux"
+  ${EndIf}
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux" "Icon" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux" "MultiSelectModel" "Player"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
@@ -14,9 +22,6 @@
 !macro SORA_USUN_MENU TYP
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\${TYP}\shell\SoraFlux"
 !macroend
-
-LangString SoraMenu ${LANG_POLISH} "Konwertuj w SoraFlux"
-LangString SoraMenu ${LANG_ENGLISH} "Convert with SoraFlux"
 
 !macro NSIS_HOOK_POSTINSTALL
   !insertmacro SORA_DODAJ_MENU "video"

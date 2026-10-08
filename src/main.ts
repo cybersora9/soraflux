@@ -34,7 +34,7 @@ function stworzWidoki(): Record<Zakladka, Widok> {
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-const nawigacja = h("nav", { class: "nawigacja", "aria-label": "SoraConverter" });
+const nawigacja = h("nav", { class: "nawigacja", "aria-label": t("app.nazwa") });
 const tresc = h("main", { class: "tresc", id: "tresc" });
 const dymek = h("div", { class: "dymek", role: "status", "aria-live": "polite" });
 const nakladkaUpuszczania = h("div", { class: "nakladka-upuszczania", "aria-hidden": "true" });
@@ -43,7 +43,7 @@ app.append(nawigacja, tresc, dymek, nakladkaUpuszczania);
 function rysujNawigacje(): void {
   const aktywne = aktywneZadania(sklep.stan);
   nawigacja.replaceChildren(
-    h("div", { class: "marka" }, h("span", { class: "marka-znak", html: MARKA }), h("span", { class: "marka-nazwa" }, "SoraConverter")),
+    h("div", { class: "marka" }, h("span", { class: "marka-znak", html: MARKA }), h("span", { class: "marka-nazwa" }, t("app.nazwa"))),
     h(
       "div",
       { class: "nawigacja-lista", role: "tablist", "aria-orientation": "vertical" },
@@ -71,7 +71,9 @@ function rysujNawigacje(): void {
   );
 }
 
-const MARKA = `<svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--akcent)"/><stop offset="1" stop-color="var(--akcent-2)"/></linearGradient></defs><path d="M136 316c48 0 64-120 120-120s72 120 120 120" fill="none" stroke="url(#mg)" stroke-width="44" stroke-linecap="round"/><path d="M136 196c48 0 64 120 120 120s72-120 120-120" fill="none" stroke="currentColor" stroke-opacity=".85" stroke-width="44" stroke-linecap="round"/></svg>`;
+// Znak SoraFlux (08.10, cybersora-assets/logo/produkty/soraflux): dwa szewrony, z jednego w drugie.
+// Pierwszy w kolorze tekstu, drugi w akcencie motywu (wszystkie motywy w Ustawieniach).
+const MARKA = `<svg viewBox="12 20 96 80" aria-hidden="true"><path d="M18 26H38L72 60L38 94H18L52 60Z" fill="currentColor"/><path d="M48 26H68L102 60L68 94H48L82 60Z" fill="var(--akcent)"/></svg>`;
 
 // Klawiatura: strzałki w liście zakładek (jak w ARIA tablist), Ctrl+1…5, Ctrl+O (dodaj pliki).
 nawigacja.addEventListener("keydown", (e) => {
@@ -163,7 +165,7 @@ api.naUpuszczenie((sciezki, najechanie) => {
   void (widoki[cel] as WidokPlikowy).dodaj(sciezki);
 });
 
-// Pliki z Eksploratora („Konwertuj w SoraConverter”): przy starcie i do już otwartego okna.
+// Pliki z Eksploratora („Konwertuj w SoraFlux”): przy starcie i do już otwartego okna.
 function otworzPliki(sciezki: string[]): void {
   if (!widoki || sciezki.length === 0) return;
   const cel: Zakladka = sciezki.every(toObraz) ? "obrazy" : "konwertuj";
@@ -187,7 +189,7 @@ function powiadomOKoncu(): void {
     przed > 0 && po > 0 ? `${formatujRozmiar(przed, jezyk())} → ${formatujRozmiar(po, jezyk())} (${zmianaRozmiaru(przed, po)})` : "",
     bledy ? t("powiadomienie.bledy", { n: bledy }) : "",
   ].filter(Boolean).join(" · ");
-  if (!document.hasFocus()) void api.powiadom("SoraConverter", tresc);
+  if (!document.hasFocus()) void api.powiadom(t("app.nazwa"), tresc);
 }
 
 // Zdarzenia kolejki

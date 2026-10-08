@@ -574,3 +574,61 @@ fn wideo_na_gif_480px_15fps_z_paleta() {
     assert_eq!(ffprobe_pole(&wy, "v:0", "height"), "270");
     assert_eq!(ffprobe_pole(&wy, "v:0", "r_frame_rate"), "15/1");
 }
+
+/// Test na żywo 1.2.1 (08.10): GIF z obrazu ruchliwego w całym kadrze miał szacunek „≈ 1,7 MB”, a wynik 4,38 MB.
+/// Szacunek z 2-sekundowej próbki ma trafić w ±35% pełnej konwersji.
+#[tokio::test]
+async fn gif_szacunek_z_probki_trafia() {
+    let tmp = tempfile::tempdir().unwrap();
+    let we = tmp.path().join("ruchliwy.mp4");
+    uruchom(&[
+        "-hide_banner",
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=1280x720:rate=30:duration=12",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-pix_fmt",
+        "yuv420p",
+        we.to_str().unwrap(),
+    ]);
+    let media = sonda(&we);
+    let mut p = Profil::dla(Kontener::Gif);
+    p.gif = Some(ProfilGif::default());
+    p.audio = None;
+    let szac = soraconverter_lib::komendy::szacuj_z_probki_z(
+        Path::new(&ffmpeg()),
+        &we,
+        &media,
+        &p,
+        &budowniczy::Kontekst::default(),
+    )
+    .await
+    .unwrap()
+    .expect("animacja ma szacunek z próbki");
+    let wy = tmp.path().join("pelny.gif");
+    konwertuj(&we, &wy, &p);
+    let jest = std::fs::metadata(&wy).unwrap().len() as f64;
+    let r = szac as f64 / jest;
+    eprintln!("GIF: próbka {szac} B, pełny {jest} B (×{r:.2})");
+    assert!((0.65..1.35).contains(&r), "szacunek z próbki ×{r:.2}");
+    // nie-animacja i krótki klip: brak szacunku z próbki
+    assert_eq!(
+        soraconverter_lib::komendy::szacuj_z_probki_z(
+            Path::new(&ffmpeg()),
+            &we,
+            &media,
+            &Profil::dla(Kontener::Mp4),
+            &budowniczy::Kontekst::default()
+        )
+        .await
+        .unwrap(),
+        None
+    );
+}

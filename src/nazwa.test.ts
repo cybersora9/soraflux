@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // 08.10: nazwa wraca na SoraFlux (decyzja maisy). Pilnujemy tego, co widzi użytkownik:
@@ -20,5 +20,16 @@ describe("nazwa produktu", () => {
       expect(czytaj(p)).not.toMatch(/w SoraConverter|with SoraConverter/);
     }
     expect(JSON.parse(czytaj("src/i18n/pl.json"))["app.nazwa"]).toBe("SoraFlux");
+  });
+});
+
+describe("nazwa w interfejsie", () => {
+  it("żaden plik frontu (poza atrapą i testami) nie wpisuje starej nazwy na sztywno", () => {
+    const pliki = (k: string): string[] =>
+      readdirSync(join(korzen, k), { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? pliki(join(k, e.name)) : e.name.endsWith(".ts") && !e.name.includes(".test.") && e.name !== "atrapa.ts" ? [join(k, e.name)] : [],
+      );
+    const zle = pliki("src").filter((p) => /SoraConverter/.test(czytaj(p)));
+    expect(zle).toEqual([]);
   });
 });

@@ -288,6 +288,56 @@ pub async fn podglad_klatki(
     podglad_klatki_z(&ffmpeg, &wejscie, &media, &profil, czas_s, &kontekst(&stan)).await
 }
 
+/// Długość próbki do szacunku animacji.
+pub const PROBKA_S: f64 = 2.0;
+
+/// Szacunek rozmiaru GIF/animowanego WebP z próbki: koduje ~2 s ze środka (tym samym łańcuchem co
+/// prawdziwa konwersja) i przelicza na całą długość. Stała z `szacunek::szacuj` myliła się ×2,6 na obrazie
+/// z ruchem w całym kadrze (test na żywo 1.2.1, 08.10: „≈ 1,7 MB”, wynik 4,38 MB). `None` = nie dotyczy.
+pub async fn szacuj_z_probki_z(
+    ffmpeg: &Path,
+    wejscie: &Path,
+    media: &Media,
+    profil: &Profil,
+    kt: &budowniczy::Kontekst,
+) -> Wynik<Option<u64>> {
+    let animacja = profil.gif.is_some() && matches!(profil.kontener, Kontener::Gif | Kontener::Webp) && !media.obraz;
+    let Some(czas) = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc).filter(|_| animacja) else {
+        return Ok(None);
+    };
+    if (profil.predkosc - 1.0).abs() > f32::EPSILON || czas <= PROBKA_S * 1.5 {
+        return Ok(None); // krótki klip: pełna konwersja trwa tyle co próbka, zostaje szacunek ze stałej
+    }
+    let od = profil.ciecie.as_ref().map(|c| c.od).unwrap_or(0.0) + (czas - PROBKA_S) / 2.0;
+    let mut p = profil.clone();
+    p.ciecie = Some(crate::ustawienia::Ciecie { od, koniec: Some(od + PROBKA_S) });
+    let k = katalog_podgladu()?;
+    let plik = k.join(format!("probka.{}", profil.kontener.rozszerzenie()));
+    let wynik = async {
+        let kt = budowniczy::Kontekst { katalog_tmp: Some(k.clone()), ..kt.clone() };
+        let plan = budowniczy::plan_z(media, &p, wejscie, &plik, &kt).map_err(|e| e.to_string())?;
+        for przebieg in &plan.przebiegi {
+            uruchom_ffmpeg_proste(ffmpeg, przebieg).await?;
+        }
+        let bajty = std::fs::metadata(&plik).map_err(|e| e.to_string())?.len() as f64;
+        Ok(Some((bajty * czas / PROBKA_S) as u64))
+    }
+    .await;
+    let _ = std::fs::remove_dir_all(&k);
+    wynik
+}
+
+#[tauri::command]
+pub async fn szacuj_z_probki(
+    stan: State<'_, StanApki>,
+    wejscie: PathBuf,
+    media: Media,
+    profil: Profil,
+) -> Wynik<Option<u64>> {
+    let ffmpeg = wymagane(stan.sciezki().ffmpeg, "ffmpeg")?;
+    szacuj_z_probki_z(&ffmpeg, &wejscie, &media, &profil, &kontekst(&stan)).await
+}
+
 /// 5 s dźwięku z dokładnie tymi ustawieniami audio (np. AAC 8 kb/s) jako data URL.
 pub async fn odsluch_z(
     ffmpeg: &Path,

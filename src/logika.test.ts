@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   KODEKI_AUDIO, KODEKI_WIDEO, formatujCzas, formatujRozmiar, komendaDoPokazania, parsujCzas, podpowiedzAac,
-  profilDla, zmienKontener, audioDomyslne, wyciagnijUrl, wyborSzybki, ZRODLA_POBIERANIA, sciezkaDoPokazania,
+  pokazOstrzezenieWieku, profilDla, zmienKontener, audioDomyslne, wyciagnijUrl, wyborSzybki, ZRODLA_POBIERANIA, sciezkaDoPokazania,
 } from "./logika";
 
 describe("podpowiedź AAC < 32 kb/s", () => {
@@ -103,5 +103,26 @@ describe("v1.2 usterki", () => {
     expect(sciezkaDoPokazania("C:/Users/sora/SoraConverter-test\\plik.mp4")).toBe("C:\\Users\\sora\\SoraConverter-test\\plik.mp4");
     expect(sciezkaDoPokazania("D:\\Wideo/Gotowe/a.mp4")).toBe("D:\\Wideo\\Gotowe\\a.mp4");
     expect(sciezkaDoPokazania("/home/sora/Wideo/a.mp4")).toBe("/home/sora/Wideo/a.mp4");
+  });
+});
+
+describe("pokazOstrzezenieWieku (test na żywo 08.10)", () => {
+  const dzien = 86_400_000;
+  const stara = { wersja: "2026.08.19", stary: true, pochodzenie: "wlasna" };
+  it("nie ostrzega, gdy wersja jest młoda", () => {
+    expect(pokazOstrzezenieWieku({ ...stara, stary: false }, null, 0)).toBe(false);
+  });
+  it("ostrzega przy starej wersji bez potwierdzenia", () => {
+    expect(pokazOstrzezenieWieku(stara, null, 0)).toBe(true);
+  });
+  it("milczy, gdy „Aktualizuj” potwierdził, że to najnowsza, i minęło < 14 dni", () => {
+    expect(pokazOstrzezenieWieku(stara, { wersja: "2026.08.19", kiedy: 0 }, 13 * dzien)).toBe(false);
+  });
+  it("wraca po 14 dniach albo przy innej wersji", () => {
+    expect(pokazOstrzezenieWieku(stara, { wersja: "2026.08.19", kiedy: 0 }, 15 * dzien)).toBe(true);
+    expect(pokazOstrzezenieWieku(stara, { wersja: "2026.07.01", kiedy: 0 }, dzien)).toBe(true);
+  });
+  it("kopia z PATH ostrzega zawsze", () => {
+    expect(pokazOstrzezenieWieku({ ...stara, pochodzenie: "path" }, { wersja: "2026.08.19", kiedy: 0 }, dzien)).toBe(true);
   });
 });
