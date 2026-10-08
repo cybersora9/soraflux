@@ -1,3 +1,8 @@
+// Testy IPC (tauri::test, mock runtime) tylko na Linuxie: na Windows binarka testu bez manifestu
+// Common Controls v6 nie startuje (0xc0000139 STATUS_ENTRYPOINT_NOT_FOUND, lokalnie i w CI windows-latest).
+// Ta sama logika komend jest pokryta tu na ubuntu-24.04 i testami jednostkowymi w src/.
+#![cfg(not(windows))]
+
 //! Kontrakt front ↔ Rust: komendy wołane przez IPC Tauri (mock runtime)
 //! z JSON-em w dokładnie takim kształcie, jaki wysyła `src/api.ts`.
 
