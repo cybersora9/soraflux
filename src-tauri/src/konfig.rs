@@ -110,9 +110,11 @@ pub fn katalog_danych() -> PathBuf {
 /// `nazwa.test.ts` pilnuje, żeby starej nazwy nie było w repo poza historią.
 pub const STARA_NAZWA: &str = concat!("Sora", "Flux");
 
-/// Migracja ze starej nazwy (v1.0) przy pierwszym starcie SoraConverter: jeśli nowy katalog nie ma
-/// jeszcze konfigu, a stary ma, kopiujemy `konfig.json` i `presety.json` (tylko kopia,
-/// stary katalog zostaje nietknięty). Zwraca skopiowane pliki.
+/// Migracja z katalogu wersji 1.0.x: kopiujemy `konfig.json` i `presety.json`, gdy w nowym
+/// katalogu ich nie ma albo stary plik jest NOWSZY (ktoś wrócił na 1.0.x i coś zmienił, potem
+/// zainstalował nową wersję). Wygrywa nowszy z obu. Tylko kopia: stary katalog zostaje
+/// nietknięty. `fs::copy` zachowuje czas modyfikacji, więc ta sama kopia nie wraca co start.
+/// Zwraca skopiowane pliki.
 pub fn migruj_ze_starej_nazwy(
     stary_konfig: &Path,
     stary_dane: &Path,
@@ -120,15 +122,26 @@ pub fn migruj_ze_starej_nazwy(
     nowy_dane: &Path,
 ) -> Vec<PathBuf> {
     let mut skopiowane = Vec::new();
-    if nowy_konfig.join(PLIK).exists() || !stary_konfig.join(PLIK).is_file() {
+    if !stary_konfig.join(PLIK).is_file() {
         return skopiowane;
     }
+    let zmieniony = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let mut kopiuj = |z: PathBuf, do_: PathBuf| {
-        if z.is_file() && !do_.exists() {
+        let nowszy = match (zmieniony(&z), zmieniony(&do_)) {
+            (_, None) => !do_.exists(),
+            (Some(stary), Some(nowy)) => stary > nowy,
+            (None, Some(_)) => false,
+        };
+        if z.is_file() && nowszy {
             if let Some(k) = do_.parent() {
                 let _ = std::fs::create_dir_all(k);
             }
             if std::fs::copy(&z, &do_).is_ok() {
+                // Czas oryginału na kopii (Windows robi to sam, Linux nie): inaczej porównanie
+                // dat przy następnym starcie kopiowałoby w kółko.
+                if let (Some(t), Ok(f)) = (zmieniony(&z), std::fs::OpenOptions::new().write(true).open(&do_)) {
+                    let _ = f.set_modified(t);
+                }
                 skopiowane.push(do_);
             }
         }
@@ -223,10 +236,24 @@ mod testy {
         assert_eq!(wczytaj(&nk).jezyk.as_deref(), Some("en"));
         assert_eq!(wczytaj(&nk).rownolegle, 3);
         assert!(sk.join(PLIK).is_file(), "stary katalog zostaje");
-        // drugi start: nic nie nadpisujemy
+        // drugi start bez zmian: kopia ma czas oryginału, nic nie wraca
+        assert!(migruj_ze_starej_nazwy(&sk, &sd, &nk, &nd).is_empty());
+        // nowy konfig nowszy od starego: zostaje
+        let czas = |p: &Path, t: std::time::SystemTime| {
+            std::fs::OpenOptions::new().write(true).open(p).unwrap().set_modified(t).unwrap()
+        };
+        let teraz = std::time::SystemTime::now();
+        let godzine_temu = teraz - std::time::Duration::from_secs(3600);
         std::fs::write(sk.join(PLIK), r#"{"jezyk":"pl"}"#).unwrap();
+        czas(&sk.join(PLIK), godzine_temu);
+        czas(&nk.join(PLIK), teraz);
         assert!(migruj_ze_starej_nazwy(&sk, &sd, &nk, &nd).is_empty());
         assert_eq!(wczytaj(&nk).jezyk.as_deref(), Some("en"));
+        // stary nowszy (powrót na 1.0.x i zmiana ustawień): wygrywa stary
+        czas(&sk.join(PLIK), teraz + std::time::Duration::from_secs(60));
+        assert_eq!(migruj_ze_starej_nazwy(&sk, &sd, &nk, &nd), vec![nk.join(PLIK)]);
+        assert_eq!(wczytaj(&nk).jezyk.as_deref(), Some("pl"));
+        assert!(migruj_ze_starej_nazwy(&sk, &sd, &nk, &nd).is_empty(), "i tylko raz");
         // brak starego katalogu: nic
         let pusty = tmp.path().join("inny");
         assert!(migruj_ze_starej_nazwy(&pusty, &pusty, &pusty.join("a"), &pusty.join("b")).is_empty());

@@ -244,8 +244,6 @@ export function wyciagnijUrl(tekst: string): string[] {
 }
 
 /** Obsługiwane źródła pokazywane jako chipy na ekranie Pobierz (yt-dlp umie więcej). */
-export const ZRODLA_POBIERANIA = ["SoundCloud", "Bandcamp", "Vimeo", "Mixcloud", "Internet Archive"] as const;
-
 /** Szybkie akcje pobierania → wybór dla yt-dlp. */
 export function wyborSzybki(akcja: "mp3" | "najlepsza"): Wybor {
   return akcja === "mp3" ? { typ: "tylko_audio", format: "mp3" } : { typ: "najlepsza" };

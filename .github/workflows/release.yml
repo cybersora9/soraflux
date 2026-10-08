@@ -35,6 +35,17 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Tag of this release: the pushed tag, or v<version from tauri.conf.json> for a manual run
+      # (latest.json must point at the tag the installer will be published under).
+      - name: Release tag
+        id: tag
+        shell: pwsh
+        run: |
+          $wersja = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "v$wersja" }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $tag -ne "v$wersja") { throw "Tag $tag does not match version $wersja in tauri.conf.json" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
       - name: Install dependencies
         run: npm ci
 
@@ -79,12 +90,18 @@ jobs:
         if: env.TAURI_SIGNING_PRIVATE_KEY != ''
         run: npx tauri signer sign "${{ steps.plik.outputs.sciezka }}"
 
+      # Without the .sig the updater rejects latest.json, so a tagged release must not go out unsigned.
+      - name: Require the updater signature on tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: if (-not (Test-Path "${{ steps.plik.outputs.sciezka }}.sig")) { throw "Missing updater signature: set TAURI_SIGNING_PRIVATE_KEY (docs/UPDATES.md)" }
+
       - name: latest.json and SHA256 checksums
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force wydanie | Out-Null
           Copy-Item "${{ steps.plik.outputs.sciezka }}*" wydanie/
-          node scripts/latest-json.mjs wydanie "${{ github.repository }}" "${{ github.ref_name }}"
+          node scripts/latest-json.mjs wydanie "${{ github.repository }}" "${{ steps.tag.outputs.tag }}"
           Get-ChildItem wydanie -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
           } | Out-File -Encoding ascii wydanie/SHA256SUMS.txt
@@ -95,9 +112,23 @@ jobs:
           name: soraflux-windows
           path: wydanie/*
 
-      - name: Draft release (tags only)
+      # A release that already exists (e.g. published by hand with the website installer) is never
+      # touched: uploading would replace its files and change the SHA-256 people already verified.
+      - name: Check for an existing release
+        id: istnieje
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}" *> $null
+          "jest=$([int]($LASTEXITCODE -eq 0))" >> $env:GITHUB_OUTPUT
+          $global:LASTEXITCODE = 0
+
+      - name: Draft release (tags only, new releases only)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.istnieje.outputs.jest == '0'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          tag_name: ${{ steps.tag.outputs.tag }}
           files: wydanie/*

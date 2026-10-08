@@ -452,7 +452,7 @@ h1, h2, h3, p { margin: 0; }
 .pole-url { width: 100%; min-height: 84px; resize: vertical; padding: var(--odstep-3); border: 1px solid var(--obramowanie); border-radius: var(--promien-m); background: var(--powierzchnia-2); color: var(--tekst); line-height: 1.5; }
 .pole-url:focus { outline: none; border-color: var(--akcent); box-shadow: 0 0 0 3px var(--akcent-slaby); }
 .zrodla-pobierania { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--odstep-3); }
-.zrodla-pobierania .pole-etykieta { margin-right: var(--odstep-1); }
+.zrodla-opis { color: var(--tekst-2); font-size: var(--rozmiar-s); margin-right: var(--odstep-1); }
 .chip-zrodlo { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--promien-pelny); background: var(--powierzchnia-3); color: var(--tekst-2); font-size: var(--rozmiar-xs); font-weight: 600; }
 .chip-zrodlo .ikona { width: 13px; height: 13px; }
 .filmy { display: flex; flex-direction: column; gap: var(--odstep-3); }

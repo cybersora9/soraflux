@@ -40,6 +40,10 @@ const wygladParam = parametry.get("wyglad");
 if (wygladParam) konfig.motyw_wyglad = wygladParam;
 const jezykParam = parametry.get("jezyk");
 if (jezykParam === "pl" || jezykParam === "en") konfig.jezyk = jezykParam;
+// Zmyślone nazwy w języku zrzutu (EN zrzuty bez polskich tytułów i ścieżek).
+const tx = (pl: string, en: string) => (konfig.jezyk === "en" ? en : pl);
+// Miniatura z ffmpeg lavfi (gradient), zero cudzych obrazów.
+const MINIATURA = new URL("./atrapa-miniatura.jpg", import.meta.url).href;
 
 const narzedziaZnalezione = parametry.get("kreator") !== "1";
 
@@ -114,7 +118,7 @@ function mediaDla(sciezka: string): Media {
   }
   const a = audioPrzyklad({});
   return {
-    ...baza, czas_s: 187.4, rozmiar_b: 412_000_000, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+    ...baza, czas_s: 187.4, rozmiar_b: 432_013_312, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
     wideo: wideoPrzyklad({}), audio: a, sciezki_audio: [a],
   };
 }
@@ -236,7 +240,7 @@ function symuluj(z: InfoZadania, szybkosc: number, koniec?: Partial<InfoZadania>
     zadania.set(z.id, { ...z });
     if (z.procent >= 100) {
       clearInterval(t);
-      Object.assign(z, { stan: { typ: "gotowe", wyjscie: z.wyjscie ?? "C:/Wideo/wynik.mp4" }, rozmiar_wyniku: 74_000_000 }, koniec);
+      Object.assign(z, { stan: { typ: "gotowe", wyjscie: z.wyjscie ?? tx("C:/Wideo/wynik.mp4", "C:/Videos/result.mp4") }, rozmiar_wyniku: 77_594_624 }, koniec);
       emituj(z);
     }
   }, 400);
@@ -244,20 +248,20 @@ function symuluj(z: InfoZadania, szybkosc: number, koniec?: Partial<InfoZadania>
 
 if (parametry.get("demo") === "1") {
   const przyklady: [string, InfoZadania["stan"], number, InfoZadania["rodzaj"]][] = [
-    ["wakacje-2026.mp4 → mp4 480p", { typ: "trwa" }, 62, "konwersja"],
-    ["Wykład: sieci neuronowe [test01]", { typ: "trwa" }, 28, "pobranie"],
-    ["podcast-odc-14.wav → m4a", { typ: "oczekuje" }, 0, "konwersja"],
-    ["zrzut-ekranu.png → webp", { typ: "gotowe", wyjscie: "C:/Obrazy/zrzut-ekranu.webp" }, 100, "konwersja"],
-    ["stary-film.avi → mkv", { typ: "blad", komunikat: '@i18n {"k":"ffmpeg_kod","a":{"kod":"1"}}\n\nInvalid data found when processing input' }, 13, "konwersja"],
-    ["piosenka-uszkodzona.mp3", { typ: "gotowe", wyjscie: "C:/Muzyka/Gotowe/piosenka-uszkodzona.m4a" }, 100, "konwersja"],
+    [tx("wakacje-2026.mp4 → mp4 480p", "holiday-2026.mp4 → mp4 480p"), { typ: "trwa" }, 62, "konwersja"],
+    [tx("Przykładowy film", "Sample video"), { typ: "trwa" }, 28, "pobranie"],
+    [tx("podcast-odc-14.wav → m4a", "podcast-ep-14.wav → m4a"), { typ: "oczekuje" }, 0, "konwersja"],
+    [tx("zrzut-ekranu.png → webp", "screenshot.png → webp"), { typ: "gotowe", wyjscie: tx("C:/Obrazy/zrzut-ekranu.webp", "C:/Pictures/screenshot.webp") }, 100, "konwersja"],
+    [tx("stary-film.avi → mkv", "old-movie.avi → mkv"), { typ: "blad", komunikat: '@i18n {"k":"ffmpeg_kod","a":{"kod":"1"}}\n\nInvalid data found when processing input' }, 13, "konwersja"],
+    [tx("piosenka-uszkodzona.mp3", "song-damaged.mp3"), { typ: "gotowe", wyjscie: tx("C:/Muzyka/Gotowe/piosenka-uszkodzona.m4a", "C:/Music/Done/song-damaged.m4a") }, 100, "konwersja"],
   ];
   for (const [nazwa, stan, procent, rodzaj] of przyklady) {
     const id = nastepneId++;
     const gotowe = stan.typ === "gotowe";
     zadania.set(id, {
       id, nazwa, rodzaj, stan, procent, wyjscie: gotowe ? stan.wyjscie : null,
-      rozmiar_wejscia: gotowe ? 3_400_000 : 412_000_000, rozmiar_wyniku: gotowe ? 612_000 : null, awaria_sprzetu: false,
-      ostrzezenie: nazwa.includes("uszkodzona") ? { typ: "uciete", zrodlo_konczy_s: 32, wynik_s: 32, oczekiwane_s: 179 } : null,
+      rozmiar_wejscia: gotowe ? 3_400_000 : 432_013_312, rozmiar_wyniku: gotowe ? 612_000 : null, awaria_sprzetu: false,
+      ostrzezenie: /uszkodzona|damaged/.test(nazwa) ? { typ: "uciete", zrodlo_konczy_s: 32, wynik_s: 32, oczekiwane_s: 179 } : null,
     });
   }
 }
@@ -265,11 +269,11 @@ if (parametry.get("demo") === "1") {
 const INFO_PRZYKLAD: Info = {
   typ: "film",
   id: "test01",
-  tytul: "Jak działa kompresja wideo? Klatki I, P i B w 12 minut",
+  tytul: tx("Przykładowy film", "Sample video"),
   url: "https://example.com/watch?v=test01",
-  miniatura: null,
-  czas_s: 731,
-  autor: "Kanał przykładowy",
+  miniatura: MINIATURA,
+  czas_s: 201,
+  autor: tx("Kanał przykładowy", "Sample channel"),
   formaty: [],
   wysokosci: [2160, 1440, 1080, 720, 480, 360, 240, 144],
   napisy: ["en", "pl"],
@@ -284,8 +288,8 @@ const opoznij = <T>(x: T, ms = 120): Promise<T> => new Promise((r) => setTimeout
 
 export const atrapa: Api = {
   wTauri: false,
-  wersjaApki: () => opoznij("1.2.0"),
-  raport: () => opoznij("SoraConverter 1.2.0\nSystem: windows x86_64\nffmpeg: 7.1-essentials_build-www.gyan.dev\n\nOstatnie wpisy dziennika:\n(brak)\n"),
+  wersjaApki: () => opoznij("1.3.0"),
+  raport: () => opoznij("SoraFlux 1.3.0\nSystem: windows x86_64\nffmpeg: 7.1-essentials_build-www.gyan.dev\n\nOstatnie wpisy dziennika:\n(brak)\n"),
   sprawdzAktualizacje: () => opoznij(null, 300),
   async zainstalujAktualizacje() {},
   sonda: (s) => opoznij(mediaDla(s)),
@@ -300,7 +304,7 @@ export const atrapa: Api = {
       const nazwa = r.typ === "konwersja" ? nazwaPliku(r.wejscie) : r.opcje.tytul ?? r.url;
       const z: InfoZadania = {
         id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null,
-        rozmiar_wejscia: 412_000_000, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
+        rozmiar_wejscia: 432_013_312, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
       };
       emituj(z);
       setTimeout(() => symuluj(z, 7), 300);
@@ -322,7 +326,9 @@ export const atrapa: Api = {
       s.flatMap((p): PlikZFolderu[] =>
         /\.[a-z0-9]+$/i.test(p)
           ? [{ sciezka: p, podkatalog: null }]
-          : ["dzien-1/plaza.mp4", "dzien-1/zachod-slonca.mov", "dzien-2/rejs.mp4", "film-z-drona.mkv"]
+          : (konfig.jezyk === "en"
+              ? ["day-1/beach.mp4", "day-1/sunset.mov", "day-2/boat-trip.mp4", "drone-footage.mkv"]
+              : ["dzien-1/plaza.mp4", "dzien-1/zachod-slonca.mov", "dzien-2/rejs.mp4", "film-z-drona.mkv"])
               .filter((n) => r.length === 0 || r.includes(rozszerzenie(n)))
               .map((n) => ({ sciezka: `${p}/${n}`, podkatalog: n.includes("/") ? n.split("/")[0] : "" })),
       ),
@@ -395,10 +401,10 @@ export const atrapa: Api = {
   wybierzPliki: (obrazy) =>
     opoznij(
       obrazy
-        ? ["C:/Obrazy/zdjecie-gory.jpg", "C:/Obrazy/zrzut-ekranu.png", "C:/Obrazy/logo.png"]
-        : ["C:/Wideo/wakacje-2026.mp4", "C:/Wideo/telefon-pionowo-hdr.mov"],
+        ? tx("C:/Obrazy/zdjecie-gory.jpg|C:/Obrazy/zrzut-ekranu.png|C:/Obrazy/logo.png", "C:/Pictures/mountains.jpg|C:/Pictures/screenshot.png|C:/Pictures/logo.png").split("|")
+        : tx("C:/Wideo/wakacje-2026.mp4|C:/Wideo/telefon-pionowo-hdr.mov", "C:/Videos/holiday-2026.mp4|C:/Videos/phone-vertical-hdr.mov").split("|"),
     ),
-  wybierzFolder: () => opoznij("C:/Wideo/Gotowe"),
+  wybierzFolder: () => opoznij(tx("C:/Wideo/Gotowe", "C:/Videos/Done")),
   wybierzPlik: () => opoznij("C:/narzedzia/ffmpeg.exe"),
   async pokazWFolderze() {},
   async otworzLink() {},

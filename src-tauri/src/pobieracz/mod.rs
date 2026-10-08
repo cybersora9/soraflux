@@ -106,6 +106,13 @@ pub fn argumenty_info(url: &str, playlista: bool, sc: &Sciezki) -> Vec<OsString>
     a
 }
 
+/// Nazwa pliku: tytuł + „ [id]” (puste dla bezpośrednich linków, patrz `argumenty_pobrania`).
+pub const SZABLON_NAZWY: &str = "%(title).150B%(sf_id|)s.%(ext)s";
+
+/// Sortowanie formatów dla MP4: najpierw kodek H.264 + AAC (odtworzy każdy sprzęt), dopiero potem
+/// rozdzielczość. Odwrotnie (`res` pierwsze) 4K w VP9/AV1 wygrywało i lądowało w .mp4.
+pub const SORTOWANIE_MP4: &str = "vcodec:h264,res,fps,acodec:m4a";
+
 pub fn argumenty_pobrania(url: &str, o: &OpcjePobrania, katalog: &Path, sc: &Sciezki) -> Vec<OsString> {
     let mut a = vec![
         s("--newline"),
@@ -118,8 +125,17 @@ pub fn argumenty_pobrania(url: &str, o: &OpcjePobrania, katalog: &Path, sc: &Sci
         s("--no-simulate"),
         s("--no-mtime"),
         s("-o"),
-        katalog.join("%(title).150B [%(id)s].%(ext)s").into_os_string(),
+        katalog.join(SZABLON_NAZWY).into_os_string(),
     ];
+    // Bezpośredni link (extractor Generic): id = nazwa pliku z adresu, więc „[id]” tylko dubluje
+    // tytuł („do-pobrania [do-pobrania].mp4”). Szablony `-o TYP:` są per rodzaj pliku, nie per
+    // extractor, więc pole `sf_id` ustawiamy przez --parse-metadata: „ [id]”, a dla Generic pusto.
+    a.extend([
+        s("--parse-metadata"),
+        s(" [%(id)s]:(?P<sf_id>.*)"),
+        s("--parse-metadata"),
+        s("%(extractor_key)s:^Generic$(?P<sf_id>)"),
+    ]);
     a.push(s(if o.playlista { "--yes-playlist" } else { "--no-playlist" }));
     let kontener = match o.kontener.as_str() {
         "mkv" | "webm" => o.kontener.as_str(),
@@ -146,10 +162,15 @@ pub fn argumenty_pobrania(url: &str, o: &OpcjePobrania, katalog: &Path, sc: &Sci
         }
     }
     if !audio {
-        a.extend([s("--merge-output-format"), s(kontener)]);
-        if kontener == "mp4" && !matches!(o.wybor, Wybor::Format { .. }) {
-            // W MP4 wolimy H.264 + AAC (odtworzy każdy sprzęt), przy tej samej rozdzielczości.
-            a.extend([s("-S"), s("res,fps,vcodec:h264,acodec:m4a")]);
+        if kontener == "mp4" {
+            // Serwis bez H.264: scalone VP9/AV1 + Opus idzie do MKV zamiast do .mp4, którego
+            // część odtwarzaczy nie otworzy.
+            a.extend([s("--merge-output-format"), s("mp4/mkv")]);
+            if !matches!(o.wybor, Wybor::Format { .. }) {
+                a.extend([s("-S"), s(SORTOWANIE_MP4)]);
+            }
+        } else {
+            a.extend([s("--merge-output-format"), s(kontener)]);
         }
         if o.napisy {
             a.extend([s("--write-subs"), s("--sub-langs"), s(&o.jezyki_napisow), s("--embed-subs")]);
@@ -402,9 +423,66 @@ mod testy {
         let a = argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default());
         let j = jako_tekst(&a);
         assert!(j.contains("-f bv*[height<=720]+ba/b[height<=720]/bv*+ba/b"));
-        assert!(j.contains("--merge-output-format mp4"));
+        assert!(j.contains("--merge-output-format mp4/mkv"));
+        assert!(j.contains("-S vcodec:h264,res,fps,acodec:m4a"));
         assert!(j.contains("--write-subs --sub-langs pl,en --embed-subs"));
         assert!(j.contains("--no-playlist"));
+    }
+
+    #[test]
+    fn mkv_bez_preferencji_h264() {
+        let o = OpcjePobrania { kontener: "mkv".into(), ..Default::default() };
+        let j = jako_tekst(&argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default()));
+        assert!(j.contains("--merge-output-format mkv"));
+        assert!(!j.contains("-S "), "w MKV najwyższa jakość, dowolny kodek");
+    }
+
+    #[test]
+    fn nazwa_pliku_bez_id_dla_bezposredniego_linku() {
+        let a = argumenty_pobrania("u", &OpcjePobrania::default(), Path::new("/tmp"), &Sciezki::default());
+        let j = jako_tekst(&a);
+        assert!(j.contains("%(title).150B%(sf_id|)s.%(ext)s"));
+        assert!(j.contains("--parse-metadata  [%(id)s]:(?P<sf_id>.*)"));
+        assert!(j.contains("--parse-metadata %(extractor_key)s:^Generic$(?P<sf_id>)"));
+    }
+
+    /// yt-dlp do testów na prawdziwym programie: `SORAFLUX_YTDLP` albo kopia apki w %APPDATA%.
+    /// Brak = test pomijany (CI nie ma yt-dlp), lokalnie w bramce jest.
+    fn ytdlp_testowy() -> Option<PathBuf> {
+        std::env::var_os("SORAFLUX_YTDLP")
+            .map(PathBuf::from)
+            .or_else(|| dirs::config_dir().map(|k| k.join("SoraConverter/narzedzia/yt-dlp.exe")))
+            .filter(|p| p.is_file())
+    }
+
+    /// Prawdziwy wybór formatu przez yt-dlp na fixture (H.264 do 1080p, VP9/AV1 w 4K).
+    fn wybrany_format(o: &OpcjePobrania) -> Option<String> {
+        let y = ytdlp_testowy()?;
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/ytdlp_film.json");
+        let mut a = argumenty_pobrania("u", o, Path::new("."), &Sciezki::default());
+        a.truncate(a.len() - 2); // bez „-- url”
+        a.retain(|x| x != "--no-simulate");
+        let mut c = std::process::Command::new(y);
+        c.args(&a)
+            .args(["--simulate", "--no-warnings", "--print", "%(vcodec)s|%(acodec)s|%(ext)s", "--load-info-json"])
+            .arg(fixture);
+        let wy = c.output().ok()?;
+        let tekst = String::from_utf8_lossy(&wy.stdout);
+        tekst.lines().find(|l| l.matches('|').count() == 2).map(String::from)
+    }
+
+    #[test]
+    fn najlepsza_w_mp4_to_h264_na_prawdziwym_ytdlp() {
+        let Some(w) = wybrany_format(&OpcjePobrania::default()) else {
+            eprintln!("pominięte: brak yt-dlp (SORAFLUX_YTDLP)");
+            return;
+        };
+        assert_eq!(w, "avc1.64002A|mp4a.40.2|mp4", "Najlepsza w MP4 = H.264 + AAC");
+        let o = OpcjePobrania { wybor: Wybor::Wysokosc { h: 2160 }, ..Default::default() };
+        assert!(wybrany_format(&o).unwrap().starts_with("avc1"), "4K w MP4 też H.264 (1080p)");
+        let o = OpcjePobrania { kontener: "mkv".into(), ..Default::default() };
+        let w = wybrany_format(&o).unwrap();
+        assert!(w.ends_with("|mkv") && !w.starts_with("avc1"), "MKV = najwyższa jakość: {w}");
     }
 
     #[test]

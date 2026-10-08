@@ -1,11 +1,33 @@
-# SoraFlux
+<p align="center"><img src="src-tauri/icons/128x128@2x.png" width="96" height="96" alt=""></p>
+<h1 align="center">SoraFlux</h1>
 
-**A free, open-source, local video, audio, image and GIF converter with downloads (yt-dlp) and a simple GUI.**
-Everything runs on your computer: no uploads, no limits, no ads, no telemetry.
+<p align="center"><b>Convert and download video, audio, images and GIFs. On your computer, no uploads.</b><br>
+Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
-**English** · [Polski](README.pl.md)
+<p align="center"><b>English</b> · <a href="README.pl.md">Polski</a></p>
 
-![Convert tab: quick actions, file list, info card](zrzuty/en/v1_2-konwertuj-sora-a-ciemny.png)
+<h3 align="center"><a href="https://github.com/cybersora9/soraflux/releases/latest">⬇ Download SoraFlux for Windows</a></h3>
+<p align="center">Windows 10/11 (64-bit) · <a href="#installation">How to install, step by step</a></p>
+
+![Demo: two videos dropped in, "For phones (480p 25 fps)", Convert, the queue shows 412 MB → 74 MB (−82%)](docs/showcase/demo.webp)
+
+<sub>The demo was made with SoraFlux itself: screenshots of the app turned into an animated WebP by its own converter ([`scripts/showcase.mjs`](scripts/showcase.mjs)). Made-up files, real UI.</sub>
+
+## Why SoraFlux
+
+- **No upload, no limits.** Your files never leave your computer. A 4 GB video works the same as a 4 MB one, as many as you like.
+- **Full control over quality.** One-click actions ("Shrink to 10 MB", "For phones", "Make a GIF"), then resolution, frame rate, CRF, bitrate or an exact target size in MB, with a before/after preview.
+- **6 themes, plus your own.** Kissaten, City Pop and MiniDisc in two palettes, light and dark (WCAG AA contrast), and an editor for your own themes.
+
+| | SoraFlux | A typical online converter |
+|---|---|---|
+| Uploading your files | none, everything is local | the whole file goes to someone else's server |
+| File size limit | none | often 100 MB–1 GB, more for a fee |
+| Ads | none | usually |
+| Queue | many files and whole folders at once | one file at a time, waiting in line |
+| Privacy | zero telemetry, no account | depends on the site |
+| Works offline | yes (after the first tool download) | no |
+| Quality settings | resolution, fps, CRF, bitrate, target MB, audio 8–320 kbps | a few presets |
 
 ## Features
 
@@ -25,22 +47,46 @@ Everything runs on your computer: no uploads, no limits, no ads, no telemetry.
 - **Hardened** against common pitfalls: odd dimensions, 10-bit and **phone HDR** (automatic SDR conversion so colors don't wash out), variable frame rate, rotation metadata, paths with non-ASCII characters and longer than 260 characters, several 2-pass jobs at once, hardware encoders that fail (falls back to software), closing the app mid-job (no ffmpeg left running). Details: [HARDENING.md](HARDENING.md).
 - Queue (1 video at a time by default with images alongside, "Keep the computer responsive", a warning when the source file is truncated), live size estimate, ffmpeg command preview, built-in and your own presets, Polish and English, dark and light theme (WCAG AA contrast), keyboard navigation, portable mode.
 
-## Screenshots
+## Themes
+
+Six themes, each light and dark. Pick one in Settings → Appearance, or make your own there.
+
+| Theme | Light | Dark |
+|---|---|---|
+| **Kissaten** · cybersora | ![Kissaten, cybersora palette, light](zrzuty/en/v1_2-konwertuj-sora-a-jasny.png) | ![Kissaten, cybersora palette, dark](zrzuty/en/v1_2-konwertuj-sora-a-ciemny.png) |
+| **City Pop** · cybersora | ![City Pop, cybersora palette, light](zrzuty/en/v1_2-konwertuj-sora-b-jasny.png) | ![City Pop, cybersora palette, dark](zrzuty/en/v1_2-konwertuj-sora-b-ciemny.png) |
+| **MiniDisc** · cybersora | ![MiniDisc, cybersora palette, light](zrzuty/en/v1_2-konwertuj-sora-c-jasny.png) | ![MiniDisc, cybersora palette, dark](zrzuty/en/v1_2-konwertuj-sora-c-ciemny.png) |
+| **Kissaten** · Japanese | ![Kissaten, Japanese palette, light](zrzuty/en/v1_2-konwertuj-jp-a-jasny.png) | ![Kissaten, Japanese palette, dark](zrzuty/en/v1_2-konwertuj-jp-a-ciemny.png) |
+| **City Pop** · Japanese | ![City Pop, Japanese palette, light](zrzuty/en/v1_2-konwertuj-jp-b-jasny.png) | ![City Pop, Japanese palette, dark](zrzuty/en/v1_2-konwertuj-jp-b-ciemny.png) |
+| **MiniDisc** · Japanese | ![MiniDisc, Japanese palette, light](zrzuty/en/v1_2-konwertuj-jp-c-jasny.png) | ![MiniDisc, Japanese palette, dark](zrzuty/en/v1_2-konwertuj-jp-c-ciemny.png) |
 
 | | |
 |---|---|
-| ![City Pop · Japanese palette, light](zrzuty/en/v1_2-konwertuj-jp-b-jasny.png) | ![MiniDisc · cybersora palette, dark](zrzuty/en/v1_2-konwertuj-sora-c-ciemny.png) |
-| ![Download](zrzuty/en/v1_2-pobierz-light.png) | ![Queue with a truncated-file warning](zrzuty/en/v1_2-kolejka-dark.png) |
-| ![Settings → Appearance](zrzuty/en/v1_2-ustawienia-wyglad-dark.png) | ![Before/after preview](zrzuty/en/v1_2-podglad-przed-po-light.png) |
-| ![Images](zrzuty/en/v1_2-obrazy-light.png) | ![First run](zrzuty/en/v1_2-kreator-dark.png) |
+| ![Download](zrzuty/en/v1_2-pobierz-dark.png) | ![Queue with a truncated-file warning](zrzuty/en/v1_2-kolejka-dark.png) |
+| ![Before/after preview](zrzuty/en/v1_2-podglad-przed-po-light.png) | ![Images](zrzuty/en/v1_2-obrazy-light.png) |
 
-All screenshots (6 themes × light/dark and every tab) are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](zrzuty/) (Polish UI). They are generated from a mock backend with made-up data (`npm run zrzuty:en`).
+All screenshots are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](zrzuty/) (Polish UI), generated from a mock backend with made-up data (`npm run zrzuty:en`).
 
 ## Installation
 
-Download `SoraFlux_x.y.z_x64-setup.exe` from [Releases](https://github.com/cybersora9/soraflux/releases) (Windows 10/11, x64). On first run the app offers to download ffmpeg (and yt-dlp for downloads), checking their SHA256.
+SoraFlux is a normal Windows program with an installer. You don't need to know anything about GitHub or code.
 
-The installer is not code-signed yet, so Windows may show "Windows protected your PC": click "More info" → "Run anyway". You can compare the file with `SHA256SUMS.txt` from the release. Signing is in progress: [docs/SIGNING.md](docs/SIGNING.md).
+1. Open the **[latest release](https://github.com/cybersora9/soraflux/releases/latest)** (or on the repository page, click **Releases** in the right-hand column).
+2. Scroll down to **Assets** and click **`SoraFlux_x.y.z_x64-setup.exe`** (x.y.z is the version, e.g. 1.3.0). The browser saves it to your **Downloads** folder.
+   Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app.
+3. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux_…_x64-setup.exe`.
+4. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
+5. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
+6. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
+7. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
+
+You can also right-click a video, audio or image file in Explorer and pick **Convert with SoraFlux**.
+
+- **Requirements:** Windows 10 or 11, 64-bit. The installer is small because ffmpeg and yt-dlp are not inside: the app downloads them from their official releases on first start (one click, SHA256 verified).
+- **Portable mode:** create a folder named `portable` next to `SoraFlux.exe` (e.g. on a USB stick). Settings, presets, the log and the downloaded tools then live in that folder, nothing in your user profile.
+- **Updating:** from 1.3.0 on, Settings → "Check for updates" downloads and installs a new version (signed, verified by the app). From 1.2.x, install 1.3.0 once by hand: download the new installer and run it over the old version; settings and presets are kept.
+- **Uninstalling:** Windows Settings → Apps → Installed apps → SoraFlux → Uninstall.
+- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux_1.3.0_x64-setup.exe` and compare the result with the number in that file.
 
 ## How to use
 
@@ -51,6 +97,26 @@ The installer is not code-signed yet, so Windows may show "Windows protected you
 5. **Queue**: progress, ETA, cancel, "Show in folder", size comparison.
 
 Output goes next to the source (or to a folder you choose) and **never overwrites the original**: a name clash produces `name (1).mp4`. While working the file is called `name.part.mp4` and gets its final name only on success; partial files from a crash are cleaned up on the next start.
+
+## FAQ
+
+**Is it really free? What's the catch?**
+No catch: MIT license, no ads, no account, no paid tier. It's made by [cybersora](https://cybersora.pl), a small studio that builds apps and websites to order; SoraFlux shows what we do.
+
+**Do my files go anywhere?**
+No. Converting happens on your computer with ffmpeg. The app only goes online when you ask: downloading tools, downloading from a link, checking for updates.
+
+**Why does Windows say "Windows protected your PC"?**
+The installer isn't code-signed yet (signing through SignPath is in progress). Click "More info" → "Run anyway", and if you want, compare the SHA256 with `SHA256SUMS.txt` from the release.
+
+**Which sites can I download from?**
+Most popular video and music sites (over 1000, through yt-dlp) and direct links to files. Only download what you have the rights to; SoraFlux does not circumvent DRM.
+
+**Why is "Best quality" in MP4 only 1080p on some sites?**
+MP4 means H.264 + AAC, which plays everywhere (phones, TVs, WhatsApp). Some sites only offer 4K in VP9 or AV1. For 4K, choose MKV as the container.
+
+**Mac or Linux?**
+The code builds on Linux (CI tests run there), but releases are Windows-only for now.
 
 ## Common problems
 

@@ -4,6 +4,8 @@ import { api } from "./api";
 import { t, tekstBledu } from "./i18n";
 import { pokazDymek } from "./sklep";
 
+export const STRONA_WYDAN = "https://github.com/cybersora9/soraflux/releases/latest";
+
 export async function sprawdzAktualizacje(reczne: boolean): Promise<void> {
   try {
     const nowa = await api.sprawdzAktualizacje();
@@ -16,6 +18,7 @@ export async function sprawdzAktualizacje(reczne: boolean): Promise<void> {
       await api.zainstalujAktualizacje();
     }
   } catch (e) {
-    if (reczne) pokazDymek(t("aktualizacje.blad", { blad: tekstBledu(e) }), "blad");
+    if (reczne)
+      pokazDymek(t("aktualizacje.blad", { blad: tekstBledu(e) }), "blad", { etykieta: t("aktualizacje.strona"), zrob: () => void api.otworzLink(STRONA_WYDAN) });
   }
 }

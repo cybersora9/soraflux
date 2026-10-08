@@ -6,7 +6,7 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { t, tekstBledu, tlumaczBlad } from "../i18n";
-import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, ZRODLA_POBIERANIA, type NajnowszyYtdlp } from "../logika";
+import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
 import { folderWyjscia } from "../komponenty/wspolne";
@@ -158,10 +158,9 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
   function zrodla(): HTMLElement {
     return h(
       "div",
-      { class: "zrodla-pobierania", role: "list", "aria-label": t("pobierz.zrodla") },
-      h("span", { class: "pole-etykieta" }, t("pobierz.zrodla")),
-      ...ZRODLA_POBIERANIA.map((z) => h("span", { class: "chip-zrodlo", role: "listitem" }, z)),
-      h("span", { class: "chip-zrodlo", role: "listitem" }, ikona(IKONY.link), t("pobierz.zrodlo.link")),
+      { class: "zrodla-pobierania" },
+      h("span", { class: "zrodla-opis" }, t("pobierz.zrodla.opis")),
+      h("span", { class: "chip-zrodlo" }, ikona(IKONY.link), t("pobierz.zrodlo.link")),
     );
   }
 
@@ -291,8 +290,9 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
         "div",
         { class: "wiersz" },
         h("span", { class: "pole-etykieta" }, t("pobierz.kontener")),
-        wybor(["mp4", "mkv", "webm"].map((k) => ({ wartosc: k, etykieta: k.toUpperCase() })), opcje.kontener, (v) => (opcje.kontener = v), { style: { width: "auto" } }),
+        wybor(["mp4", "mkv", "webm"].map((k) => ({ wartosc: k, etykieta: k.toUpperCase() })), opcje.kontener, (v) => ((opcje.kontener = v), rysuj()), { style: { width: "auto" } }),
       ),
+      h("div", { class: "pole-pomoc", "data-podpowiedz-kontenera": opcje.kontener }, t(`pobierz.kontener.${opcje.kontener === "mp4" ? "mp4" : "inny"}`)),
       h(
         "div",
         { class: "opcje-siatka" },

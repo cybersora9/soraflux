@@ -6,6 +6,10 @@ SoraFlux sprawdza aktualizacje **tylko na żądanie** (Ustawienia → „Sprawd�
 `latest.json` z najnowszego wydania na GitHubie i instaluje nową wersję dopiero po zgodzie użytkownika.
 Każda aktualizacja jest sprawdzana podpisem: apka zna **klucz publiczny**, wydanie podpisuje się **kluczem prywatnym**.
 
+## Stan (październik 2026)
+Zrobione: para kluczy istnieje (`soraflux.key` u opiekuna, z kopią), klucz publiczny jest w `src-tauri/tauri.conf.json`,
+oba sekrety ustawione w repo. **1.3.0 to pierwsza wersja z działającymi aktualizacjami**; z 1.2.x instaluje się ją raz ręcznie.
+
 ## Jednorazowo (maisa, lokalnie)
 1. Wygeneruj parę kluczy (na swoim komputerze, nigdy w chmurze ani w repo):
    ```
