@@ -20,6 +20,16 @@ function plikiTs(katalog: string): string[] {
 }
 
 describe("i18n", () => {
+  it("Pobierz bez nazw serwisów: jeden opis zamiast listy (S2b-1)", () => {
+    for (const s of [pl, en] as Record<string, string>[]) {
+      expect(s["pobierz.zrodla.opis"]).toMatch(/1000/);
+      for (const [k, v] of Object.entries(s))
+        expect(v, k).not.toMatch(/YouTube|SoundCloud|Bandcamp|Vimeo|Mixcloud|Internet Archive/i);
+    }
+    const widok = readFileSync(join(__dirname, "../widoki/pobierz.ts"), "utf8");
+    expect(widok).toContain('t("pobierz.zrodla.opis")');
+    expect(widok).not.toContain("ZRODLA_POBIERANIA");
+  });
   it("PL i EN mają te same klucze", () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(pl).sort());
   });

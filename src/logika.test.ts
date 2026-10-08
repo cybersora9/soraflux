@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   KODEKI_AUDIO, KODEKI_WIDEO, formatujCzas, formatujRozmiar, komendaDoPokazania, parsujCzas, podpowiedzAac,
-  pokazOstrzezenieWieku, profilDla, zmienKontener, audioDomyslne, wyciagnijUrl, wyborSzybki, ZRODLA_POBIERANIA, sciezkaDoPokazania,
+  pokazOstrzezenieWieku, profilDla, zmienKontener, audioDomyslne, wyciagnijUrl, wyborSzybki, sciezkaDoPokazania,
 } from "./logika";
 
 describe("podpowiedź AAC < 32 kb/s", () => {
@@ -91,10 +91,9 @@ describe("pobieranie", () => {
   it("wyciąga linki z tekstu", () => {
     expect(wyciagnijUrl("zobacz https://example.com/a i https://x.y/b?c=1\nhttps://example.com/a")).toEqual(["https://example.com/a", "https://x.y/b?c=1"]);
   });
-  it("szybkie akcje i chipy źródeł", () => {
+  it("szybkie akcje", () => {
     expect(wyborSzybki("mp3")).toEqual({ typ: "tylko_audio", format: "mp3" });
     expect(wyborSzybki("najlepsza")).toEqual({ typ: "najlepsza" });
-    expect(ZRODLA_POBIERANIA).toEqual(["SoundCloud", "Bandcamp", "Vimeo", "Mixcloud", "Internet Archive"]);
   });
 });
 

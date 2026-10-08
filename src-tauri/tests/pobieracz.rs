@@ -77,5 +77,5 @@ fn argumenty_info_i_pobrania() {
     assert!(j.contains("--embed-chapters"));
     assert!(j.contains("--ffmpeg-location C:/SoraConverter/ffmpeg.exe"));
     assert!(!j.contains("-S "), "konkretny format bez sortowania");
-    assert!(pobieracz::zawiera(&a, Path::new("/pobrane").join("%(title).150B [%(id)s].%(ext)s")));
+    assert!(pobieracz::zawiera(&a, Path::new("/pobrane").join(pobieracz::SZABLON_NAZWY)));
 }

@@ -26,10 +26,20 @@ describe("wydanie (B10, B11, E28)", () => {
     expect(r).not.toMatch(/draft:\s*false/);
   });
 
+  it("wydanie z CI: tag zgodny z wersją, podpis updatera wymagany na tagu, istniejącego wydania nie ruszamy", () => {
+    const r = czytaj(".github/workflows/release.yml");
+    expect(r).toContain('throw "Tag $tag does not match version');
+    expect(r).toContain("Require the updater signature on tags");
+    expect(r).toContain('latest-json.mjs wydanie "${{ github.repository }}" "${{ steps.tag.outputs.tag }}"');
+    const draft = r.slice(r.indexOf("- name: Draft release"));
+    expect(draft.slice(0, 200)).toContain("steps.istnieje.outputs.jest == '0'");
+  });
+
   it("E28: updater z GitHub Releases, klucz tylko publiczny, artefakty updatera nie psują lokalnego buildu", () => {
     const u = konf.plugins.updater;
     expect(u.endpoints).toEqual(["https://github.com/cybersora9/soraflux/releases/latest/download/latest.json"]);
-    expect(typeof u.pubkey).toBe("string");
+    // prawdziwy klucz minisign (base64 z „untrusted comment: minisign public key”), nie placeholder
+    expect(Buffer.from(u.pubkey, "base64").toString("utf8")).toMatch(/^untrusted comment: minisign public key: [0-9A-F]{16}\r?\n\S{56}\r?\n?$/);
     expect(konf.bundle.createUpdaterArtifacts).toBe(false);
     expect(czytaj("src-tauri/capabilities/default.json")).toContain("updater:default");
     // klucz prywatny nigdy w repo
