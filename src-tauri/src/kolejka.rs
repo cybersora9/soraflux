@@ -504,7 +504,7 @@ impl Kolejka {
             std::fs::rename(&czesc, &wyjscie).map_err(|e| Przerwanie::Blad(format!("nie można zapisać wyniku: {e}")))
         });
         if wynik.is_err() {
-            let _ = std::fs::remove_file(&czesc);
+            usun_z_ponowieniem(&czesc).await;
         }
         self.w_toku(&czesc, false);
         wynik?;
@@ -753,6 +753,19 @@ pub fn cel_bez_kolizji(katalog: &Path, wejscie: &Path, ext: &str) -> PathBuf {
     let mut n = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
     n.push(format!(".{ext}"));
     katalog.join(n)
+}
+
+/// Usuwa plik, ponawiając do ~2 s. Na Windows zabity ffmpeg albo Defender potrafi jeszcze chwilę trzymać
+/// świeży plik (ERROR_SHARING_VIOLATION), więc jedna próba po anulowaniu zostawiała `*.part.*`
+/// (złapane w publicznym CI windows-latest 08.10). Brak pliku = sukces.
+pub(crate) async fn usun_z_ponowieniem(p: &Path) {
+    for _ in 0..40 {
+        match std::fs::remove_file(p) {
+            Ok(()) => return,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+            Err(_) => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
+        }
+    }
 }
 
 /// `film.mp4` → `film.part.mp4` (ffmpeg dalej rozpozna kontener po rozszerzeniu).

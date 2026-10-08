@@ -97,7 +97,7 @@ fn media_ts() -> Value {
 fn wersja_i_plan_komendy() {
     let tmp = tempfile::tempdir().unwrap();
     let (_app, okno) = aplikacja(tmp.path().to_path_buf());
-    assert_eq!(wywolaj(&okno, "wersja_apki", json!({})).unwrap(), json!("1.2.0"));
+    assert_eq!(wywolaj(&okno, "wersja_apki", json!({})).unwrap(), json!(env!("CARGO_PKG_VERSION")));
 
     let plan = wywolaj(
         &okno,
