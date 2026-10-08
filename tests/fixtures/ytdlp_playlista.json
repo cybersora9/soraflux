@@ -1,0 +1,82 @@
+{
+ "id": "PLplaylistatestowa00000000000000000",
+ "title": "Playlista testowa",
+ "availability": null,
+ "channel_follower_count": null,
+ "description": "",
+ "tags": [],
+ "thumbnails": [],
+ "modified_date": "20260101",
+ "view_count": 12000,
+ "playlist_count": 3,
+ "channel": "Kanał testowy",
+ "channel_id": "UCkanaltestowy0000000000",
+ "uploader_id": "@kanal-testowy",
+ "uploader": "Kanał testowy",
+ "channel_url": "https://www.example.com/channel/UCkanaltestowy0000000000",
+ "_type": "playlist",
+ "entries": [
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "test-film01",
+   "url": "https://www.example.com/watch?v=test-film01",
+   "title": "Film testowy 60fps 4K",
+   "description": null,
+   "duration": 635.0,
+   "channel_id": "UCkanaltestowy0000000000",
+   "channel": "Kanał testowy",
+   "thumbnails": [
+    {
+     "url": "https://img.example.com/vi/test-film01/hqdefault.jpg",
+     "height": 94,
+     "width": 168
+    }
+   ],
+   "view_count": 21000000,
+   "live_status": null
+  },
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "test-film02",
+   "url": "https://www.example.com/watch?v=test-film02",
+   "title": "Film testowy 2",
+   "description": null,
+   "duration": 888.0,
+   "channel_id": "UCkanaltestowy0000000000",
+   "channel": "Kanał testowy",
+   "thumbnails": [],
+   "view_count": 9000000,
+   "live_status": null
+  },
+  null,
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "test-film03",
+   "url": "https://www.example.com/watch?v=test-film03",
+   "title": "Film testowy 3",
+   "description": null,
+   "duration": null,
+   "channel": "Kanał testowy",
+   "thumbnails": [],
+   "live_status": null
+  }
+ ],
+ "extractor_key": "YoutubeTab",
+ "extractor": "youtube:tab",
+ "webpage_url": "https://www.example.com/playlist?list=PLplaylistatestowa00000000000000000",
+ "original_url": "https://www.example.com/playlist?list=PLplaylistatestowa00000000000000000",
+ "webpage_url_basename": "playlist",
+ "webpage_url_domain": "youtube.com",
+ "release_year": null,
+ "epoch": 1791360000,
+ "__files_to_move": {},
+ "_version": {
+  "version": "2026.09.30",
+  "current_git_head": null,
+  "release_git_head": "0123456789abcdef",
+  "repository": "yt-dlp/yt-dlp"
+ }
+}

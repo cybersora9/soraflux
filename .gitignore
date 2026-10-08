@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+narzedzia/bin/
+*.part.*
+src-tauri/gen/schemas/
+.vite/
+*.key
+*.key.pub.tmp

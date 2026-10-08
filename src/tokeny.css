@@ -1,0 +1,96 @@
+/* SoraConverter: tokeny projektu. Kolory nakłada motywy.ts (Ustawienia → Wygląd);
+   wartości kolorów poniżej to stan przed startem skryptu. Wszystkie kolory, odstępy, promienie i czcionki
+   pochodzą stąd; komponenty nie używają surowych wartości. */
+:root {
+  --czcionka: "M PLUS Rounded 1c", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
+  --czcionka-tytul: "Dela Gothic One", "M PLUS Rounded 1c", "Segoe UI Black", system-ui, sans-serif;
+  --czcionka-mono: "M PLUS 1 Code", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
+
+  --rozmiar-xs: 12px;
+  --rozmiar-s: 13px;
+  --rozmiar-m: 14px;
+  --rozmiar-l: 16px;
+  --rozmiar-xl: 20px;
+  --rozmiar-xxl: 26px;
+
+  --odstep-1: 4px;
+  --odstep-2: 8px;
+  --odstep-3: 12px;
+  --odstep-4: 16px;
+  --odstep-5: 24px;
+  --odstep-6: 32px;
+  --odstep-7: 48px;
+
+  --promien-s: 6px;
+  --promien-m: 10px;
+  --promien-l: 14px;
+  --promien-xl: 20px;
+  --promien-pelny: 999px;
+
+  --przejscie: 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  --przejscie-wolne: 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Motyw ciemny (domyślny): klimat cybersory, czysto, bez neonu. */
+:root,
+[data-theme="dark"] {
+  --tlo: #0e1117;
+  --powierzchnia: #151922;
+  --powierzchnia-2: #1b2029;
+  --powierzchnia-3: #232936;
+  --obramowanie: #2a3140;
+  --obramowanie-mocne: #3a4356;
+  --tekst: #e7eaf1;
+  --tekst-2: #a3abbc;
+  --tekst-3: #8a92a1;
+  --akcent: #7c9cff;
+  --akcent-tekst: #0e1117;
+  --akcent-slaby: rgba(124, 156, 255, 0.14);
+  --akcent-2: #4fd1c5;
+  --ok: #4ade80;
+  --ok-slaby: rgba(74, 222, 128, 0.12);
+  --uwaga: #f5b94a;
+  --uwaga-slaby: rgba(245, 185, 74, 0.12);
+  --blad: #f87171;
+  --blad-slaby: rgba(248, 113, 113, 0.12);
+  --cien: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --tlo: #f5f6fa;
+  --powierzchnia: #ffffff;
+  --powierzchnia-2: #f0f2f7;
+  --powierzchnia-3: #e6e9f1;
+  --obramowanie: #dde1ea;
+  --obramowanie-mocne: #c3c9d6;
+  --tekst: #161a22;
+  --tekst-2: #4c5466;
+  --tekst-3: #606777;
+  --akcent: #3a5bde;
+  --akcent-tekst: #ffffff;
+  --akcent-slaby: rgba(71, 102, 224, 0.1);
+  --akcent-2: #1a998c;
+  --ok: #107636;
+  --ok-slaby: rgba(22, 163, 74, 0.1);
+  --uwaga: #8b5c18;
+  --uwaga-slaby: rgba(183, 121, 31, 0.1);
+  --blad: #ca2121;
+  --blad-slaby: rgba(220, 38, 38, 0.08);
+  --cien: 0 1px 2px rgba(20, 24, 34, 0.06), 0 8px 24px rgba(20, 24, 34, 0.08);
+  color-scheme: light;
+}
+
+/* Warianty motywów: promienie i drobne detale. Kolory przychodzą z motywy.ts. */
+:root {
+  --akcent-ciemny: color-mix(in oklab, var(--akcent), #000 28%);
+  --pas-1: var(--akcent);
+  --pas-2: var(--uwaga);
+  --pas-3: var(--tekst-3);
+  --lcd-tlo: var(--powierzchnia-3);
+  --lcd: var(--tekst);
+  --wypelnienie: linear-gradient(90deg, var(--akcent), var(--akcent-2));
+}
+[data-wariant="a"] { --promien-m: 12px; --promien-l: 18px; --promien-xl: 22px; }
+[data-wariant="b"] { --promien-m: 14px; --promien-l: 24px; --promien-xl: 28px; }
+[data-wariant="c"] { --promien-m: 10px; --promien-l: 14px; --promien-xl: 18px; }

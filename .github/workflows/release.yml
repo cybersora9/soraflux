@@ -1,0 +1,103 @@
+# Wydanie Windows: instalator NSIS (z bootstrapperem WebView2), sumy SHA256,
+# opcjonalny podpis SignPath, podpis aktualizacji (updater Tauri) i SZKIC wydania.
+# Uruchamiane ręcznie albo tagiem v*. Szkic publikuje maisa ręcznie po sprawdzeniu.
+name: Wydanie
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      # Podpis SignPath włączamy zmienną repozytorium SIGNPATH_WLACZONE=true
+      # dopiero po akceptacji wniosku (docs/PODPIS.md).
+      SIGNPATH_WLACZONE: ${{ vars.SIGNPATH_WLACZONE }}
+      # Klucz prywatny updatera tylko w sekretach repozytorium (docs/AKTUALIZACJE.md).
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Zależności
+        run: npm ci
+
+      - name: Build (NSIS)
+        run: npx tauri build --bundles nsis
+
+      - name: Znajdź instalator
+        id: plik
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          "sciezka=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          "nazwa=$($exe.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Wyślij instalator do podpisu
+        id: niepodpisany
+        if: env.SIGNPATH_WLACZONE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: niepodpisany
+          path: ${{ steps.plik.outputs.sciezka }}
+
+      - name: Podpis SignPath (wyłączony, dopóki SIGNPATH_WLACZONE != true)
+        if: env.SIGNPATH_WLACZONE == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: soraflux
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.niepodpisany.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: podpisany
+
+      - name: Podmień na podpisany
+        if: env.SIGNPATH_WLACZONE == 'true'
+        shell: pwsh
+        run: Copy-Item "podpisany/${{ steps.plik.outputs.nazwa }}" "${{ steps.plik.outputs.sciezka }}" -Force
+
+      # Podpis aktualizacji liczony na końcowym (ewentualnie podpisanym) instalatorze.
+      - name: Podpis aktualizacji (updater)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: npx tauri signer sign "${{ steps.plik.outputs.sciezka }}"
+
+      - name: latest.json i sumy SHA256
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force wydanie | Out-Null
+          Copy-Item "${{ steps.plik.outputs.sciezka }}*" wydanie/
+          node scripts/latest-json.mjs wydanie "${{ github.repository }}" "${{ github.ref_name }}"
+          Get-ChildItem wydanie -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Out-File -Encoding ascii wydanie/SHA256SUMS.txt
+          Get-Content wydanie/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soraflux-windows
+          path: wydanie/*
+
+      - name: Szkic wydania (tylko z tagu)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: wydanie/*

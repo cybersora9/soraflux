@@ -1,0 +1,52 @@
+[package]
+name = "soraconverter"
+version = "1.2.1"
+description = "SoraFlux: lokalny konwerter wideo, audio, obrazów i GIF z pobieraniem"
+authors = ["cybersora9"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "soraconverter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "sync", "rt-multi-thread", "macros", "time", "fs"] }
+thiserror = "2"
+dirs = "6"
+ureq = { version = "2", features = ["native-certs"] }
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tauri-plugin-updater = "2.12.0"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-notification = "2.4.0"
+base64 = "0.23.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Storage_FileSystem", "Win32_Security"] }
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2.4.5"
+
+[dev-dependencies]
+tempfile = "3"
+tauri = { version = "2", features = ["test"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
