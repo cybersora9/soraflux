@@ -502,7 +502,10 @@ h1, h2, h3, p { margin: 0; }
 [data-wariant="b"] .pasek, [data-wariant="b"] .pasek-maly { height: 8px; }
 
 /* C · Heisei MiniDisc: perłowe tło, półprzezroczysty plastik, LCD z ramką */
-[data-wariant="c"] .tresc { background: linear-gradient(160deg, var(--tlo), color-mix(in oklab, var(--tlo), var(--tekst) 6%)); }
+/* Gradient przypięty do okna (fixed) i ten sam pod paskiem akcji: inaczej pasek z płaskim --tlo
+   odcinał się ciemniejszym prostokątem (zgłoszenie 08.10, 1.2.2). Przejście u góry paska maską. */
+[data-wariant="c"] .tresc, [data-wariant="c"] .pasek-akcji { background: linear-gradient(160deg, var(--tlo), color-mix(in oklab, var(--tlo), var(--tekst) 6%)) fixed; }
+[data-wariant="c"] .pasek-akcji { mask-image: linear-gradient(to bottom, transparent, #000 var(--odstep-3)); }
 [data-wariant="c"] .karta, [data-wariant="c"] .pliki { background: color-mix(in oklab, var(--powierzchnia) 72%, transparent); backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--cien); }
 [data-wariant="c"] .nawigacja { background: color-mix(in oklab, var(--akcent) 7%, var(--powierzchnia)); }
 [data-wariant="c"] .nawigacja-przycisk.aktywny, [data-wariant="c"] .przycisk-glowny { background: linear-gradient(180deg, var(--akcent-ciemny), var(--akcent)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 3px 0 color-mix(in oklab, var(--akcent), #000 40%); }
