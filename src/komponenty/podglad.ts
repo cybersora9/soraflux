@@ -4,7 +4,7 @@
 import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t } from "../i18n";
+import { t, tekstBledu } from "../i18n";
 import { formatujCzas, tylkoAudio } from "../logika";
 import type { Media, Profil } from "../typy";
 import { przycisk } from "./pola";
@@ -38,7 +38,7 @@ export function podgladPrzedPo(o: OpcjePodgladu): { el: HTMLElement; odswiez(): 
       rysujObrazy(k.przed, k.po);
       stan.textContent = "";
     } catch (e) {
-      if (nr === licznik) stan.textContent = t("podglad.blad", { blad: String(e) });
+      if (nr === licznik) stan.textContent = t("podglad.blad", { blad: tekstBledu(e) });
     }
   }, 500);
 
@@ -84,7 +84,7 @@ export function podgladPrzedPo(o: OpcjePodgladu): { el: HTMLElement; odswiez(): 
             await audio.play().catch(() => undefined);
             stan.textContent = t("podglad.gra");
           } catch (e) {
-            stan.textContent = t("podglad.blad", { blad: String(e) });
+            stan.textContent = t("podglad.blad", { blad: tekstBledu(e) });
           }
         }, "przycisk-maly"),
         stan,

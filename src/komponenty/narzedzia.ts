@@ -3,7 +3,7 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { jezyk, t } from "../i18n";
+import { jezyk, t, tekstBledu } from "../i18n";
 import { formatujRozmiar, sciezkaDoPokazania } from "../logika";
 import { pokazDymek, sklep } from "../sklep";
 import type { Narzedzie, Pakiet } from "../typy";
@@ -32,7 +32,7 @@ export async function pobierzPakiet(p: Pakiet): Promise<void> {
     await api.narzedziaPobierz(p);
     pokazDymek(t("narzedzia.zainstalowano", { nazwa: p === "ytdlp" ? "yt-dlp" : p }));
   } catch (e) {
-    pokazDymek(String(e), "blad");
+    pokazDymek(tekstBledu(e), "blad");
   } finally {
     postep.delete(p);
     sklep.ustaw({ narzedzia: await api.narzedziaStan() });

@@ -31,6 +31,28 @@ export function t(klucz: string, parametry?: Record<string, string | number>): s
   return tekst.replace(/\{(\w+)\}/g, (_, n: string) => String(parametry[n] ?? `{${n}}`));
 }
 
+/** Znacznik komunikatu z Rusta (`src-tauri/src/blad.rs`): `@i18n {"k":…,"a":{…}}`, potem surowy ogon. */
+const ZNACZNIK_BLEDU = "@i18n ";
+
+/** Komunikat błędu z Rusta w języku interfejsu; zwykły tekst wraca bez zmian. */
+export function tlumaczBlad(komunikat: string): string {
+  if (!komunikat.startsWith(ZNACZNIK_BLEDU)) return komunikat;
+  const koniec = komunikat.indexOf("\n");
+  const linia = komunikat.slice(ZNACZNIK_BLEDU.length, koniec < 0 ? undefined : koniec);
+  const ogon = koniec < 0 ? "" : komunikat.slice(koniec);
+  try {
+    const { k, a } = JSON.parse(linia) as { k: string; a?: Record<string, string> };
+    return t(`rust.${k}`, a) + ogon;
+  } catch {
+    return komunikat;
+  }
+}
+
+/** Błąd z `catch` (Tauri odrzuca stringiem z Rusta) do pokazania w GUI. */
+export function tekstBledu(e: unknown): string {
+  return tlumaczBlad(String(e));
+}
+
 export function maKlucz(klucz: string): boolean {
   return klucz in slowniki[biezacy] || klucz in slowniki.pl;
 }

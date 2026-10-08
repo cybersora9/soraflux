@@ -1,6 +1,7 @@
 //! ffprobe → `Media`: czas, strumienie, wymiary. Parser jest czystą funkcją
 //! (testowalną na zapisanym JSON), uruchamianie procesu jest osobno.
 
+use crate::blad;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::ffi::OsString;
@@ -157,7 +158,8 @@ fn tekst(s: &Value, klucz: &str) -> Option<String> {
 
 /// Parsuje wynik `ffprobe -print_format json -show_format -show_streams`.
 pub fn media_z_json(json: &str) -> Result<Media, String> {
-    let v: Value = serde_json::from_str(json).map_err(|e| format!("ffprobe: zły JSON: {e}"))?;
+    let v: Value =
+        serde_json::from_str(json).map_err(|e| blad::kod("zly_json", &[("program", &"ffprobe"), ("blad", &e)]))?;
     let format = v.get("format");
     let strumienie = v.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
 
@@ -261,7 +263,7 @@ pub async fn sonduj(ffprobe: &Path, plik: &Path) -> Result<Media, String> {
         .args(argumenty_ffprobe(plik))
         .output()
         .await
-        .map_err(|e| format!("nie można uruchomić ffprobe: {e}"))?;
+        .map_err(|e| blad::kod("uruchomienie", &[("program", &"ffprobe"), ("blad", &e)]))?;
     if !wynik.status.success() {
         let blad = String::from_utf8_lossy(&wynik.stderr);
         return Err(format!("ffprobe: {}", blad.trim()));

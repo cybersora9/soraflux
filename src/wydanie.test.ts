@@ -19,7 +19,7 @@ describe("wydanie (B10, B11, E28)", () => {
   it("B10: podpis SignPath tylko po włączeniu, sumy SHA256, szkic zamiast publikacji", () => {
     const r = czytaj(".github/workflows/release.yml");
     expect(r).toContain("signpath/github-action-submit-signing-request");
-    const krok = r.slice(r.indexOf("- name: Podpis SignPath"));
+    const krok = r.slice(r.indexOf("- name: SignPath signing"));
     expect(krok.slice(0, 200)).toContain("if: env.SIGNPATH_WLACZONE == 'true'");
     expect(r).toContain("SHA256SUMS.txt");
     expect(r).toContain("draft: true");

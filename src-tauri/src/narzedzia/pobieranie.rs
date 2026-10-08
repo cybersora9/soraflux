@@ -3,6 +3,7 @@
 
 use super::zrodla::{Archiwum, Zrodlo};
 use super::Narzedzie;
+use crate::blad;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -48,14 +49,14 @@ fn agent() -> ureq::Agent {
 
 /// Pobiera plik ze strumieniowaniem i raportem postępu (pobrane, całość).
 fn pobierz_do(url: &str, cel: &Path, mut postep: impl FnMut(u64, Option<u64>)) -> Result<(), String> {
-    let odp = agent().get(url).call().map_err(|e| format!("pobieranie {url}: {e}"))?;
+    let odp = agent().get(url).call().map_err(|e| blad::kod("pobieranie", &[("url", &url), ("blad", &e)]))?;
     let calosc = odp.header("Content-Length").and_then(|v| v.parse().ok());
     let mut r = odp.into_reader();
     let mut f = std::fs::File::create(cel).map_err(|e| e.to_string())?;
     let mut buf = vec![0u8; 1 << 16];
     let mut pobrane = 0u64;
     loop {
-        let n = r.read(&mut buf).map_err(|e| format!("pobieranie przerwane: {e}"))?;
+        let n = r.read(&mut buf).map_err(|e| blad::kod("pobieranie_przerwane", &[("blad", &e)]))?;
         if n == 0 {
             break;
         }
@@ -78,12 +79,12 @@ fn ustaw_wykonywalny(_p: &Path) -> Result<(), String> {
 /// Wypakowuje wskazane pliki z ZIP-a do `katalog`.
 pub fn wypakuj(zip: &Path, pliki: &[(Narzedzie, &str)], katalog: &Path) -> Result<Vec<(Narzedzie, PathBuf)>, String> {
     let f = std::fs::File::open(zip).map_err(|e| e.to_string())?;
-    let mut arch = zip::ZipArchive::new(f).map_err(|e| format!("zły ZIP: {e}"))?;
+    let mut arch = zip::ZipArchive::new(f).map_err(|e| blad::kod("zly_zip", &[("blad", &e)]))?;
     let mut wynik = Vec::new();
     for (n, koncowka) in pliki {
         let indeks = (0..arch.len())
             .find(|i| arch.by_index(*i).map(|e| e.name().ends_with(koncowka)).unwrap_or(false))
-            .ok_or_else(|| format!("w archiwum brak {koncowka}"))?;
+            .ok_or_else(|| blad::kod("brak_w_archiwum", &[("plik", koncowka)]))?;
         let mut wpis = arch.by_index(indeks).map_err(|e| e.to_string())?;
         let cel = katalog.join(n.plik());
         let tymczasowy = katalog.join(format!("{}.nowy", n.plik()));
@@ -107,17 +108,17 @@ pub fn zainstaluj(
     let sumy = agent()
         .get(z.url_sum)
         .call()
-        .map_err(|e| format!("pobieranie sum: {e}"))?
+        .map_err(|e| blad::kod("pobieranie_sum", &[("blad", &e)]))?
         .into_string()
         .map_err(|e| e.to_string())?;
-    let oczekiwana = suma_z_tekstu(&sumy, z.nazwa).ok_or_else(|| format!("brak sumy SHA256 dla {}", z.nazwa))?;
+    let oczekiwana = suma_z_tekstu(&sumy, z.nazwa).ok_or_else(|| blad::kod("brak_sumy", &[("nazwa", &z.nazwa)]))?;
 
     let pobrany = katalog.join(format!("{}.pobieranie", z.nazwa));
     let wynik = (|| {
         pobierz_do(z.url, &pobrany, postep)?;
         let jest = sha256_pliku(&pobrany).map_err(|e| e.to_string())?;
         if jest != oczekiwana {
-            return Err(format!("zła suma SHA256 {}: jest {jest}, powinno być {oczekiwana}", z.nazwa));
+            return Err(blad::kod("zla_suma", &[("nazwa", &z.nazwa), ("jest", &jest), ("oczekiwana", &oczekiwana)]));
         }
         match z.archiwum {
             Archiwum::Zip => wypakuj(&pobrany, z.pliki, katalog),

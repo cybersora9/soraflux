@@ -5,7 +5,7 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t } from "../i18n";
+import { t, tekstBledu, tlumaczBlad } from "../i18n";
 import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, ZRODLA_POBIERANIA, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
@@ -94,7 +94,7 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
       }
       pokazDymek(po && po === przed ? t("pobierz.najnowsza", { w: po }) : t("pobierz.zaktualizowano", { w: po ?? "?" }));
     } catch (e) {
-      pokazDymek(String(e), "blad");
+      pokazDymek(tekstBledu(e), "blad");
     }
     aktualizacja = "nic";
     rysuj();
@@ -113,7 +113,7 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
         pokazDymek(t("pobierz.wlasna_pobrana"));
       }
     } catch (e) {
-      pokazDymek(String(e), "blad");
+      pokazDymek(tekstBledu(e), "blad");
     }
   }
 
@@ -264,7 +264,7 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
         { class: "film-tresc" },
         h("div", { class: "film-tytul" }, tytul),
         w.blad
-          ? uwaga("blad", ikona(IKONY.uwaga), h("span", null, w.blad))
+          ? uwaga("blad", ikona(IKONY.uwaga), h("span", null, tlumaczBlad(w.blad)))
           : !i
             ? h("div", { class: "film-opis" }, t("pobierz.sprawdzam"))
             : h("div", { class: "film-opis" }, opis),
@@ -329,7 +329,7 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
       tekstUrl = "";
       rysuj();
     } catch (e) {
-      pokazDymek(String(e), "blad");
+      pokazDymek(tekstBledu(e), "blad");
     }
   }
 

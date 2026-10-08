@@ -3,6 +3,7 @@
 //! jako `nazwa.part.ext`, rename dopiero po sukcesie. Niepełne pliki zapisujemy w
 //! dzienniku, żeby po awarii apki sprzątnąć je przy następnym starcie.
 
+use crate::blad;
 use crate::budowniczy::{self, Kontekst};
 use crate::narzedzia::Sciezki;
 use crate::pobieracz::{self, OpcjePobrania};
@@ -480,8 +481,9 @@ impl Kolejka {
         }
         upewnij_katalog(&katalog)?;
         let s = self.sciezki.read().unwrap().clone();
-        let ffmpeg = s.ffmpeg.ok_or_else(|| Przerwanie::Blad("brak ffmpeg (Ustawienia → Narzędzia)".into()))?;
-        let ffprobe = s.ffprobe.ok_or_else(|| Przerwanie::Blad("brak ffprobe (Ustawienia → Narzędzia)".into()))?;
+        let ffmpeg = s.ffmpeg.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffmpeg")])))?;
+        let ffprobe =
+            s.ffprobe.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffprobe")])))?;
         let media = sonda::sonduj(&ffprobe, wejscie).await.map_err(Przerwanie::Blad)?;
         let kt = Kontekst { zscale: self.zscale.load(Ordering::Relaxed), katalog_tmp: Some(tmp.to_path_buf()) };
         // Szybki test profilu, zanim cokolwiek zarezerwujemy.
@@ -501,7 +503,7 @@ impl Kolejka {
         self.w_toku(&czesc, true);
         let wynik = self.koduj(id, &ffmpeg, &media, wejscie, profil, &czesc, &kt, anuluj).await;
         let wynik = wynik.and_then(|()| {
-            std::fs::rename(&czesc, &wyjscie).map_err(|e| Przerwanie::Blad(format!("nie można zapisać wyniku: {e}")))
+            std::fs::rename(&czesc, &wyjscie).map_err(|e| Przerwanie::Blad(blad::kod("zapis_wyniku", &[("blad", &e)])))
         });
         if wynik.is_err() {
             usun_z_ponowieniem(&czesc).await;
@@ -599,7 +601,7 @@ impl Kolejka {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| Przerwanie::Blad(format!("nie można uruchomić ffmpeg: {e}")))?;
+            .map_err(|e| Przerwanie::Blad(blad::kod("uruchomienie", &[("program", &"ffmpeg"), ("blad", &e)])))?;
         let drzewo = Drzewo::przypnij(&dziecko, niski);
         let stderr = tokio::spawn(ogon(dziecko.stderr.take().unwrap()));
         let mut linie = BufReader::new(dziecko.stdout.take().unwrap()).lines();
@@ -629,7 +631,7 @@ impl Kolejka {
         let ogon = stderr.await.unwrap_or_default();
         match status {
             Ok(s) if s.success() => Ok(()),
-            Ok(s) => Err(Przerwanie::Blad(format!("ffmpeg zakończył się kodem {}:\n{}", s.code().unwrap_or(-1), ogon))),
+            Ok(s) => Err(Przerwanie::Blad(blad::z_ogonem("ffmpeg_kod", &[("kod", &s.code().unwrap_or(-1))], &ogon))),
             Err(e) => Err(Przerwanie::Blad(e.to_string())),
         }
     }
@@ -645,7 +647,8 @@ impl Kolejka {
         anuluj: &Notify,
     ) -> Result<PathBuf, Przerwanie> {
         let s = self.sciezki.read().unwrap().clone();
-        let ytdlp = s.ytdlp.clone().ok_or_else(|| Przerwanie::Blad("brak yt-dlp (Ustawienia → Narzędzia)".into()))?;
+        let ytdlp =
+            s.ytdlp.clone().ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"yt-dlp")])))?;
         let katalog = katalog.map(Path::to_path_buf).unwrap_or_else(pobieracz::katalog_domyslny);
         upewnij_katalog(&katalog)?;
         let args = pobieracz::argumenty_pobrania(url, opcje, &katalog, &s);
@@ -656,7 +659,7 @@ impl Kolejka {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| Przerwanie::Blad(format!("nie można uruchomić yt-dlp: {e}")))?;
+            .map_err(|e| Przerwanie::Blad(blad::kod("uruchomienie", &[("program", &"yt-dlp"), ("blad", &e)])))?;
         let drzewo = Drzewo::przypnij(&dziecko, niski);
         let stderr = tokio::spawn(ogon(dziecko.stderr.take().unwrap()));
         let mut linie = BufReader::new(dziecko.stdout.take().unwrap()).lines();
@@ -699,7 +702,7 @@ impl Kolejka {
         let ogon = stderr.await.unwrap_or_default();
         match status {
             Ok(st) if st.success() => {
-                let plik = plik.ok_or_else(|| Przerwanie::Blad("yt-dlp nie podał ścieżki pobranego pliku".into()))?;
+                let plik = plik.ok_or_else(|| Przerwanie::Blad(blad::kod("ytdlp_bez_sciezki", &[])))?;
                 self.ustaw(id, |i| {
                     i.wyjscie = Some(plik.clone());
                 });
@@ -805,9 +808,8 @@ fn upewnij_katalog(katalog: &Path) -> Result<(), Przerwanie> {
     if katalog.as_os_str().is_empty() {
         return Ok(());
     }
-    std::fs::create_dir_all(katalog).map_err(|e| {
-        Przerwanie::Blad(format!("nie można użyć folderu {}: {e} (zmień folder zapisu)", katalog.display()))
-    })
+    std::fs::create_dir_all(katalog)
+        .map_err(|e| Przerwanie::Blad(blad::kod("folder_zapisu", &[("folder", &katalog.display()), ("blad", &e)])))
 }
 
 /// Ostatnie 50 linii stderr (do komunikatu błędu).

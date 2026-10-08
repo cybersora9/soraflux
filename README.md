@@ -1,103 +1,117 @@
 # SoraFlux
 
-**Darmowy, otwarty, lokalny konwerter wideo, audio, obrazów i GIF-ów z pobieraniem (yt-dlp), z prostym GUI.**
-Wszystko dzieje się na Twoim komputerze: żadnego uploadu, limitów, reklam ani telemetrii.
+**A free, open-source, local video, audio, image and GIF converter with downloads (yt-dlp) and a simple GUI.**
+Everything runs on your computer: no uploads, no limits, no ads, no telemetry.
 
-[English version → README.en.md](README.en.md)
+**English** · [Polski](README.pl.md)
 
-![Konwertuj: szybkie akcje, lista plików, karta informacji](zrzuty/v1_2-konwertuj-sora-a-ciemny.png)
+![Convert tab: quick actions, file list, info card](zrzuty/en/v1_2-konwertuj-sora-a-ciemny.png)
 
-## Co umie
+## Features
 
-- **Pobieranie** (yt-dlp): większość popularnych serwisów z wideo i muzyką oraz bezpośrednie linki; szybkie akcje „Tylko dźwięk MP3” i „Najlepsza jakość”, napisy, miniatura, metadane, rozdziały, playlisty, „po pobraniu przekonwertuj”. Apka pilnuje wieku yt-dlp: stary z systemu (np. z pipa) zastępuje własną, aktualną kopią, a przycisk „Aktualizuj yt-dlp” odświeża tylko tę kopię.
-- **Motywy**: Kissaten, City Pop i MiniDisc w palecie cybersora albo japońskiej, każdy jasny i ciemny (kontrast WCAG AA), plus własne motywy z edytorem, eksportem i importem. Fonty wbudowane, działa offline.
-- **Szybkie akcje jednym kliknięciem**: „Zmniejsz do X MB”, „Wyciągnij dźwięk (MP3)”, „Zrób GIF”, „Na telefon (480p 25 fps)”, „Wytnij fragment bez ponownego kodowania” (sekundy zamiast minut, bez straty jakości). Potem można wszystko dopracować w panelu.
-- **Podgląd przed/po**: jedna klatka wyniku z dokładnie tymi ustawieniami, z wybranego suwakiem momentu, porównanie suwakiem dzielącym obraz. Przy dźwięku: odsłuch 5 s wyniku (np. jak naprawdę brzmi AAC 8 kb/s).
-- **Pełna kontrola jakości wideo**: rozdzielczość (2160p…144p albo własne W×H), FPS (zachowaj, 60/50/30/25/24/15/10, własne), suwak CRF, bitrate w kb/s albo **docelowy rozmiar w MB** (2 przebiegi + automatyczna korekta, żeby plik naprawdę się zmieścił).
-- **Dźwięk**: AAC, MP3, Opus, Vorbis, FLAC, WAV/PCM, kopiuj, bez dźwięku; **8–320 kb/s**, 8–96 kHz, mono/stereo, normalizacja głośności, wybór ścieżki (albo wszystkie), gdy plik ma kilka.
-- **Dowolny kontener**: mp4, mkv, webm, mov, avi, gif, mp3, m4a, aac, opus, ogg, flac, wav. Niepasujące kodeki apka sama wyklucza; napisy przenosi tam, gdzie się da (MP4: mov_text, MKV: kopia, WebM: WebVTT).
-- **GIF jak należy**: paleta w dwóch przebiegach, dithering do wyboru, FPS, szerokość, pętla, fragment, szacowany rozmiar z ostrzeżeniem. Animowany WebP jako lżejsza alternatywa.
-- **Obrazy**: PNG, JPG, WebP, AVIF, GIF, BMP, ICO; W×H albo %, proporcje / rozciągnij / pasy / przytnij, nie powiększaj, jakość, wsadowo.
-- **Foldery wsadowo**: upuść folder → wszystkie pasujące pliki, z zachowaniem struktury podfolderów, filtrem rozszerzeń i pomijaniem już przekonwertowanych.
-- **Menu kontekstowe Eksploratora** „Konwertuj w SoraFlux”; kolejne pliki trafiają do już otwartego okna.
-- **Karta informacji o pliku**: rozdzielczość, obrót, FPS (także zmienny), kodeki, bity, HDR, ścieżki dźwięku, napisy.
-- **Po zakończeniu**: powiadomienie systemowe, „pokaż w folderze”, porównanie rozmiaru („412 MB → 74 MB (−82%)”).
-- **Pancerz** na typowe pułapki: nieparzyste wymiary, 10 bitów i **HDR z telefonu** (automatyczna zamiana na SDR, żeby kolory nie wyblakły), zmienny FPS, obrót z metadanych, ścieżki z polskimi znakami i ponad 260 znaków, kilka zadań 2-pass naraz, enkoder sprzętowy, który pada (powrót do programowego), zamknięcie apki w trakcie (żadnego ffmpeg w tle). Szczegóły: [PANCERZ.md](PANCERZ.md).
-- Kolejka (domyślnie 1 film naraz + obrazy obok, „Nie zamulaj komputera”, ostrzeżenie, gdy plik źródłowy jest ucięty), szacowany rozmiar na żywo, podgląd komendy ffmpeg, presety i własne presety, PL/EN, motyw ciemny i jasny (kontrast WCAG AA), obsługa klawiaturą, tryb przenośny.
+- **Downloads** (yt-dlp): most popular video and music sites plus direct links; quick actions "Audio only MP3" and "Best quality", subtitles, thumbnail, metadata, chapters, playlists, "convert after download". The app watches yt-dlp's age: an old system copy (e.g. from pip) is replaced by the app's own current copy, and "Update yt-dlp" only ever updates that copy.
+- **Themes**: Kissaten, City Pop and MiniDisc in a cybersora or Japanese palette, each light and dark (WCAG AA contrast), plus your own themes with an editor, export and import. Bundled fonts, works offline.
+- **One-click quick actions**: "Shrink to X MB", "Extract audio (MP3)", "Make a GIF", "For phones (480p 25 fps)", "Cut a clip without re-encoding" (seconds instead of minutes, no quality loss). Fine-tune everything afterwards in the panel.
+- **Before/after preview**: one frame of the result with exactly your settings, at a moment picked with a slider, compared with a split slider. For audio: play 5 s of the result (hear what AAC at 8 kbps really sounds like).
+- **Full video quality control**: resolution (2160p…144p or custom W×H), frame rate (keep, 60/50/30/25/24/15/10, custom), CRF slider, bitrate in kbps or a **target size in MB** (2-pass plus automatic correction so the file really fits).
+- **Audio**: AAC, MP3, Opus, Vorbis, FLAC, WAV/PCM, copy, none; **8–320 kbps**, 8–96 kHz, mono/stereo, loudness normalization, track choice (or all tracks) when a file has several.
+- **Any container**: mp4, mkv, webm, mov, avi, gif, mp3, m4a, aac, opus, ogg, flac, wav. Incompatible codecs are ruled out automatically; subtitles are carried over where possible (MP4: mov_text, MKV: copy, WebM: WebVTT).
+- **Proper GIFs**: two-pass palette, selectable dithering, fps, width, loop, trim, size estimate with a warning. Animated WebP as a lighter alternative.
+- **Images**: PNG, JPG, WebP, AVIF, GIF, BMP, ICO; W×H or %, keep aspect / stretch / bars / crop, don't upscale, quality, batches.
+- **Folder batches**: drop a folder → every matching file, keeping the subfolder structure, with an extension filter and skipping files already converted.
+- **Explorer context menu** "Convert with SoraFlux"; more files go to the window that is already open.
+- **File info card**: resolution, rotation, frame rate (incl. variable), codecs, bit depth, HDR, audio tracks, subtitles.
+- **When done**: system notification, "Show in folder", size comparison ("412 MB → 74 MB (−82%)").
+- **Hardened** against common pitfalls: odd dimensions, 10-bit and **phone HDR** (automatic SDR conversion so colors don't wash out), variable frame rate, rotation metadata, paths with non-ASCII characters and longer than 260 characters, several 2-pass jobs at once, hardware encoders that fail (falls back to software), closing the app mid-job (no ffmpeg left running). Details: [HARDENING.md](HARDENING.md).
+- Queue (1 video at a time by default with images alongside, "Keep the computer responsive", a warning when the source file is truncated), live size estimate, ffmpeg command preview, built-in and your own presets, Polish and English, dark and light theme (WCAG AA contrast), keyboard navigation, portable mode.
 
-## Zrzuty ekranu
+## Screenshots
 
 | | |
 |---|---|
-| ![City Pop · japoński, jasny](zrzuty/v1_2-konwertuj-jp-b-jasny.png) | ![MiniDisc · cybersora, ciemny](zrzuty/v1_2-konwertuj-sora-c-ciemny.png) |
-| ![Pobierz](zrzuty/v1_2-pobierz-light.png) | ![Kolejka z ostrzeżeniem o uciętym pliku](zrzuty/v1_2-kolejka-dark.png) |
-| ![Ustawienia → Wygląd](zrzuty/v1_2-ustawienia-wyglad-dark.png) | ![Podgląd przed/po](zrzuty/v1_2-podglad-przed-po-light.png) |
-| ![Obrazy](zrzuty/v1_2-obrazy-light.png) | ![Pierwsze uruchomienie](zrzuty/v1_2-kreator-dark.png) |
+| ![City Pop · Japanese palette, light](zrzuty/en/v1_2-konwertuj-jp-b-jasny.png) | ![MiniDisc · cybersora palette, dark](zrzuty/en/v1_2-konwertuj-sora-c-ciemny.png) |
+| ![Download](zrzuty/en/v1_2-pobierz-light.png) | ![Queue with a truncated-file warning](zrzuty/en/v1_2-kolejka-dark.png) |
+| ![Settings → Appearance](zrzuty/en/v1_2-ustawienia-wyglad-dark.png) | ![Before/after preview](zrzuty/en/v1_2-podglad-przed-po-light.png) |
+| ![Images](zrzuty/en/v1_2-obrazy-light.png) | ![First run](zrzuty/en/v1_2-kreator-dark.png) |
 
-Wszystkie zrzuty (6 motywów × jasny/ciemny i każda zakładka) są w [`zrzuty/`](zrzuty/).
+All screenshots (6 themes × light/dark and every tab) are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](zrzuty/) (Polish UI). They are generated from a mock backend with made-up data (`npm run zrzuty:en`).
 
-## Jak używać
+## Installation
 
-1. **Pierwsze uruchomienie**: kreator sprawdza, czy masz ffmpeg i ffprobe. Brakujące pobierzesz przyciskiem (Windows: oficjalnie polecany build z gyan.dev, suma SHA256 sprawdzana) albo wskażesz ręcznie.
-2. **Konwertuj**: upuść pliki albo folder (albo kliknij strefę, albo Ctrl+O, albo w Eksploratorze „Konwertuj w SoraFlux”). Kliknij szybką akcję albo wybierz format, rozdzielczość, FPS i jakość; resztę znajdziesz w „Zaawansowane”. Kliknij plik na liście, żeby zobaczyć jego kartę informacji; „Podgląd przed / po” pokaże wynik, zanim zaczniesz.
-3. **Pobierz**: wklej link (albo kilka), „Sprawdź”, wybierz jakość albo szybką akcję, „Pobierz”. Pobieraj tylko to, do czego masz prawa; SoraFlux nie obchodzi DRM.
-4. **Obrazy**: upuść obrazy, wybierz format i rozmiar (W×H albo %), jakość.
-5. **Kolejka**: postęp, ETA, anulowanie, „Pokaż w folderze”, porównanie rozmiaru.
+Download `SoraFlux_x.y.z_x64-setup.exe` from [Releases](https://github.com/cybersora9/soraflux/releases) (Windows 10/11, x64). On first run the app offers to download ffmpeg (and yt-dlp for downloads), checking their SHA256.
 
-Wynik trafia obok źródła (albo do wybranego folderu) i **nigdy nie nadpisuje oryginału**: przy kolizji powstaje `nazwa (1).mp4`. W trakcie pracy plik nazywa się `nazwa.part.mp4`, docelową nazwę dostaje dopiero po sukcesie; niepełne pliki po awarii są sprzątane przy następnym starcie.
+The installer is not code-signed yet, so Windows may show "Windows protected your PC": click "More info" → "Run anyway". You can compare the file with `SHA256SUMS.txt` from the release. Signing is in progress: [docs/SIGNING.md](docs/SIGNING.md).
 
-## Najczęstsze problemy
+## How to use
 
-| Problem | Co zrobić |
+1. **First run**: the wizard checks for ffmpeg and ffprobe. Download what's missing with one click (Windows: the officially recommended gyan.dev build, SHA256 verified) or pick the files yourself.
+2. **Convert**: drop files or a folder (or click the drop zone, press Ctrl+O, or use "Convert with SoraFlux" in Explorer). Click a quick action or choose format, resolution, frame rate and quality; everything else is under "Advanced". Click a file in the list to see its info card; "Before / after preview" shows the result before you start.
+3. **Download**: paste a link (or several), "Check", pick a quality or a quick action, "Download". Only download what you have the rights to; SoraFlux does not circumvent DRM.
+4. **Images**: drop images, choose a format and size (W×H or %), quality.
+5. **Queue**: progress, ETA, cancel, "Show in folder", size comparison.
+
+Output goes next to the source (or to a folder you choose) and **never overwrites the original**: a name clash produces `name (1).mp4`. While working the file is called `name.part.mp4` and gets its final name only on success; partial files from a crash are cleaned up on the next start.
+
+## Common problems
+
+| Problem | What to do |
 |---|---|
-| Pobieranie: „Serwis zablokował pobieranie” (403) | Kliknij „Aktualizuj yt-dlp” w zakładce Pobierz i spróbuj jeszcze raz. Serwisy często zmieniają strony, a yt-dlp starszy niż ~30 dni przestaje działać. Apka używa własnej kopii yt-dlp, nie tej z pipa. |
-| „Brak ffmpeg” | Ustawienia → Narzędzia → „Pobierz” (Windows) albo `sudo apt install ffmpeg` / `brew install ffmpeg`, potem „Wykryj ponownie”. Możesz też wskazać `ffmpeg.exe` ręcznie. |
-| Windows: „System Windows ochronił ten komputer” | Instalator nie jest jeszcze podpisany: „Więcej informacji” → „Uruchom mimo to”. Sumę SHA256 porównasz z `SHA256SUMS.txt` z wydania. Podpis: [docs/PODPIS.md](docs/PODPIS.md). |
-| Kolory po konwersji z iPhone'a/Androida wyblakłe | To nagrania HDR. Apka sama zamienia je na SDR, jeśli ffmpeg ma filtr `zscale` (build z gyan.dev ma). Bez niego zobaczysz podpowiedź: pobierz ffmpeg z Ustawień. |
-| Film nie gra na telefonie / w WhatsAppie | Użyj „Na telefon (480p 25 fps)” albo MP4 + H.264 + AAC. Nie włączaj 10 bitów i nie wybieraj Opus w MP4. |
-| „Docelowy rozmiar za mały” | Przy tej długości filmu na obraz zostaje < 50 kb/s. Wytnij fragment, obniż rozdzielczość albo zwiększ limit MB. |
-| Plik wyszedł większy niż oryginał | Źródło było już mocno skompresowane. Wybierz bitrate albo rozmiar MB zamiast CRF, albo niższą rozdzielczość. |
-| Cięcie bez kodowania zaczyna się chwilę wcześniej | Tak działa kopia strumienia: start na najbliższej klatce kluczowej. Dla co do klatki użyj zwykłej konwersji z cięciem. |
-| Enkoder NVENC/QSV/AMF nie działa | Apka pokazuje tylko enkodery, które przeszły próbę; jeśli padnie w trakcie, sama dokończy na procesorze (informacja w kolejce). Zaktualizuj sterownik karty. |
-| Komputer przycina w trakcie | Ustawienia → Praca: „Ile filmów naraz” = 1 i „Nie zamulaj komputera”. |
-| Coś nie działa i chcesz zgłosić błąd | Ustawienia → „Kopiuj raport” (wersje, system, ostatnie błędy, bez ścieżek Twoich folderów) i wklej go w zgłoszeniu. |
+| Download: "The site blocked the download" (403) | Click "Update yt-dlp" on the Download tab and try again. Sites change often and a yt-dlp older than ~30 days stops working. The app uses its own yt-dlp copy, not the one from pip. |
+| "ffmpeg is missing" | Settings → Tools → "Download" (Windows) or `sudo apt install ffmpeg` / `brew install ffmpeg`, then "Detect again". You can also pick `ffmpeg.exe` manually. |
+| Windows: "Windows protected your PC" | The installer isn't signed yet: "More info" → "Run anyway". Compare the SHA256 with `SHA256SUMS.txt` from the release. Signing: [docs/SIGNING.md](docs/SIGNING.md). |
+| Washed-out colors after converting iPhone/Android videos | Those are HDR recordings. The app converts them to SDR when ffmpeg has the `zscale` filter (the gyan.dev build does). Without it you'll see a hint: download ffmpeg from Settings. |
+| Video won't play on a phone / in WhatsApp | Use "For phones (480p 25 fps)" or MP4 + H.264 + AAC. Don't enable 10-bit and don't put Opus in MP4. |
+| "Target size too small" | At this length the video gets < 50 kbps. Trim it, lower the resolution or raise the MB limit. |
+| Output is bigger than the original | The source was already heavily compressed. Use bitrate or target MB instead of CRF, or a lower resolution. |
+| A cut without re-encoding starts a bit early | That's how stream copy works: it starts on the nearest keyframe. For frame accuracy, use a normal conversion with trimming. |
+| NVENC/QSV/AMF doesn't work | Only encoders that passed a test encode are shown; if one fails mid-job, the app finishes on the CPU (noted in the queue). Update your GPU driver. |
+| The computer stutters while converting | Settings → Work: "Videos at once" = 1 and "Keep the computer responsive". |
+| Reporting a bug | Settings → "Copy report" (versions, system, recent errors, without your folder paths) and paste it into a [bug report](https://github.com/cybersora9/soraflux/issues/new/choose). |
 
-## Prywatność
+## Privacy
 
-**Wszystko lokalnie, zero telemetrii.** Pliki nie opuszczają komputera, apka nie wysyła żadnych statystyk. Łączy się z internetem tylko, gdy o to poprosisz: pobieranie narzędzi (ffmpeg, yt-dlp, Deno), pobieranie filmów i ich miniatur oraz „Sprawdź aktualizacje” (GitHub Releases). Ustawienia (także motyw), presety i dziennik błędów są w plikach na tym komputerze (albo w folderze `portable` obok programu w trybie przenośnym).
+**Everything is local, zero telemetry.** Files never leave your computer and no statistics are sent. The app only goes online when you ask: downloading tools (ffmpeg, yt-dlp, Deno), downloading videos and their thumbnails, and "Check for updates" (GitHub Releases). Settings (including the theme), presets and the error log are files on this computer (or in the `portable` folder next to the program in portable mode).
 
-## Narzędzia zewnętrzne
+## External tools
 
-ffmpeg, ffprobe, yt-dlp i Deno **nie są w repozytorium ani w instalatorze**. Kolejność wyszukiwania: ścieżka z Ustawień → katalog narzędzi apki (`%APPDATA%\SoraConverter\narzedzia`, w trybie przenośnym `portable\narzedzia`, albo `narzedzia\` obok `.exe`) → `PATH`. Wyjątek: yt-dlp z `PATH` starszy niż 30 dni (typowo z pipa) bez własnej kopii → apka pobiera własną kopię i jej używa. Linki i sumy: [`src-tauri/src/narzedzia/zrodla.rs`](src-tauri/src/narzedzia/zrodla.rs). Licencje: [THIRD_PARTY.md](THIRD_PARTY.md).
+ffmpeg, ffprobe, yt-dlp and Deno are **not in the repository or the installer**. Search order: path set in Settings → the app's tools folder (`%APPDATA%\SoraConverter\narzedzia`, `portable\narzedzia` in portable mode, or `narzedzia\` next to the `.exe`) → `PATH`. Exception: a yt-dlp from `PATH` older than 30 days (typically pip) with no own copy → the app downloads its own copy and uses it. Links and checksums: [`src-tauri/src/narzedzia/zrodla.rs`](src-tauri/src/narzedzia/zrodla.rs). Licenses: [THIRD_PARTY.md](THIRD_PARTY.md).
 
-## Budowanie
+`SoraConverter` in folder names and the app identifier `pl.cybersora.soraconverter` is the app's earlier name, kept on purpose: changing it would break existing settings and updates.
 
-Wymagania: [Rust](https://rustup.rs) (stabilny), Node.js 20+, na Windows: Visual Studio Build Tools (C++). Na Linuksie: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libsoup-3.0-dev`.
+## Building
+
+Requirements: [Rust](https://rustup.rs) (stable), Node.js 20+, on Windows: Visual Studio Build Tools (C++). On Linux: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libsoup-3.0-dev`.
 
 ```bash
 npm install
-npm run tauri dev                    # tryb deweloperski
-npm run tauri build -- --bundles nsis  # instalator Windows (src-tauri/target/release/bundle/nsis/)
+npm run tauri dev                      # development
+npm run tauri build -- --bundles nsis  # Windows installer (src-tauri/target/release/bundle/nsis/)
 ```
 
-Wydania i podpisy budują się w GitHub Actions: [`.github/workflows/release.yml`](.github/workflows/release.yml), [docs/PODPIS.md](docs/PODPIS.md), [docs/AKTUALIZACJE.md](docs/AKTUALIZACJE.md).
-Podgląd samego interfejsu w przeglądarce (z atrapą backendu): `npm run dev`, potem `http://localhost:1420/?demo=1`.
+Releases and signing run in GitHub Actions: [`.github/workflows/release.yml`](.github/workflows/release.yml), [docs/SIGNING.md](docs/SIGNING.md), [docs/UPDATES.md](docs/UPDATES.md).
+UI-only preview in a browser (with a mock backend): `npm run dev`, then `http://localhost:1420/?demo=1`.
 
-## Testy (bramka)
+## Tests (the gate)
 
 ```bash
-npm run bramka   # fmt, clippy, cargo test, build, vitest, zrzuty (jeden przebieg naraz)
+npm run bramka   # "bramka" = gate: fmt, clippy, cargo test, build, vitest, screenshots (one at a time)
 ```
 
-- `cargo test`: budowniczy argumentów (tabela przypadków), **integracja z prawdziwym ffmpeg** sprawdzana ffprobe (480p/25 fps/AAC 8 kb/s, 853×481, HDR PQ → SDR BT.709, VFR → 25 fps, obrót z metadanych, Opus 8 kb/s, MP3 320, GIF 480 px 15 fps, WebP 50%), kolejka (równoległość, 2 × 2-pass naraz, anulowanie bez procesów i `.part`, `zażółć 日本 film.mp4` w ścieżce > 260, powrót z enkodera sprzętowego, limit wideo), podgląd i odsłuch, kontrakt front↔Rust przez IPC Tauri, pobieranie na atrapie yt-dlp i zmyślonych fixtures (żadnych prawdziwych utworów w repo), ucięty plik, kalibracja szacunku GIF.
-- `npm test`: vitest (logika, i18n PL/EN, panel w jsdom, kontrast WCAG AA, konfiguracja wydania).
-- `npm run zrzuty`: Playwright z atrapą backendu → `zrzuty/v1_2-*.png`.
-- CI (`.github/workflows/test.yml`, Linux + Windows) ruszy po upublicznieniu repozytorium.
+- `cargo test`: the argument builder (table of cases), **integration tests with real ffmpeg** verified by ffprobe (480p/25 fps/AAC 8 kbps, 853×481, HDR PQ → SDR BT.709, VFR → 25 fps, rotation metadata, Opus 8 kbps, MP3 320, GIF 480 px 15 fps, WebP 50%), the queue (parallel jobs, 2 × 2-pass at once, cancel without leftover processes or `.part` files, `zażółć 日本 film.mp4` in a path > 260, hardware encoder fallback, video limit), preview and audio preview, the frontend↔Rust contract over Tauri IPC, downloads against a yt-dlp mock and made-up fixtures (no real copyrighted works in the repo), truncated files, GIF estimate calibration.
+- `npm test`: vitest (logic, i18n PL/EN incl. every error key sent from Rust, the panel in jsdom, WCAG AA contrast, release config).
+- `npm run zrzuty` / `npm run zrzuty:en`: Playwright screenshots with the mock backend → `zrzuty/` / `zrzuty/en/`.
+- CI ([`.github/workflows/test.yml`](.github/workflows/test.yml), Linux + Windows) on every push and pull request.
 
-## Architektura
+## Architecture
 
-Front (Vite + TypeScript, bez frameworka) tylko rysuje i zbiera ustawienia; Rust buduje argumenty ffmpeg czystymi funkcjami, uruchamia ffmpeg/ffprobe, parsuje postęp i raportuje go zdarzeniami. Szczegóły: [ARCHITEKTURA.md](ARCHITEKTURA.md), pancerz: [PANCERZ.md](PANCERZ.md).
+The frontend (Vite + TypeScript, no framework) only draws and collects settings; Rust builds ffmpeg arguments with pure functions, runs ffmpeg/ffprobe, parses progress and reports it through events. Details: [ARCHITECTURE.md](ARCHITECTURE.md), pitfalls and their tests: [HARDENING.md](HARDENING.md).
 
-## Licencja
+**Code language:** identifiers and code comments are in Polish. Translating them would be a huge diff with real risk of regressions and no benefit for users, so they stay; the [glossary in ARCHITECTURE.md](ARCHITECTURE.md) maps the common names. The UI is Polish and English, and so are the error messages coming from Rust (`rust.*` keys in `src/i18n`).
 
-MIT, zobacz [LICENSE](LICENSE). Narzędzia zewnętrzne: [THIRD_PARTY.md](THIRD_PARTY.md).
+## Contributing and security
+
+Pull requests and issues are welcome in English (or Polish): [CONTRIBUTING.md](CONTRIBUTING.md). Please report vulnerabilities privately: [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE). External tools: [THIRD_PARTY.md](THIRD_PARTY.md).

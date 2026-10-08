@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an idea for SoraFlux
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task or problem, e.g. "I convert screen recordings for a forum with a 10 MB limit".
+    validations:
+      required: true
+  - type: textarea
+    id: pomysl
+    attributes:
+      label: How could SoraFlux help?
+    validations:
+      required: true
+  - type: textarea
+    id: teraz
+    attributes:
+      label: How do you do it today?
+      description: Other tools, ffmpeg commands, workarounds.

@@ -2,6 +2,7 @@
 //! Tylko treści, do których użytkownik ma prawa; zero obchodzenia DRM.
 //! Argumenty jako `OsString` (D25): ścieżki z polskimi znakami i spoza UTF-8 bez strat.
 
+use crate::blad;
 use crate::narzedzia::Sciezki;
 use crate::postep::{SZABLON_PLIKU_YTDLP, SZABLON_POSTEPU_YTDLP};
 use serde::{Deserialize, Serialize};
@@ -230,7 +231,8 @@ fn kodek(v: &Value, k: &str) -> Option<String> {
 
 /// Parsuje `yt-dlp -J`. Tolerancyjne: brakujące pola to `None`, nie błąd.
 pub fn info_z_json(json: &str) -> Result<Info, String> {
-    let v: Value = serde_json::from_str(json).map_err(|e| format!("yt-dlp: zły JSON: {e}"))?;
+    let v: Value =
+        serde_json::from_str(json).map_err(|e| blad::kod("zly_json", &[("program", &"yt-dlp"), ("blad", &e)]))?;
     if v.get("_type").and_then(Value::as_str) == Some("playlist") {
         let wpisy = v
             .get("entries")
@@ -307,7 +309,7 @@ pub async fn info(ytdlp: &Path, url: &str, playlista: bool, sc: &Sciezki) -> Res
         .kill_on_drop(true)
         .output()
         .await
-        .map_err(|e| format!("nie można uruchomić yt-dlp: {e}"))?;
+        .map_err(|e| blad::kod("uruchomienie", &[("program", &"yt-dlp"), ("blad", &e)]))?;
     if !w.status.success() {
         return Err(komunikat_bledu(&String::from_utf8_lossy(&w.stderr)));
     }
@@ -315,11 +317,12 @@ pub async fn info(ytdlp: &Path, url: &str, playlista: bool, sc: &Sciezki) -> Res
 }
 
 /// Komunikat, gdy serwis odmawia (stary yt-dlp, zmiany po stronie YouTube).
-pub const BLOKADA: &str = "Serwis zablokował pobieranie. Kliknij Aktualizuj yt-dlp i spróbuj jeszcze raz.";
+/// Klucz komunikatu „serwis zablokował pobieranie, zaktualizuj yt-dlp” (`rust.yt.blokada`).
+pub const BLOKADA: &str = "yt.blokada";
 
-/// Błąd yt-dlp po ludzku. 403 / „Sign in to confirm” / nsig / „Requested format is not available”
-/// przy YouTube to prawie zawsze za stary yt-dlp → [`BLOKADA`]. Surowy ogon zostaje pod spodem
-/// (do raportu), żeby dało się zgłosić błąd.
+/// Błąd yt-dlp po ludzku (klucz i18n, patrz [`crate::blad`]). 403 / „Sign in to confirm” / nsig /
+/// „Requested format is not available” przy YouTube to prawie zawsze za stary yt-dlp → [`BLOKADA`].
+/// Surowy ogon zostaje pod spodem (do raportu), żeby dało się zgłosić błąd.
 pub fn komunikat_bledu(stderr: &str) -> String {
     let surowy = stderr.trim();
     let m = surowy.to_lowercase();
@@ -331,32 +334,33 @@ pub fn komunikat_bledu(stderr: &str) -> String {
         || m.contains("unable to extract")
         || m.contains("precondition check failed");
     // Najpierw przypadki, których aktualizacja nie naprawi (YouTube pisze też „Sign in to confirm your age”).
-    if m.contains("private video") {
-        format!("To prywatny film: bez dostępu u autora nie da się go pobrać.\n\n{surowy}")
+    let klucz = if m.contains("private video") {
+        "yt.prywatny"
     } else if m.contains("confirm your age")
         || m.contains("age-restricted")
         || m.contains("inappropriate for some users")
     {
-        format!("Film z ograniczeniem wiekowym: serwis wymaga zalogowania.\n\n{surowy}")
+        "yt.wiek"
     } else if m.contains("members-only") || m.contains("join this channel") {
-        format!("Film tylko dla członków kanału.\n\n{surowy}")
+        "yt.czlonkowie"
     } else if m.contains("available in your country") || m.contains("geo restrict") {
-        format!("Film niedostępny w Twoim kraju.\n\n{surowy}")
+        "yt.kraj"
     } else if m.contains("live event will begin") || m.contains("premieres in") {
-        format!("Transmisja jeszcze się nie zaczęła. Spróbuj, gdy będzie dostępna.\n\n{surowy}")
+        "yt.transmisja"
     } else if blokada {
-        format!("{BLOKADA}\n\n{surowy}")
+        BLOKADA
     } else if m.contains("only images are available") || m.contains("requested format is not available") {
-        format!("Serwis nie podał żadnego formatu do pobrania. Kliknij Aktualizuj yt-dlp i spróbuj jeszcze raz.\n\n{surowy}")
+        "yt.brak_formatu"
     } else if m.contains("unsupported url") {
-        format!("Ten adres nie jest obsługiwany przez yt-dlp.\n\n{surowy}")
+        "yt.nieobslugiwany"
     } else if m.contains("drm") {
-        format!("Ten materiał jest chroniony DRM, nie pobieramy go.\n\n{surowy}")
+        "yt.drm"
     } else if surowy.is_empty() {
-        "yt-dlp zakończył się błędem bez opisu".into()
+        "yt.bez_opisu"
     } else {
-        surowy.to_string()
-    }
+        return surowy.to_string();
+    };
+    blad::z_ogonem(klucz, &[], surowy)
 }
 
 /// Czy tekst wygląda na link do filmu (do wykrywania w schowku).
@@ -405,24 +409,25 @@ mod testy {
 
     #[test]
     fn a7_bledy_po_ludzku() {
+        let klucz = |e: &str| blad::klucz(&komunikat_bledu(e)).unwrap_or_default();
         for e in [
             "ERROR: unable to download video data: HTTP Error 403: Forbidden",
             "ERROR: [youtube] abc: Sign in to confirm you're not a bot",
             "WARNING: [youtube] nsig extraction failed: Some formats may be missing",
         ] {
             let k = komunikat_bledu(e);
-            assert!(k.starts_with(BLOKADA), "{k}");
+            assert_eq!(blad::klucz(&k).as_deref(), Some(BLOKADA), "{k}");
             assert!(k.ends_with(e), "surowy błąd zostaje do raportu");
         }
-        assert!(komunikat_bledu("ERROR: Unsupported URL: https://example.com/").starts_with("Ten adres"));
-        assert!(komunikat_bledu("ERROR: [youtube] x: Sign in to confirm your age").starts_with("Film z ograniczeniem"));
-        assert!(komunikat_bledu("ERROR: [youtube] x: Private video").starts_with("To prywatny film"));
-        assert!(komunikat_bledu("ERROR: x: Join this channel to get access to members-only content")
-            .starts_with("Film tylko dla"));
-        assert!(komunikat_bledu("ERROR: The uploader has not made this video available in your country")
-            .starts_with("Film niedostępny"));
-        assert!(komunikat_bledu("ERROR: This live event will begin in 2 hours").starts_with("Transmisja"));
-        assert!(komunikat_bledu("ERROR: Requested format is not available").starts_with("Serwis nie podał"));
+        assert_eq!(klucz("ERROR: Unsupported URL: https://example.com/"), "yt.nieobslugiwany");
+        assert_eq!(klucz("ERROR: [youtube] x: Sign in to confirm your age"), "yt.wiek");
+        assert_eq!(klucz("ERROR: [youtube] x: Private video"), "yt.prywatny");
+        assert_eq!(klucz("ERROR: x: Join this channel to get access to members-only content"), "yt.czlonkowie");
+        assert_eq!(klucz("ERROR: The uploader has not made this video available in your country"), "yt.kraj");
+        assert_eq!(klucz("ERROR: This live event will begin in 2 hours"), "yt.transmisja");
+        assert_eq!(klucz("ERROR: Requested format is not available"), "yt.brak_formatu");
+        assert_eq!(klucz("ERROR: this is DRM protected"), "yt.drm");
+        assert_eq!(klucz("  "), "yt.bez_opisu");
         assert_eq!(komunikat_bledu("ERROR: coś innego"), "ERROR: coś innego");
     }
 

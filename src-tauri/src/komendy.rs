@@ -1,5 +1,6 @@
 //! Cienka warstwa `#[tauri::command]`: tylko przekazuje do modułów rdzenia.
 
+use crate::blad;
 use crate::budowniczy::{self, Podpowiedz};
 use crate::kolejka::{InfoZadania, Kolejka, NoweZadanie, RodzajZadania};
 use crate::konfig::{self, Konfig};
@@ -47,7 +48,7 @@ pub fn wersja_apki() -> &'static str {
 }
 
 fn wymagane(p: Option<PathBuf>, nazwa: &str) -> Wynik<PathBuf> {
-    p.ok_or_else(|| format!("brak {nazwa}: wskaż go w Ustawieniach albo pobierz"))
+    p.ok_or_else(|| blad::kod("brak_narzedzia", &[("nazwa", &nazwa)]))
 }
 
 #[tauri::command]
@@ -238,7 +239,7 @@ async fn uruchom_ffmpeg_proste(ffmpeg: &Path, args: &[std::ffi::OsString]) -> Wy
         .kill_on_drop(true)
         .output()
         .await
-        .map_err(|e| format!("nie można uruchomić ffmpeg: {e}"))?;
+        .map_err(|e| blad::kod("uruchomienie", &[("program", &"ffmpeg"), ("blad", &e)]))?;
     if w.status.success() {
         Ok(())
     } else {
@@ -347,7 +348,7 @@ pub async fn odsluch_z(
     od_s: f64,
     kt: &budowniczy::Kontekst,
 ) -> Wynik<String> {
-    let kodek = profil.audio.as_ref().map(|a| a.kodek).ok_or("ten profil nie ma dźwięku")?;
+    let kodek = profil.audio.as_ref().map(|a| a.kodek).ok_or_else(|| blad::kod("profil_bez_dzwieku", &[]))?;
     let kontener = budowniczy::kontener_odsluchu(kodek);
     let k = katalog_podgladu()?;
     let plik = k.join(format!("odsluch.{}", kontener.rozszerzenie()));
@@ -572,7 +573,7 @@ pub async fn narzedzia_pobierz<R: tauri::Runtime>(
 /// Pobiera pakiet do katalogu narzędzi apki (z SHA256) i unieważnia pamięć badania narzędzi.
 async fn zainstaluj_pakiet<R: tauri::Runtime>(app: &tauri::AppHandle<R>, stan: &StanApki, pakiet: Pakiet) -> Wynik<()> {
     let app = app.clone();
-    let z = zrodla::zrodlo(pakiet).ok_or("na tym systemie zainstaluj to narzędzie menedżerem pakietów")?;
+    let z = zrodla::zrodlo(pakiet).ok_or_else(|| blad::kod("menedzer_pakietow", &[]))?;
     let katalog = stan.katalogi_narzedzi[0].clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut ostatni = 0u64;

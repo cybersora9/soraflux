@@ -4,7 +4,7 @@
 import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t } from "../i18n";
+import { t, tekstBledu } from "../i18n";
 import { profilDla, profilSzybkiejAkcji, sklonuj, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
@@ -349,7 +349,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
       przelicz();
       podglad.odswiez();
     } catch (e) {
-      pokazDymek(String(e), "blad");
+      pokazDymek(tekstBledu(e), "blad");
     }
   }
 

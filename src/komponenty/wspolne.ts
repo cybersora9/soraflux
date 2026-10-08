@@ -3,7 +3,7 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { jezyk, maKlucz, t } from "../i18n";
+import { jezyk, maKlucz, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujRozmiar, komendaDoPokazania, nazwaPliku, sciezkaDoPokazania, sklonuj } from "../logika";
 import { pokazDymek, sklep } from "../sklep";
 import type { BladProfilu, Media, Podpowiedz, Preset, Profil } from "../typy";
@@ -88,7 +88,7 @@ export function listaPlikow(
               ? { type: "button", class: "plik-tekst plik-wybierz", onclick: () => wybor.wybierz(i), title: t("info.pokaz") }
               : { class: "plik-tekst" },
             h("div", { class: "plik-nazwa", title: sciezkaDoPokazania(p.sciezka) }, nazwaPliku(p.sciezka)),
-            h("div", { class: "plik-opis", title: p.blad ?? undefined }, p.blad ? opisBleduPliku(p.blad) : opisMediow(p.media)),
+            h("div", { class: "plik-opis", title: p.blad ? tlumaczBlad(p.blad) : undefined }, p.blad ? opisBleduPliku(p.blad) : opisMediow(p.media)),
           ),
           h("button", { type: "button", class: "ikona-przycisk", "aria-label": t("pliki.usun"), title: t("pliki.usun"), onclick: () => usun(i) }, ikona(IKONY.x)),
         ),
