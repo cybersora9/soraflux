@@ -11,6 +11,7 @@
     "test": "vitest run",
     "zrzuty": "node scripts/zrzuty.mjs",
     "zrzuty:en": "node -e \"process.env.ZRZUTY_JEZYK='en'; import('./scripts/zrzuty.mjs')\"",
+    "showcase": "node scripts/showcase.mjs",
     "tauri": "tauri",
     "bramka": "bash scripts/bramka.sh"
   },

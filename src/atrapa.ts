@@ -118,7 +118,7 @@ function mediaDla(sciezka: string): Media {
   }
   const a = audioPrzyklad({});
   return {
-    ...baza, czas_s: 187.4, rozmiar_b: 412_000_000, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+    ...baza, czas_s: 187.4, rozmiar_b: 432_013_312, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
     wideo: wideoPrzyklad({}), audio: a, sciezki_audio: [a],
   };
 }
@@ -240,7 +240,7 @@ function symuluj(z: InfoZadania, szybkosc: number, koniec?: Partial<InfoZadania>
     zadania.set(z.id, { ...z });
     if (z.procent >= 100) {
       clearInterval(t);
-      Object.assign(z, { stan: { typ: "gotowe", wyjscie: z.wyjscie ?? tx("C:/Wideo/wynik.mp4", "C:/Videos/result.mp4") }, rozmiar_wyniku: 74_000_000 }, koniec);
+      Object.assign(z, { stan: { typ: "gotowe", wyjscie: z.wyjscie ?? tx("C:/Wideo/wynik.mp4", "C:/Videos/result.mp4") }, rozmiar_wyniku: 77_594_624 }, koniec);
       emituj(z);
     }
   }, 400);
@@ -260,7 +260,7 @@ if (parametry.get("demo") === "1") {
     const gotowe = stan.typ === "gotowe";
     zadania.set(id, {
       id, nazwa, rodzaj, stan, procent, wyjscie: gotowe ? stan.wyjscie : null,
-      rozmiar_wejscia: gotowe ? 3_400_000 : 412_000_000, rozmiar_wyniku: gotowe ? 612_000 : null, awaria_sprzetu: false,
+      rozmiar_wejscia: gotowe ? 3_400_000 : 432_013_312, rozmiar_wyniku: gotowe ? 612_000 : null, awaria_sprzetu: false,
       ostrzezenie: /uszkodzona|damaged/.test(nazwa) ? { typ: "uciete", zrodlo_konczy_s: 32, wynik_s: 32, oczekiwane_s: 179 } : null,
     });
   }
@@ -304,7 +304,7 @@ export const atrapa: Api = {
       const nazwa = r.typ === "konwersja" ? nazwaPliku(r.wejscie) : r.opcje.tytul ?? r.url;
       const z: InfoZadania = {
         id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null,
-        rozmiar_wejscia: 412_000_000, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
+        rozmiar_wejscia: 432_013_312, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
       };
       emituj(z);
       setTimeout(() => symuluj(z, 7), 300);
