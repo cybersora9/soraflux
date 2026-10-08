@@ -5,6 +5,9 @@ Wszystko dzieje się na Twoim komputerze: żadnego uploadu, limitów, reklam ani
 
 **Polski** · [English](README.md)
 
+### [⬇ Pobierz SoraFlux na Windows](https://github.com/cybersora9/soraflux/releases/latest)
+Za darmo, Windows 10/11 (64-bit). [Jak zainstalować, krok po kroku ↓](#instalacja)
+
 ![Konwertuj: szybkie akcje, lista plików, karta informacji](zrzuty/v1_2-konwertuj-sora-a-ciemny.png)
 
 ## Co umie
@@ -35,6 +38,25 @@ Wszystko dzieje się na Twoim komputerze: żadnego uploadu, limitów, reklam ani
 | ![Obrazy](zrzuty/v1_2-obrazy-light.png) | ![Pierwsze uruchomienie](zrzuty/v1_2-kreator-dark.png) |
 
 Wszystkie zrzuty (6 motywów × jasny/ciemny i każda zakładka) są w [`zrzuty/`](zrzuty/).
+
+## Instalacja
+
+SoraFlux to zwykły program na Windows z instalatorem. Nie trzeba znać GitHuba ani programowania.
+
+1. Otwórz **[najnowsze wydanie](https://github.com/cybersora9/soraflux/releases/latest)** (albo na stronie repozytorium kliknij **Releases** w prawej kolumnie).
+2. Przewiń do sekcji **Assets** i kliknij **`SoraFlux_x.y.z_x64-setup.exe`** (x.y.z to wersja, np. 1.2.2). Przeglądarka zapisze plik w folderze **Pobrane**.
+   Nie pobieraj „Source code (zip)” ani „Source code (tar.gz)”: to kod programu, a nie aplikacja.
+3. Otwórz folder **Pobrane** (albo kliknij plik na liście pobranych w przeglądarce) i **kliknij dwa razy** `SoraFlux_…_x64-setup.exe`.
+4. Windows może pokazać niebieskie okno **„System Windows ochronił ten komputer”**. To dlatego, że instalator nie jest jeszcze podpisany (podpis w trakcie, [docs/pl/PODPIS.md](docs/pl/PODPIS.md)). Kliknij **Więcej informacji**, potem **Uruchom mimo to**.
+5. Wybierz język instalatora i kliknij **Dalej** / **Zainstaluj**. Uprawnienia administratora nie są potrzebne: program instaluje się tylko dla Twojego konta Windows.
+6. Uruchom **SoraFlux** z menu Start (albo skrótem na pulpicie, jeśli zaznaczyłeś go na końcu instalacji).
+7. Przy pierwszym uruchomieniu okno **Witaj w SoraFlux** sprawdzi ffmpeg (i yt-dlp do pobierania). Kliknij **Pobierz brakujące**: narzędzia przychodzą z oficjalnych wydań, z kontrolą sumy SHA256. Gotowe.
+
+Możesz też kliknąć prawym przyciskiem plik wideo, audio albo obraz w Eksploratorze i wybrać **Konwertuj w SoraFlux**.
+
+- **Aktualizacja:** pobierz nowy instalator tak samo i uruchom go na starej wersji; ustawienia i presety zostają.
+- **Odinstalowanie:** Ustawienia Windows → Aplikacje → Zainstalowane aplikacje → SoraFlux → Odinstaluj.
+- **Sprawdzenie pliku (opcjonalnie):** każde wydanie ma `SHA256SUMS.txt`. W PowerShellu wpisz `Get-FileHash $HOME\Downloads\SoraFlux_1.2.2_x64-setup.exe` i porównaj wynik z liczbą w tym pliku.
 
 ## Jak używać
 

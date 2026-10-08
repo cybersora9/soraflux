@@ -5,6 +5,9 @@ Everything runs on your computer: no uploads, no limits, no ads, no telemetry.
 
 **English** · [Polski](README.pl.md)
 
+### [⬇ Download SoraFlux for Windows](https://github.com/cybersora9/soraflux/releases/latest)
+Free, Windows 10/11 (64-bit). [How to install, step by step ↓](#installation)
+
 ![Convert tab: quick actions, file list, info card](zrzuty/en/v1_2-konwertuj-sora-a-ciemny.png)
 
 ## Features
@@ -38,9 +41,22 @@ All screenshots (6 themes × light/dark and every tab) are in [`zrzuty/en/`](zrz
 
 ## Installation
 
-Download `SoraFlux_x.y.z_x64-setup.exe` from [Releases](https://github.com/cybersora9/soraflux/releases) (Windows 10/11, x64). On first run the app offers to download ffmpeg (and yt-dlp for downloads), checking their SHA256.
+SoraFlux is a normal Windows program with an installer. You don't need to know anything about GitHub or code.
 
-The installer is not code-signed yet, so Windows may show "Windows protected your PC": click "More info" → "Run anyway". You can compare the file with `SHA256SUMS.txt` from the release. Signing is in progress: [docs/SIGNING.md](docs/SIGNING.md).
+1. Open the **[latest release](https://github.com/cybersora9/soraflux/releases/latest)** (or on the repository page, click **Releases** in the right-hand column).
+2. Scroll down to **Assets** and click **`SoraFlux_x.y.z_x64-setup.exe`** (x.y.z is the version, e.g. 1.2.2). The browser saves it to your **Downloads** folder.
+   Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app.
+3. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux_…_x64-setup.exe`.
+4. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
+5. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
+6. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
+7. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
+
+You can also right-click a video, audio or image file in Explorer and pick **Convert with SoraFlux**.
+
+- **Updating:** download the new installer the same way and run it over the old version; settings and presets are kept.
+- **Uninstalling:** Windows Settings → Apps → Installed apps → SoraFlux → Uninstall.
+- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux_1.2.2_x64-setup.exe` and compare the result with the number in that file.
 
 ## How to use
 
