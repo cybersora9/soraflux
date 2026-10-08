@@ -306,7 +306,20 @@ fn wideo_kodeki_i_kontenery() {
         (Kontener::Mov, KodekWideo::H265, "hevc"),
         (Kontener::Avi, KodekWideo::Mpeg4, "mpeg4"),
     ];
+    // GUI wyszarza kodek bez enkodera (PanelUstawien: brakEnkodera); test robi to samo, zamiast zakładać pełny build
+    // (CI Windows: choco ffmpeg bez libsvtav1 → „Encoder not found”). Lokalnie gyan full ma wszystkie.
+    let enkodery = soraconverter_lib::narzedzia::enkodery(Path::new(&ffmpeg()));
     for (k, kodek, nazwa) in przypadki {
+        let koder = match kodek {
+            KodekWideo::Vp9 => "libvpx-vp9",
+            KodekWideo::Av1 => "libsvtav1",
+            KodekWideo::H265 => "libx265",
+            _ => "mpeg4",
+        };
+        if !enkodery.iter().any(|e| e == koder) {
+            eprintln!("pomijam {k:?}/{kodek:?}: ffmpeg nie ma enkodera {koder}");
+            continue;
+        }
         let wy = tmp.path().join(format!("w.{}", k.rozszerzenie()));
         let mut p = Profil::dla(*k);
         p.wideo = Some(ProfilWideo {

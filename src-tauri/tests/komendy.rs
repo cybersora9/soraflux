@@ -275,7 +275,11 @@ fn podglad_odsluch_foldery_przez_ipc() {
     .unwrap();
     assert_eq!(f[0]["podkatalog"], "pod");
     assert_eq!(wywolaj(&okno, "pliki_startowe", json!({})).unwrap(), json!([]));
-    assert!(wywolaj(&okno, "raport", json!({})).unwrap().as_str().unwrap().starts_with("SoraConverter 1.2.0"));
+    assert!(wywolaj(&okno, "raport", json!({}))
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .starts_with(&format!("SoraFlux {}", env!("CARGO_PKG_VERSION"))));
 }
 
 /// Przyczyna 403 z testu na żywo 07.10: stary yt-dlp z PATH. Front dostaje wiek i pochodzenie.
