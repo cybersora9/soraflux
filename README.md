@@ -15,9 +15,12 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 ## Why SoraFlux
 
+- **Simple mode for everyone.** Drop a file or paste a link, pick one of 3–4 ready-made actions ("To send: fits in an email", "Audio only (MP3)", "For the web"), press one button that says what will happen. No codecs, no numbers; Full mode is one click away.
 - **No upload, no limits.** Your files never leave your computer. A 4 GB video works the same as a 4 MB one, as many as you like.
 - **Full control over quality.** One-click actions ("Shrink to 10 MB", "For phones", "Make a GIF"), then resolution, frame rate, CRF, bitrate or an exact target size in MB, with a before/after preview.
 - **6 themes, plus your own.** Kissaten, City Pop and MiniDisc in two palettes, light and dark (WCAG AA contrast), and an editor for your own themes.
+
+![Simple mode: a video from a phone with four ready-made actions](zrzuty/en/v1_2-prosty-film-ciemny.png)
 
 | | SoraFlux | A typical online converter |
 |---|---|---|

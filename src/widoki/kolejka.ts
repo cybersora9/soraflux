@@ -5,7 +5,7 @@ import { IKONY } from "../ikony";
 import { jezyk, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujEta, formatujRozmiar, sciezkaDoPokazania, zmianaRozmiaru } from "../logika";
 import { liczba, przycisk } from "../komponenty/pola";
-import { sklep } from "../sklep";
+import { sklep, trybApki } from "../sklep";
 import type { InfoZadania, Postep } from "../typy";
 
 function etykietaStanu(z: InfoZadania): string {
@@ -94,8 +94,9 @@ export function stworzWidokKolejki(): { el: HTMLElement; odswiez(): void } {
 
   function rysujGore() {
     const k = sklep.stan.konfig;
+    // Prosty: bez liczb (równoległość zostaje w Ustawieniach i w trybie Pełnym)
     gora.replaceChildren(
-      h(
+      trybApki() === "prosty" ? "" : h(
         "label",
         { class: "rownolegle" },
         h("span", null, t("kolejka.rownolegle")),
@@ -137,7 +138,8 @@ export function stworzWidokKolejki(): { el: HTMLElement; odswiez(): void } {
   });
 
   function odswiez() {
-    naglowek.replaceChildren(h("div", null, h("h1", null, t("zakladka.kolejka")), h("p", { class: "podtytul" }, t("kolejka.podtytul"))));
+    const prosty = trybApki() === "prosty";
+    naglowek.replaceChildren(h("div", null, h("h1", null, t(prosty ? "prosty.zakladka.kolejka" : "zakladka.kolejka")), h("p", { class: "podtytul" }, t(prosty ? "prosty.kolejka.podtytul" : "kolejka.podtytul"))));
     rysujGore();
     rysujListe();
   }

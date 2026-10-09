@@ -3,11 +3,12 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { t } from "../i18n";
-import { liczba, pole, przelacznik, przycisk, wybor } from "../komponenty/pola";
+import { liczba, pole, przelacznik, przycisk, segmenty, wybor } from "../komponenty/pola";
 import { listaNarzedzi, odswiezNarzedzia } from "../komponenty/narzedzia";
 import { folderWyjscia } from "../komponenty/wspolne";
 import { sekcjaMotywow } from "../komponenty/wyglad";
-import { pokazDymek, sklep } from "../sklep";
+import { pokazDymek, sklep, trybApki } from "../sklep";
+import { ustawTryb } from "../tryb";
 import { sprawdzAktualizacje } from "../aktualizacje";
 import type { Konfig } from "../typy";
 
@@ -36,6 +37,21 @@ export function stworzWidokUstawien(): { el: HTMLElement; odswiez(): void } {
       h(
         "div",
         { class: "ustawienia" },
+        h(
+          "section",
+          { class: "karta ustawienia-karta ustawienia-tryb" },
+          h("h2", null, t("tryb.etykieta")),
+          segmenty(
+            [
+              { wartosc: "prosty", etykieta: t("tryb.prosty") },
+              { wartosc: "pelny", etykieta: t("tryb.pelny") },
+            ],
+            trybApki(),
+            (v) => void ustawTryb(v),
+            t("tryb.etykieta"),
+          ),
+          h("p", { class: "pole-pomoc" }, t("tryb.pomoc")),
+        ),
         h(
           "section",
           { class: "karta ustawienia-karta" },

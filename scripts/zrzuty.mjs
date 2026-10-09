@@ -105,6 +105,37 @@ for (const motyw of ["dark", "light"]) {
   await s.context().close();
 }
 
+// Tryb Prosty (S4): start, film z kaflami („Do wysłania”), gotowe; zdjęcia i link w ciemnym
+for (const motyw of ["dark", "light"]) {
+  const m = motyw === "dark" ? "ciemny" : "jasny";
+  let s = await strona(motyw, "&tryb=prosty");
+  await s.waitForSelector(".widok-prosty .prosty-strefa");
+  await zdj(s, `prosty-start-${m}`);
+  // jeden film z telefonu (pionowy, HDR), jak w makiecie; „Wybierz z dysku” w atrapie daje dwa
+  await s.evaluate((z) => window.__dodajDoKonwertuj([z]), JEZYK === "en" ? "C:/Videos/phone-vertical-hdr.mov" : "C:/Wideo/telefon-pionowo-hdr.mov");
+  await s.waitForSelector('[data-akcja-prosta="wyslij"]');
+  await s.waitForFunction(() => document.querySelector('[data-akcja-prosta="wyslij"] .prosty-akcja-wynik')?.textContent, null, { timeout: 3000 }).catch(() => {});
+  await zdj(s, `prosty-film-${m}`);
+  await s.click(".prosty-start-przycisk");
+  await s.waitForSelector(".prosty-wynik-ok", { timeout: 20000 });
+  await zdj(s, `prosty-gotowe-${m}`);
+  await s.context().close();
+  if (motyw === "light") continue;
+  s = await strona(motyw, "&tryb=prosty");
+  await s.fill(".prosty-link-pole", "https://example.com/watch?v=test01");
+  await s.click("text=" + SLOWNIK["prosty.link.sprawdz"]);
+  await s.waitForSelector('[data-akcja-prosta="film"]', { timeout: 3000 });
+  await zdj(s, `prosty-link-${m}`);
+  await s.context().close();
+  s = await strona(motyw, "&tryb=prosty");
+  const zdjecia = JEZYK === "en" ? ["C:/Pictures/mountains.jpg", "C:/Pictures/screenshot.png", "C:/Pictures/logo.png"] : ["C:/Obrazy/zdjecie-gory.jpg", "C:/Obrazy/zrzut-ekranu.png", "C:/Obrazy/logo.png"];
+  await s.evaluate((z) => window.__dodajDoKonwertuj(z), zdjecia);
+  await s.waitForSelector('[data-akcja-prosta="www"]');
+  await s.waitForTimeout(300);
+  await zdj(s, `prosty-zdjecia-${m}`);
+  await s.context().close();
+}
+
 // Angielski, jeden przykład obok polskich (pełny zestaw EN: npm run zrzuty:en)
 if (JEZYK === "pl") {
   const s = await strona("dark", "&demo=1", "en");

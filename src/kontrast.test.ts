@@ -73,3 +73,40 @@ describe("kontrast WCAG AA motywów", () => {
     }
   }
 });
+
+// S4 tryb Prosty: zaznaczony kafel (akcent 15% na karcie; tekst ≥ 4,5:1, ikony w akcencie i gwiazdka „najczęściej”
+// w kolorze ok ≥ 3:1 jak elementy nietekstowe, WCAG 1.4.11), karta „gotowe z uwagą”
+// (pom1 ~8% na karcie) i LCD z wynikiem. Mieszanie w sRGB: przybliżenie color-mix(in oklab), przy 8–15% różnica
+// jest w setnych części kontrastu, więc próg zostaje 4,5:1.
+function domieszka(tlo: string, kolor: string, procent: number): string {
+  const kanal = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
+  return "#" + [1, 3, 5].map((i) => Math.round(kanal(tlo, i) * (1 - procent / 100) + kanal(kolor, i) * (procent / 100)).toString(16).padStart(2, "0")).join("");
+}
+
+describe("kontrast WCAG AA trybu Prostego", () => {
+  for (const m of WBUDOWANE) {
+    for (const tryb of ["jasny", "ciemny"] as const) {
+      it(`${m.nazwa} (${tryb})`, () => {
+        const k = m[tryb];
+        const slabe: string[] = [];
+        const kafel = domieszka(k.karta, k.akcent, 15);
+        for (const [nx, x] of [["tekst", k.tekst], ["tekst2", k.tekst2]] as const) {
+          const w = kontrast(x, kafel);
+          if (w < 4.5) slabe.push(`${nx} na zaznaczonym kaflu: ${w.toFixed(2)}`);
+        }
+        for (const [nx, x] of [["akcent (ikona)", k.akcent], ["ok (gwiazdka)", k.ok]] as const) {
+          const w = kontrast(x, kafel);
+          if (w < 3) slabe.push(`${nx} na zaznaczonym kaflu: ${w.toFixed(2)}`);
+        }
+        const uwaga = domieszka(k.karta, k.pom1, 9);
+        for (const [nx, x] of [["tekst", k.tekst], ["pom1", k.pom1], ["tekst3", k.tekst3]] as const) {
+          const w = kontrast(x, uwaga);
+          if (w < 4.5) slabe.push(`${nx} na karcie uwagi: ${w.toFixed(2)}`);
+        }
+        const lcd = kontrast(k.lcd, k.lcdTlo);
+        if (lcd < 4.5) slabe.push(`lcd: ${lcd.toFixed(2)}`);
+        expect(slabe).toEqual([]);
+      });
+    }
+  }
+});

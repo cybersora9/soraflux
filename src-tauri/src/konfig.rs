@@ -62,6 +62,13 @@ pub struct Konfig {
     /// Ostatnio wybrane foldery zapisu (najnowszy pierwszy, maks. 6).
     #[serde(default)]
     pub ostatnie_foldery: Vec<PathBuf>,
+    /// Tryb interfejsu: "prosty" | "pelny"; `None` = jeszcze nie rozstrzygnięty (konfig sprzed 1.4.0
+    /// albo pierwsze uruchomienie). Front rozstrzyga i zapisuje przy starcie (`rozstrzygnijTryb`).
+    #[serde(default)]
+    pub tryb: Option<String>,
+    /// Jednorazowa podpowiedź „Wypróbuj tryb Prosty” dla aktualizujących z 1.x już pokazana.
+    #[serde(default)]
+    pub podpowiedz_prosty_pokazana: bool,
 }
 
 impl Default for Konfig {
@@ -257,6 +264,20 @@ mod testy {
         // brak starego katalogu: nic
         let pusty = tmp.path().join("inny");
         assert!(migruj_ze_starej_nazwy(&pusty, &pusty, &pusty.join("a"), &pusty.join("b")).is_empty());
+    }
+
+    #[test]
+    fn tryb_prosty_pola_z_domyslnymi() {
+        // konfig z 1.3.0: brak pól trybu → None i podpowiedź niepokazana (front rozstrzyga: Pełny + podpowiedź)
+        let k: Konfig = serde_json::from_str(r#"{"kreator_zakonczony":true}"#).unwrap();
+        assert_eq!(k.tryb, None);
+        assert!(!k.podpowiedz_prosty_pokazana);
+        let tmp = tempfile::tempdir().unwrap();
+        let mut k2 = k.clone();
+        k2.tryb = Some("prosty".into());
+        k2.podpowiedz_prosty_pokazana = true;
+        zapisz(tmp.path(), &k2).unwrap();
+        assert_eq!(wczytaj(tmp.path()), k2);
     }
 
     #[test]

@@ -15,9 +15,12 @@ Za darmo i otwarty kod (MIT). Bez limitów, reklam i telemetrii.</p>
 
 ## Dlaczego SoraFlux
 
+- **Tryb Prosty dla każdego.** Wrzucasz plik albo wklejasz link, wybierasz jedną z 3–4 gotowych akcji („Do wysłania: zmieści się w mailu”, „Tylko dźwięk (MP3)”, „Do internetu”) i naciskasz jeden przycisk, który mówi, co się stanie. Bez kodeków i liczb; tryb Pełny jest jeden klik dalej.
 - **Bez uploadu i limitów.** Pliki nie opuszczają komputera. Film 4 GB działa tak samo jak 4 MB, ile chcesz.
 - **Pełna kontrola jakości.** Akcje jednym kliknięciem („Zmniejsz do 10 MB”, „Na telefon”, „Zrób GIF”), potem rozdzielczość, FPS, CRF, bitrate albo dokładny rozmiar w MB, z podglądem przed/po.
 - **6 motywów i własne.** Kissaten, City Pop i MiniDisc w dwóch paletach, jasne i ciemne (kontrast WCAG AA), plus edytor własnych motywów.
+
+![Tryb Prosty: film z telefonu i cztery gotowe akcje](zrzuty/v1_2-prosty-film-ciemny.png)
 
 | | SoraFlux | Typowy konwerter online |
 |---|---|---|

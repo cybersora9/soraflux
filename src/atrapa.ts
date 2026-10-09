@@ -28,11 +28,17 @@ let konfig: Konfig = {
   ostatnie_foldery: [],
   sciezki: { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null },
   kreator_zakonczony: true,
+  tryb: "pelny",
+  podpowiedz_prosty_pokazana: true,
 };
 
 // Parametry adresu: ?kreator=1 pokazuje pierwsze uruchomienie, ?demo=1 wypełnia widoki.
 const parametry = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
-if (parametry.get("kreator") === "1") konfig.kreator_zakonczony = false;
+if (parametry.get("kreator") === "1") Object.assign(konfig, { kreator_zakonczony: false, tryb: null });
+// ?tryb=prosty|pelny: tryb interfejsu; ?tryb=aktualizacja udaje konfig z 1.3.0 (brak pola → Pełny + podpowiedź)
+const trybParam = parametry.get("tryb");
+if (trybParam === "prosty" || trybParam === "pelny") konfig.tryb = trybParam;
+if (trybParam === "aktualizacja") Object.assign(konfig, { tryb: null, podpowiedz_prosty_pokazana: false });
 const motyw = parametry.get("motyw");
 if (motyw === "light" || motyw === "dark") konfig.motyw = motyw;
 // ?wyglad=jp-b: motyw wyglądu (zrzuty v1.2, każdy z 6 motywów)
@@ -306,8 +312,17 @@ export const atrapa: Api = {
         id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null,
         rozmiar_wejscia: 432_013_312, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
       };
+      // jak kolejka.rs: wynik obok źródła, `nazwa (dopisek).ext`; rozmiar z szacunku
+      let koniec: Partial<InfoZadania> | undefined;
+      if (r.typ === "konwersja") {
+        const m = mediaDla(r.wejscie);
+        const rdzen = r.wejscie.replace(/\.[^./\\]+$/, "");
+        const wyjscie = `${n.katalog ?? rdzen.slice(0, Math.max(rdzen.lastIndexOf("/"), rdzen.lastIndexOf("\\")))}/${nazwaPliku(rdzen)}${n.dopisek ? ` (${n.dopisek})` : ""}.${r.profil.kontener}`;
+        z.rozmiar_wejscia = m.rozmiar_b;
+        koniec = { wyjscie, stan: { typ: "gotowe", wyjscie }, rozmiar_wyniku: Math.round(szacuj(m, r.profil).bajty ?? 77_594_624) };
+      }
       emituj(z);
-      setTimeout(() => symuluj(z, 7), 300);
+      setTimeout(() => symuluj(z, 7, koniec), 300);
       ids.push(id);
     }
     return ids;

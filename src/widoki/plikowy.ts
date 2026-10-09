@@ -20,6 +20,8 @@ export interface WidokPlikowy {
   el: HTMLElement;
   dodaj(sciezki: string[]): Promise<void>;
   odswiez(): void;
+  /** Wejście z trybu Prostego („Więcej ustawień”): profil akcji bez zaznaczonego presetu ani szybkiej akcji. */
+  ustawProfil(p: Profil): void;
 }
 
 /** Opcje folderów wsadowo (punkt 4.3). */
@@ -384,5 +386,16 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   }
   odswiez();
 
-  return { el, dodaj, odswiez };
+  return {
+    el,
+    dodaj,
+    odswiez,
+    ustawProfil(p: Profil) {
+      aktywnyPreset = null;
+      aktywnaAkcja = null;
+      ustawProfil(p);
+      rysujPresety();
+      rysujAkcje();
+    },
+  };
 }

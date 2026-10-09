@@ -22,7 +22,14 @@ interface Wynik {
 
 const AUDIO = ["mp3", "m4a", "opus", "flac"];
 
-export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
+export interface WidokPobierania {
+  el: HTMLElement;
+  odswiez(): void;
+  /** Wejście z trybu Prostego („Więcej ustawień”): link sprawdzony od razu, z wyborem akcji. */
+  wstaw(url: string, wybor: Wybor): void;
+}
+
+export function stworzWidokPobierania(): WidokPobierania {
   let tekstUrl = "";
   let playlista = false;
   let wyniki: Wynik[] = [];
@@ -37,6 +44,8 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
   let aktualizacja: "nic" | "trwa" = "nic";
   let szybka: "mp3" | "najlepsza" | null = null;
   let zapewnione = false;
+  /** Wybór z trybu Prostego dla najbliższego sprawdzenia (zamiast szybkiej akcji). */
+  let wyborStartowy: Wybor | null = null;
 
   const el = h("div", { class: "widok widok-pobierz" });
   const panelPotem = panelUstawien({
@@ -211,7 +220,9 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
       return;
     }
     sprawdzanie = true;
-    wyniki = urle.map((url) => ({ url, info: null, blad: null, wybor: wyborSzybki(szybka ?? "najlepsza") }));
+    const wyborNowych = wyborStartowy ?? wyborSzybki(szybka ?? "najlepsza");
+    wyborStartowy = null;
+    wyniki = urle.map((url) => ({ url, info: null, blad: null, wybor: wyborNowych }));
     rysuj();
     await Promise.all(
       wyniki.map(async (w) => {
@@ -387,6 +398,12 @@ export function stworzWidokPobierania(): { el: HTMLElement; odswiez(): void } {
     odswiez() {
       rysuj();
       if (sklep.stan.zakladka === "pobierz") void zapewnij();
+    },
+    wstaw(url, wybor) {
+      tekstUrl = url;
+      szybka = wybor.typ === "tylko_audio" && wybor.format === "mp3" ? "mp3" : wybor.typ === "najlepsza" ? "najlepsza" : null;
+      wyborStartowy = wybor;
+      void sprawdz();
     },
   };
 }
