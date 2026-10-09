@@ -2,6 +2,7 @@
 # Bramka v1.1: wszystko po kolei, jeden przebieg naraz. Wymaga ffmpeg/ffprobe w PATH.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+echo "== workflowy (YAML)";   python -c "import sys,yaml; [yaml.safe_load(open(p,encoding='utf-8')) for p in sys.argv[1:]]" .github/workflows/*.yml
 echo "== cargo fmt --check";  (cd src-tauri && cargo fmt --check)
 echo "== cargo clippy";       (cd src-tauri && cargo clippy --all-targets -- -D warnings)
 if rustup target list --installed 2>/dev/null | grep -q x86_64-pc-windows-gnu; then

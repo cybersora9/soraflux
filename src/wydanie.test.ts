@@ -26,6 +26,17 @@ describe("wydanie (B10, B11, E28)", () => {
     expect(r).not.toMatch(/draft:\s*false/);
   });
 
+  it("workflowy to poprawny YAML: wartość w jednej linii bez cudzysłowu nie zawiera „: ” (GitHub odrzuca cały plik)", () => {
+    for (const plik of ["release.yml", "test.yml"]) {
+      czytaj(`.github/workflows/${plik}`)
+        .split(/\r?\n/)
+        .forEach((linia, i) => {
+          const m = linia.match(/^\s*(?:- )?[\w-]+: (?![|>"'])(.+)$/);
+          if (m) expect(m[1], `${plik}:${i + 1}`).not.toMatch(/: /);
+        });
+    }
+  });
+
   it("wydanie z CI: tag zgodny z wersją, podpis updatera wymagany na tagu, istniejącego wydania nie ruszamy", () => {
     const r = czytaj(".github/workflows/release.yml");
     expect(r).toContain('throw "Tag $tag does not match version');
