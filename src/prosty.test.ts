@@ -156,6 +156,8 @@ describe("opis pliku po ludzku", () => {
     expect(opisWyniku(432_013_312, 24 * 1048576, { jezyk: "pl", ok: "ok.", porownaj: true })).toBe("412 MB → ok. 24 MB");
     expect(opisWyniku(432_013_312, 4_600_000, { jezyk: "pl", ok: "ok.", porownaj: false })).toBe("≈ 4,4 MB");
     expect(opisWyniku(null, null, { jezyk: "pl", ok: "ok.", porownaj: true })).toBe("");
+    // na żywo 09.10: 2 PNG 376 KB, szacunek 726 KB, wynik 101 KB → bez strzałki „rośnie”
+    expect(opisWyniku(385_000, 743_000, { jezyk: "pl", ok: "ok.", porownaj: true })).toBe("≈ 726 KB");
   });
 });
 

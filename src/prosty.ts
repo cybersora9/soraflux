@@ -225,12 +225,13 @@ export function opisPliku(m: Media, jezyk: "pl" | "en"): { rodzaj: string; czesc
   return { rodzaj: `prosty.rodzaj.${r ?? "film"}`, czesci, cechy };
 }
 
-/** Przewidywany wynik na kaflu: „412 MB → ok. 24 MB” albo samo „≈ 4,4 MB”, gdy wynik to inny rodzaj pliku. */
+/** Przewidywany wynik na kaflu: „412 MB → ok. 24 MB” albo samo „≈ 4,4 MB”, gdy wynik to inny rodzaj pliku
+ *  albo szacunek nie wychodzi mniejszy od oryginału (szacunek z pikseli przegrywa z mocno ściśniętym PNG). */
 export function opisWyniku(przed: number | null, po: number | null, o: { jezyk: "pl" | "en"; ok: string; porownaj: boolean }): string {
   if (po === null) return "";
   // szacunek: „24 MB”, nie „24,0 MB” (dokładność, której nie ma)
   const r = (b: number) => formatujRozmiar(b, o.jezyk).replace(/[.,]0 /, " ");
-  return o.porownaj && przed ? `${r(przed)} → ${o.ok} ${r(po)}` : `≈ ${r(po)}`;
+  return o.porownaj && przed && po < przed ? `${r(przed)} → ${o.ok} ${r(po)}` : `≈ ${r(po)}`;
 }
 
 /** Klucz błędu z Rusta (`@i18n {"k":…}`) albo `null` dla zwykłego tekstu. */

@@ -8,7 +8,7 @@ import { IKONY } from "../ikony";
 import { jezyk, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujEta, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
 import {
-  akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, napisPrzycisku, naprawaBledu, opcjeLinku, opisPliku,
+  akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, kluczBledu, napisPrzycisku, naprawaBledu, opcjeLinku, opisPliku,
   opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
 } from "../prosty";
 import { przycisk, uwaga } from "../komponenty/pola";
@@ -164,7 +164,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     if (link) {
       const i = link.info;
       tytul = i?.typ === "film" ? i.tytul : i?.typ === "playlista" ? i.tytul : link.url;
-      if (link.blad) blad = tlumaczBlad(link.blad).split("\n")[0];
+      // surowy błąd yt-dlp (bez klucza i18n) laik zobaczy tylko po „Kopiuj szczegóły błędu”
+      if (link.blad) blad = kluczBledu(link.blad) ? tlumaczBlad(link.blad).split("\n")[0] : t("prosty.link.blad");
       else if (!i) opis = t("prosty.link.sprawdzam");
       else if (i.typ === "film") {
         let host = "";
@@ -197,6 +198,9 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       { class: `karta prosty-plik prosty-plik-${rodzaj ?? "film"}` },
       h("span", { class: "prosty-miniatura", "aria-hidden": "true" }, miniatura),
       h("div", { class: "prosty-plik-opis" }, h("strong", null, tytul), blad ? h("span", { class: "prosty-plik-blad" }, blad) : h("span", null, opis)),
+      link?.blad
+        ? przycisk(t("prosty.blad.kopiuj"), () => void api.piszSchowek(tlumaczBlad(link?.blad ?? "")).then(() => pokazDymek(t("prosty.blad.skopiowano"))), "przycisk-tekstowy", { "data-fokus": "kopiuj-link" })
+        : null,
       przycisk(t("prosty.zmien"), resetuj, "przycisk-tekstowy", { "data-fokus": "zmien" }),
     );
   }
@@ -288,7 +292,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       kartaPliku(),
       naprawaLinku ? uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t("prosty.blad.aktualizuj.opis")), przycisk(t("prosty.blad.aktualizuj"), () => void aktualizujISprawdz(), "przycisk-maly")) : null,
       pozostale > 0 ? uwaga("info", ikona(IKONY.info), h("span", null, t("prosty.mieszane", { n: pozostale }))) : null,
-      rodzaj ? kafle() : null,
+      // link nie działa: kafle nic by nie dały, zostaje opis błędu i „Zmień”
+      rodzaj && !(doLinku && link?.blad) ? kafle() : null,
       doLinku ? h("p", { class: "notka" }, t("prosty.prawa")) : null,
       h(
         "footer",
