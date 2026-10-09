@@ -172,6 +172,16 @@ Front (Vite + TypeScript, bez frameworka) tylko rysuje i zbiera ustawienia; Rust
 
 **Język kodu:** identyfikatory i komentarze są po polsku (tłumaczenie to ogromna zmiana bez zysku dla użytkownika); interfejs jest po polsku i angielsku, komunikaty błędów z Rusta też (klucze `rust.*` w `src/i18n`). Zasady współpracy: [CONTRIBUTING.md](CONTRIBUTING.md), zgłaszanie luk: [SECURITY.md](SECURITY.md).
 
+## Code signing policy (zasady podpisywania)
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org) (wniosek w toku; do tego czasu instalator jest niepodpisany).
+
+- **Co jest podpisywane:** tylko wydania zbudowane z tego repo przez workflow GitHub Actions [`release.yml`](.github/workflows/release.yml). Nic zbudowanego na komputerze dewelopera.
+- **Autorzy:** członkowie konta [cybersora9](https://github.com/cybersora9).
+- **Recenzenci:** opiekun przegląda każdy pull request od osób z zewnątrz.
+- **Zatwierdzający:** opiekun ([cybersora9](https://github.com/cybersora9)) zatwierdza ręcznie każdy podpis.
+- **Prywatność:** program nie przesyła żadnych informacji do innych systemów w sieci, chyba że użytkownik o to poprosi (pobranie ffmpeg/yt-dlp/Deno, pobranie z linku, „Sprawdź aktualizacje”). Szczegóły: [Prywatność](#prywatność), [docs/pl/PODPIS.md](docs/pl/PODPIS.md).
+
 ## Licencja
 
 MIT, zobacz [LICENSE](LICENSE). Narzędzia zewnętrzne: [THIRD_PARTY.md](THIRD_PARTY.md).

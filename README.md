@@ -174,6 +174,16 @@ The frontend (Vite + TypeScript, no framework) only draws and collects settings;
 
 **Code language:** identifiers and code comments are in Polish. Translating them would be a huge diff with real risk of regressions and no benefit for users, so they stay; the [glossary in ARCHITECTURE.md](ARCHITECTURE.md) maps the common names. The UI is Polish and English, and so are the error messages coming from Rust (`rust.*` keys in `src/i18n`).
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org) (application in progress; until then the installer is unsigned).
+
+- **What is signed:** only release builds produced from this repository by the GitHub Actions workflow [`release.yml`](.github/workflows/release.yml). Nothing built on a developer machine is signed.
+- **Authors (committers):** members of the [cybersora9](https://github.com/cybersora9) account.
+- **Reviewers:** the maintainer reviews every pull request from outside contributors.
+- **Approvers:** the maintainer ([cybersora9](https://github.com/cybersora9)) approves every signing request by hand.
+- **Privacy:** this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it (downloading ffmpeg/yt-dlp/Deno, downloading media, "Check for updates"). Details: [Privacy](#privacy), [docs/SIGNING.md](docs/SIGNING.md).
+
 ## Contributing and security
 
 Pull requests and issues are welcome in English (or Polish): [CONTRIBUTING.md](CONTRIBUTING.md). Please report vulnerabilities privately: [SECURITY.md](SECURITY.md).
