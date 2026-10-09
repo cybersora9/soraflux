@@ -368,6 +368,17 @@ pub fn komunikat_bledu(stderr: &str) -> String {
         "yt.kraj"
     } else if m.contains("live event will begin") || m.contains("premieres in") {
         "yt.transmisja"
+    } else if m.contains("http error 404")
+        || m.contains("http error 410")
+        || m.contains("video unavailable")
+        || m.contains("getaddrinfo failed")
+        || m.contains("name or service not known")
+        || m.contains("failed to resolve")
+        || m.contains("connection refused")
+        || m.contains("timed out")
+    {
+        // zły adres, usunięty film albo strona nie odpowiada: aktualizacja yt-dlp tu nie pomoże
+        "yt.niedostepny"
     } else if blokada {
         BLOKADA
     } else if m.contains("only images are available") || m.contains("requested format is not available") {
@@ -505,6 +516,15 @@ mod testy {
         assert_eq!(klucz("ERROR: This live event will begin in 2 hours"), "yt.transmisja");
         assert_eq!(klucz("ERROR: Requested format is not available"), "yt.brak_formatu");
         assert_eq!(klucz("ERROR: this is DRM protected"), "yt.drm");
+        assert_eq!(
+            klucz("ERROR: [generic] x: Unable to download webpage: HTTP Error 404: File not found (caused by <HTTPError 404: File not found>)"),
+            "yt.niedostepny"
+        );
+        assert_eq!(klucz("ERROR: [youtube] abc: Video unavailable"), "yt.niedostepny");
+        assert_eq!(
+            klucz("ERROR: Unable to download webpage: <urlopen error [Errno 11001] getaddrinfo failed>"),
+            "yt.niedostepny"
+        );
         assert_eq!(klucz("  "), "yt.bez_opisu");
         assert_eq!(komunikat_bledu("ERROR: coś innego"), "ERROR: coś innego");
     }
