@@ -63,6 +63,7 @@ fn konwersja(wejscie: &Path, profil: Profil, katalog: Option<&Path>) -> NoweZada
         rodzaj: RodzajZadania::Konwersja { wejscie: wejscie.to_path_buf(), profil },
         katalog: katalog.map(Path::to_path_buf),
         pomin_istniejace: false,
+        dopisek: None,
     }
 }
 
@@ -438,6 +439,7 @@ fn pobranie(url: &str, potem: Option<Profil>, katalog: &Path) -> NoweZadanie {
         },
         katalog: Some(katalog.to_path_buf()),
         pomin_istniejace: false,
+        dopisek: None,
     }
 }
 
@@ -548,11 +550,32 @@ async fn pobranie_prawdziwym_ytdlp_z_lokalnego_serwera() {
         },
         katalog: Some(pobrane.clone()),
         pomin_istniejace: false,
+        dopisek: None,
     });
     let w = czekaj_na(&k, &[id], Duration::from_secs(60)).await;
     let Stan::Gotowe { wyjscie } = &w[0].stan else { panic!("{w:?}") };
     assert!(wyjscie.starts_with(&pobrane) && wyjscie.exists(), "{wyjscie:?}");
     assert!(zb.postepy.lock().unwrap().iter().any(|p| p.id == id && p.procent > 0.0));
+}
+
+/// Tryb Prosty: nazwa wyniku z dopiskiem („wakacje (do maila).mp4”), kolizje dostają „ (1)”,
+/// zakazane znaki z dopisku znikają.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dopisek_w_nazwie_wyniku() {
+    let tmp = tempfile::tempdir().unwrap();
+    let we = film(tmp.path(), "a.mp4", 1, "320x240");
+    let k = Kolejka::nowa(1, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sciezki())));
+    let z = |d: &str| NoweZadanie { dopisek: Some(d.into()), ..konwersja(&we, Profil::dla(Kontener::Mp3), None) };
+    let ids = vec![k.dodaj(z("do maila")), k.dodaj(z("do maila")), k.dodaj(z("a/b:c"))];
+    let w = czekaj_na(&k, &ids, Duration::from_secs(60)).await;
+    let nazwy: Vec<String> = w
+        .iter()
+        .map(|z| {
+            let Stan::Gotowe { wyjscie } = &z.stan else { panic!("{z:?}") };
+            wyjscie.file_name().unwrap().to_string_lossy().into_owned()
+        })
+        .collect();
+    assert_eq!(nazwy, ["a (do maila).mp3", "a (do maila) (1).mp3", "a (abc).mp3"]);
 }
 
 /// Wybrany folder zapisu, którego nie ma, tworzy się sam; gdy się nie da (ścieżka to plik),

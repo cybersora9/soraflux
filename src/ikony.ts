@@ -25,4 +25,8 @@ export const IKONY = {
   telefon: svg('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>'),
   nozyczki: svg('<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.2 7.6 20 18M8.2 16.4 20 6"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  wyslij: svg('<path d="M21 3 10.5 13.5"/><path d="m21 3-6.5 18-4-7.5L3 9.5z"/>'),
+  gif: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M10 9.5H8v5h2v-2M13 9.5v5M16 14.5v-5h2.5M16 12h2"/>'),
+  glosnosc: svg('<path d="M4 9.5v5M8 6.5v11M12 3.5v17M16 7.5v9M20 10.5v3"/>'),
+  strzalka: svg('<path d="m9 6 6 6-6 6"/>'),
 };

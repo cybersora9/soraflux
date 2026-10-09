@@ -71,6 +71,10 @@ pub struct NoweZadanie {
     /// Foldery wsadowo: nie konwertuj, jeśli `nazwa.ext` już jest w katalogu wyniku.
     #[serde(default)]
     pub pomin_istniejace: bool,
+    /// Tryb Prosty: dopisek do nazwy wyniku, np. „do maila” → `wakacje (do maila).mp4`.
+    /// Tylko konwersja; znaki niedozwolone w nazwach plików są usuwane (`czysty_dopisek`).
+    #[serde(default)]
+    pub dopisek: Option<String>,
 }
 
 /// To, co front widzi na liście.
@@ -422,6 +426,7 @@ impl Kolejka {
                     rodzaj: RodzajZadania::Konwersja { wejscie: plik.clone(), profil },
                     katalog: nowe.katalog.clone(),
                     pomin_istniejace: false,
+                    dopisek: None,
                 });
                 Ok((plik, kolejne))
             }
@@ -432,7 +437,16 @@ impl Kolejka {
                 let tmp = std::env::temp_dir().join(format!("soraconverter-{}-{n}-{id}", std::process::id()));
                 let _ = std::fs::create_dir_all(&tmp);
                 let w = self
-                    .konwertuj(id, &wejscie, &profil, nowe.katalog.as_deref(), nowe.pomin_istniejace, &tmp, &anuluj)
+                    .konwertuj(
+                        id,
+                        &wejscie,
+                        &profil,
+                        nowe.katalog.as_deref(),
+                        nowe.pomin_istniejace,
+                        nowe.dopisek.as_deref(),
+                        &tmp,
+                        &anuluj,
+                    )
                     .await;
                 let _ = std::fs::remove_dir_all(&tmp);
                 w.map(|p| (p, None))
@@ -468,6 +482,7 @@ impl Kolejka {
         profil: &Profil,
         katalog: Option<&Path>,
         pomin_istniejace: bool,
+        dopisek: Option<&str>,
         tmp: &Path,
         anuluj: &Notify,
     ) -> Result<PathBuf, Przerwanie> {
@@ -491,7 +506,10 @@ impl Kolejka {
             .map_err(|e| Przerwanie::Blad(e.to_string()))?;
 
         sprawdz_miejsce(&media, profil, &katalog)?;
-        let rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
+        let mut rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
+        if let Some(d) = dopisek.map(czysty_dopisek).filter(|d| !d.is_empty()) {
+            rdzen.push(format!(" ({d})"));
+        }
         let ext = profil.kontener.rozszerzenie();
         let wyjscie = self.zarezerwuj(&katalog, &rdzen, ext, wejscie);
         let rozmiar_wejscia = std::fs::metadata(wejscie).ok().map(|m| m.len());
@@ -751,6 +769,17 @@ enum Przerwanie {
     Pominiete(PathBuf),
 }
 
+/// Dopisek do nazwy pliku bez znaków zakazanych w Windows (`<>:"/\|?*`, sterujące) i nawiasów,
+/// przycięty do 40 znaków: tekst przychodzi z i18n, ale nazwa pliku nie może zależeć od tłumacza.
+pub fn czysty_dopisek(d: &str) -> String {
+    let s: String = d
+        .chars()
+        .filter(|c| !c.is_control() && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '(' | ')'))
+        .take(40)
+        .collect();
+    s.trim().trim_end_matches('.').trim().to_string()
+}
+
 /// `katalog/nazwa.ext` (cel bez dopisku „ (1)”).
 pub fn cel_bez_kolizji(katalog: &Path, wejscie: &Path, ext: &str) -> PathBuf {
     let mut n = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
@@ -828,6 +857,16 @@ async fn ogon(r: impl AsyncRead + Unpin) -> String {
 #[cfg(test)]
 mod testy {
     use super::*;
+
+    #[test]
+    fn dopisek_bez_zakazanych_znakow() {
+        assert_eq!(czysty_dopisek("do maila"), "do maila");
+        assert_eq!(czysty_dopisek("for e-mail"), "for e-mail");
+        assert_eq!(czysty_dopisek(" a/b\\c:d*?\"<>|(x) "), "abcdx");
+        assert_eq!(czysty_dopisek("koniec..."), "koniec");
+        assert_eq!(czysty_dopisek("\u{7}"), "");
+        assert_eq!(czysty_dopisek(&"x".repeat(100)).len(), 40);
+    }
 
     #[test]
     fn czesc_i_sprzatanie_po_awarii() {

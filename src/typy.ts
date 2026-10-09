@@ -218,6 +218,8 @@ export interface NoweZadanie {
   katalog: string | null;
   /** Foldery wsadowo: pomiń, jeśli wynik już istnieje. */
   pomin_istniejace?: boolean;
+  /** Tryb Prosty: dopisek do nazwy wyniku („do maila” → `wakacje (do maila).mp4`). */
+  dopisek?: string | null;
 }
 
 export interface PlikZFolderu {
@@ -329,6 +331,10 @@ export interface Konfig {
   wlasne_motywy: unknown[];
   /** Ostatnio wybrane foldery zapisu, najnowszy pierwszy. */
   ostatnie_foldery: string[];
+  /** Tryb interfejsu; `null` = nierozstrzygnięty (konfig sprzed 1.4.0), patrz `rozstrzygnijTryb`. */
+  tryb: "prosty" | "pelny" | null;
+  /** Jednorazowa podpowiedź „Wypróbuj tryb Prosty” już pokazana. */
+  podpowiedz_prosty_pokazana: boolean;
 }
 
 export interface Preset {

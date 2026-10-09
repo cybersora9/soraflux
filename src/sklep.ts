@@ -25,7 +25,17 @@ export class Sklep<T extends object> {
   }
 }
 
-export type Zakladka = "konwertuj" | "pobierz" | "obrazy" | "kolejka" | "ustawienia";
+export type Zakladka = "prosty" | "konwertuj" | "pobierz" | "obrazy" | "kolejka" | "ustawienia";
+
+/** Zakładki paska bocznego w danym trybie (decyzja 3: Prosty ma trzy pozycje). */
+export const ZAKLADKI_TRYBU: Record<"prosty" | "pelny", Zakladka[]> = {
+  prosty: ["prosty", "kolejka", "ustawienia"],
+  pelny: ["konwertuj", "pobierz", "obrazy", "kolejka", "ustawienia"],
+};
+
+export function trybApki(s: StanApki = sklep.stan): "prosty" | "pelny" {
+  return s.konfig?.tryb === "prosty" ? "prosty" : "pelny";
+}
 
 export interface StanApki {
   zakladka: Zakladka;
@@ -56,10 +66,10 @@ export const sklep = new Sklep<StanApki>({
 });
 
 let licznikDymku: ReturnType<typeof setTimeout> | undefined;
-export function pokazDymek(tekst: string, rodzaj: "info" | "blad" = "info", akcja?: Dymek["akcja"]): void {
+export function pokazDymek(tekst: string, rodzaj: "info" | "blad" = "info", akcja?: Dymek["akcja"], ms?: number): void {
   sklep.ustaw({ dymek: { tekst, rodzaj, akcja } });
   if (licznikDymku) clearTimeout(licznikDymku);
-  licznikDymku = setTimeout(() => sklep.ustaw({ dymek: null }), rodzaj === "blad" || akcja ? 6000 : 3000);
+  licznikDymku = setTimeout(() => sklep.ustaw({ dymek: null }), ms ?? (rodzaj === "blad" || akcja ? 6000 : 3000));
 }
 
 /** Forma liczby dla polskiej odmiany: 1 zadanie, 2–4 zadania, 5+ zadań (EN: 1 / więcej). */
