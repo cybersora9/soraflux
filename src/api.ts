@@ -12,7 +12,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import type {
   Info, InfoZadania, Konfig, Media, NoweZadanie, Pakiet, PodgladPlanu, Postep, PostepNarzedzia,
-  Preset, Profil, Sciezki, StanNarzedzi, Szacunek, PlikZFolderu, PodgladKlatki,
+  Preset, Profil, Sciezki, StanNarzedzi, Szacunek, PlikZFolderu, PodgladKlatki, ModelNapisow, PostepModelu, StanNapisow,
 } from "./typy";
 import { atrapa } from "./atrapa";
 
@@ -57,6 +57,13 @@ export interface Api {
   ytdlpAktualizuj(): Promise<StanNarzedzi>;
   /** Brak yt-dlp albo stary z PATH bez własnej kopii → pobiera własną; `true` = pobrano. */
   ytdlpZapewnij(): Promise<boolean>;
+  /** Tryb Napisy: whisper-cli, modele (pobrane, do pobrania), RAM. */
+  napisyStan(): Promise<StanNapisow>;
+  /** Pobiera model (tylko z `zgoda: true` po oknie zgody), z przypiętą sumą SHA-256 i wznawianiem. */
+  napisyPobierzModel(model: ModelNapisow, zgoda: boolean): Promise<StanNapisow>;
+  /** Przerywa pobieranie modelu (część zostaje do wznowienia). */
+  napisyAnulujModel(): Promise<void>;
+  naPostepModelu(f: (p: PostepModelu) => void): Odsubskrybuj;
   czytajSchowek(): Promise<string>;
   naPowrotOkna(f: () => void): Odsubskrybuj;
   wybierzPliki(obrazy: boolean): Promise<string[]>;
@@ -124,6 +131,10 @@ const tauri: Api = {
   ytdlpInfo: (url, playlista) => invoke("ytdlp_info", { url, playlista }),
   ytdlpAktualizuj: () => invoke("ytdlp_aktualizuj"),
   ytdlpZapewnij: () => invoke("ytdlp_zapewnij"),
+  napisyStan: () => invoke("napisy_stan"),
+  napisyPobierzModel: (model, zgoda) => invoke("napisy_pobierz_model", { model, zgoda }),
+  napisyAnulujModel: () => invoke("napisy_anuluj_model"),
+  naPostepModelu: (f) => nasluch("napisy://model", f),
   czytajSchowek: () => readText().catch(() => ""),
   naPowrotOkna(f) {
     const p = getCurrentWindow().onFocusChanged(({ payload }) => {

@@ -11,10 +11,11 @@ import {
   akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, kluczBledu, napisPrzycisku, naprawaBledu, opcjeLinku, opisPliku,
   opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
 } from "../prosty";
+import { AKCJA_NAPISOW, etaPobierania, etapZadania, gotowosc, HOST_MODELI, infoModelu, JEZYKI, MODELE, nazwaJezyka, opcjeDoKolejki, opcjeDomyslne, rozmiarModelu, STYLE } from "../napisy";
 import { przycisk, uwaga } from "../komponenty/pola";
 import { nazwaFolderu } from "../komponenty/wspolne";
 import { pokazDymek, sklep } from "../sklep";
-import type { Info, InfoZadania, Media, NoweZadanie, Profil, Wybor } from "../typy";
+import type { Info, InfoZadania, Media, NoweZadanie, OpcjeNapisow, Profil, StanNapisow, Wybor } from "../typy";
 
 /** „Więcej ustawień (tryb Pełny)”: ten plik i ta akcja przechodzą do Pełnego. */
 export type Przekazanie =
@@ -48,13 +49,14 @@ const IKONA_AKCJI: Record<string, string> = {
   "dzwiek.mp3": IKONY.nuta, "dzwiek.mowa": IKONY.wyslij, "dzwiek.glosnosc": IKONY.glosnosc,
   "zdjecia.www": IKONY.wyslij, "zdjecia.jpg": IKONY.obrazy, "zdjecia.pol": IKONY.zmniejsz,
   "link.film": IKONY.film, "link.mp3": IKONY.nuta, "link.telefon": IKONY.telefon,
+  "film.napisy": IKONY.napisy, "dzwiek.napisy": IKONY.napisy,
 };
 const IKONA_RODZAJU: Record<Rodzaj, string> = { film: IKONY.film, dzwiek: IKONY.nuta, zdjecia: IKONY.obrazy, link: IKONY.link };
 /** Kafle linku: format zamiast szacunku (rozmiar zna dopiero yt-dlp przy pobieraniu). */
 const FORMAT_LINKU: Record<string, string> = { film: "MP4", mp3: "MP3", telefon: "MP4 · 480p" };
 
 export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): WidokProsty {
-  let ekran: "start" | "wybor" | "praca" = "start";
+  let ekran: "start" | "wybor" | "model" | "praca" = "start";
   let pliki: Plik[] = [];
   let sondowanie = false;
   let link: { url: string; info: Info | null; blad: string | null } | null = null;
@@ -72,6 +74,13 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
   let pokolenieSzacunku = 0;
   let praca: Praca | null = null;
   let wTokuEl: HTMLElement | null = null;
+  // ---------- napisy (S5) ----------
+  let opcjeN: OpcjeNapisow = opcjeDomyslne();
+  let stanN: StanNapisow | null = null;
+  /** Okno zgody na pobranie modelu (jedyne połączenie sieciowe trybu Napisy). */
+  let zgodaWidoczna = false;
+  let pobieranieModelu: { pobrane: number; calosc: number | null; start: number | null; t0: number; blad: string | null } | null = null;
+  const napisyWybrane = () => !!rodzaj && rodzaj !== "link" && akcja === AKCJA_NAPISOW;
 
   const el = h("div", { class: "widok widok-prosty" });
 
@@ -83,7 +92,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
   function rysuj() {
     const fokus = document.activeElement instanceof HTMLElement && el.contains(document.activeElement) ? document.activeElement.dataset.fokus : undefined;
     wTokuEl = null;
-    el.replaceChildren(...(ekran === "start" ? ekranStart() : ekran === "wybor" ? ekranWybor() : ekranPraca()));
+    el.replaceChildren(...(ekran === "start" ? ekranStart() : ekran === "wybor" ? ekranWybor() : ekran === "model" ? ekranModel() : ekranPraca()));
     if (fokus) el.querySelector<HTMLElement>(`[data-fokus="${fokus}"]`)?.focus();
   }
 
@@ -275,7 +284,9 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     if (!rodzaj) return;
     akcja = a;
     wybrane[rodzaj] = a;
+    zgodaWidoczna = false;
     rysuj();
+    if (a === AKCJA_NAPISOW) void odswiezNapisy();
   }
 
   function ekranWybor(): HTMLElement[] {
@@ -294,6 +305,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       pozostale > 0 ? uwaga("info", ikona(IKONY.info), h("span", null, t("prosty.mieszane", { n: pozostale }))) : null,
       // link nie działa: kafle nic by nie dały, zostaje opis błędu i „Zmień”
       rodzaj && !(doLinku && link?.blad) ? kafle() : null,
+      napisyWybrane() ? kartaNapisow() : null,
+      napisyWybrane() && zgodaWidoczna ? kartaZgody() : null,
       doLinku ? h("p", { class: "notka" }, t("prosty.prawa")) : null,
       h(
         "footer",
@@ -309,9 +322,9 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
             " · ",
             przycisk(t("prosty.zapisze.zmien"), () => void zmienFolder(doLinku), "przycisk-tekstowy prosty-zmien-folder", { "data-fokus": "folder" }),
           ),
-          rodzaj && gotowe ? przycisk([ikona(IKONY.strzalka), t("prosty.wiecej")], doPelnego, "przycisk-tekstowy prosty-wiecej", { "data-fokus": "wiecej" }) : null,
+          rodzaj && gotowe && !napisyWybrane() ? przycisk([ikona(IKONY.strzalka), t("prosty.wiecej")], doPelnego, "przycisk-tekstowy prosty-wiecej", { "data-fokus": "wiecej" }) : null,
         ),
-        przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", { disabled: !gotowe, "data-fokus": "start" }),
+        napisyWybrane() ? przyciskNapisow(gotowe) : przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", { disabled: !gotowe, "data-fokus": "start" }),
       ),
     ].filter((x): x is HTMLElement => !!x);
   }
@@ -329,7 +342,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
   }
 
   function doPelnego() {
-    if (!rodzaj) return;
+    if (!rodzaj || napisyWybrane()) return;
     if (rodzaj === "link" && link) {
       o.doPelnego({ typ: "link", url: link.url, wybor: wyborLinku(akcja) });
     } else if (rodzaj !== "link") {
@@ -347,7 +360,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const lista = pasujace().slice(0, 50);
     const moje = ++pokolenieSzacunku;
     const przed = lista.reduce((s, p) => s + (p.media?.rozmiar_b ?? 0), 0);
-    for (const a of akcjeDla(r)) {
+    szacunki[AKCJA_NAPISOW] = formatyNapisow();
+    for (const a of akcjeDla(r).filter((x) => x !== AKCJA_NAPISOW)) {
       void Promise.all(lista.map((p) => api.szacuj(p.media!, profilAkcji(r, a, opcjeAkcji(p))).catch(() => null))).then((w) => {
         if (moje !== pokolenieSzacunku) return;
         const po = w.some((x) => !x || x.bajty === null) ? null : w.reduce((s, x) => s + (x!.bajty ?? 0), 0);
@@ -372,6 +386,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     pozostale = 0;
     szacunki = {};
     gifOd = 0;
+    zgodaWidoczna = false;
     pokolenie++;
     pokolenieSzacunku++;
     ekran = "start";
@@ -414,6 +429,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     if (rodzaj) akcja = wybrane[rodzaj] ?? akcjeDla(rodzaj)[0];
     rysuj();
     przeliczSzacunki();
+    if (napisyWybrane()) void odswiezNapisy();
     el.querySelector<HTMLElement>(`[data-fokus="akcja-${akcja}"]`)?.focus();
   }
 
@@ -461,6 +477,258 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     }
   }
 
+  // ---------- napisy (S5): opcje, zgoda, pobieranie modelu ----------
+  async function odswiezNapisy() {
+    try {
+      stanN = await api.napisyStan();
+    } catch (e) {
+      pokazDymek(tlumaczBlad(String(e)), "blad");
+      return;
+    }
+    if (ekran === "wybor") rysuj();
+  }
+
+  function formatyNapisow(): string {
+    const f = [opcjeN.srt || (!opcjeN.vtt && !opcjeN.wypal) ? "SRT" : null, opcjeN.vtt ? "VTT" : null, opcjeN.wypal && rodzaj === "film" ? "MP4" : null];
+    return f.filter(Boolean).join(" · ");
+  }
+
+  function ustawOpcje(zmiana: Partial<OpcjeNapisow>) {
+    opcjeN = { ...opcjeN, ...zmiana };
+    zgodaWidoczna = false;
+    szacunki[AKCJA_NAPISOW] = formatyNapisow();
+    rysuj();
+  }
+
+  /** Grupa przycisków-przełączników (aria-pressed), jak cele wysyłki. */
+  function grupaChipow<T>(etykieta: string, wartosci: T[], biezaca: T, tekst: (v: T) => string, wybierz: (v: T) => void, fokus: string): HTMLElement {
+    const id = `napisy-${fokus}`;
+    return h(
+      "div",
+      { class: "prosty-napisy-grupa" },
+      h("span", { class: "prosty-napisy-etykieta", id }, etykieta),
+      h(
+        "div",
+        { class: "prosty-chipy", role: "group", "aria-labelledby": id },
+        wartosci.map((v, i) =>
+          h("button", {
+            type: "button", class: "chip" + (v === biezaca ? " aktywny" : ""), "aria-pressed": String(v === biezaca), "data-fokus": `${fokus}-${i}`,
+            onclick: () => wybierz(v),
+          }, tekst(v)),
+        ),
+      ),
+    );
+  }
+
+  function poleWyboru(etykieta: string, zaznaczone: boolean, zmien: (v: boolean) => void, fokus: string): HTMLElement {
+    const pole = h("input", { type: "checkbox", checked: zaznaczone, "data-fokus": fokus });
+    pole.addEventListener("change", () => zmien(pole.checked));
+    return h("label", { class: "prosty-napisy-pole" }, pole, h("span", null, etykieta));
+  }
+
+  function kartaNapisow(): HTMLElement {
+    const j = jezyk();
+    const info = infoModelu(stanN, opcjeN.model);
+    const g = gotowosc(stanN, opcjeN.model);
+    const film = rodzaj === "film";
+    const stanModelu: (HTMLElement | null)[] = [];
+    if (g === "brak_whisper") {
+      stanModelu.push(uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t("napisy.brak_whisper")), przycisk(t("narzedzia.przejdz"), () => sklep.ustaw({ zakladka: "ustawienia" }), "przycisk-tekstowy", { "data-fokus": "do-ustawien" })));
+    } else if (g === "brak_sumy" && info) {
+      stanModelu.push(uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t("napisy.model.brak_sumy", { plik: info.plik })), przycisk(t("napisy.model.folder"), () => stanN && void api.pokazWFolderze(stanN.katalog_modeli), "przycisk-tekstowy", { "data-fokus": "folder-modeli" })));
+    } else if (g === "pobierz" && info) {
+      const czesc = info.czesciowy_b ? ` ${t("napisy.model.czesciowy", { r: formatujRozmiar(info.czesciowy_b, j) })}` : "";
+      stanModelu.push(uwaga("info", ikona(IKONY.info), h("span", null, t("napisy.model.do_pobrania", { mb: rozmiarModelu(info, j), host: HOST_MODELI }) + czesc)));
+    } else if (g === "gotowe") {
+      stanModelu.push(h("p", { class: "prosty-cicho" }, ikona(IKONY.ok), " ", t("napisy.model.pobrany")));
+    }
+    if (info?.ostrzezenie_ram) {
+      stanModelu.push(uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t(`napisy.ram.${info.ostrzezenie_ram}`, { ram: formatujRozmiar(info.ram_mb * 1_048_576, j) }))));
+    }
+    return h(
+      "section",
+      { class: "karta prosty-napisy", "aria-label": t("napisy.opcje") },
+      grupaChipow(t("napisy.jezyk.etykieta"), JEZYKI, opcjeN.jezyk, (x) => t(`napisy.jezyk.${x}`), (x) => ustawOpcje({ jezyk: x }), "jezyk"),
+      grupaChipow(
+        t("napisy.model.etykieta"), MODELE, opcjeN.model,
+        (m) => {
+          const i = infoModelu(stanN, m);
+          return `${t(`napisy.model.${m}`)}${i ? ` · ${rozmiarModelu(i, j)}` : ""}${i?.pobrany ? " ✓" : ""}`;
+        },
+        (m) => ustawOpcje({ model: m }), "model",
+      ),
+      h(
+        "div",
+        { class: "prosty-napisy-grupa", role: "group", "aria-labelledby": "napisy-format" },
+        h("span", { class: "prosty-napisy-etykieta", id: "napisy-format" }, t("napisy.format.etykieta")),
+        h("div", { class: "prosty-napisy-pola" },
+          poleWyboru(t("napisy.format.srt"), opcjeN.srt, (v) => ustawOpcje({ srt: v }), "srt"),
+          poleWyboru(t("napisy.format.vtt"), opcjeN.vtt, (v) => ustawOpcje({ vtt: v }), "vtt")),
+      ),
+      film ? grupaChipow(t("napisy.wypal.etykieta"), STYLE, opcjeN.wypal, (x) => t(`napisy.wypal.${x ?? "brak"}`), (x) => ustawOpcje({ wypal: x }), "wypal") : null,
+      ...stanModelu,
+    );
+  }
+
+  /** Przycisk główny dla napisów: zrób napisy / pobierz model (za zgodą) / wyłączony z powodem obok. */
+  function przyciskNapisow(plikiGotowe: boolean): HTMLElement {
+    const g = gotowosc(stanN, opcjeN.model);
+    const info = infoModelu(stanN, opcjeN.model);
+    const n = pasujace().length;
+    if (g === "pobierz" && info) {
+      return przycisk(t("napisy.przycisk.pobierz", { mb: rozmiarModelu(info, jezyk()) }), () => {
+        zgodaWidoczna = true;
+        rysuj();
+        el.querySelector<HTMLElement>('[data-fokus="zgoda-tak"]')?.focus();
+      }, "przycisk-glowny prosty-start-przycisk", { disabled: !plikiGotowe || stanN?.pobieranie_trwa, "data-fokus": "start" });
+    }
+    const [klucz, par] = napisPrzycisku(rodzaj ?? "film", AKCJA_NAPISOW, { n });
+    return przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", { disabled: !plikiGotowe || g !== "gotowe", "data-fokus": "start" });
+  }
+
+  function kartaZgody(): HTMLElement | null {
+    const info = infoModelu(stanN, opcjeN.model);
+    if (!info) return null;
+    return h(
+      "section",
+      { class: "karta prosty-zgoda", role: "region", "aria-labelledby": "zgoda-tytul" },
+      h("h2", { id: "zgoda-tytul" }, t("napisy.zgoda.tytul")),
+      h("p", null, t("napisy.zgoda.opis", { mb: rozmiarModelu(info, jezyk()), host: HOST_MODELI, plik: info.plik })),
+      h(
+        "div",
+        { class: "wiersz" },
+        przycisk(t("napisy.zgoda.tak"), () => void pobierzModel(), "przycisk-glowny", { "data-fokus": "zgoda-tak" }),
+        przycisk(t("napisy.zgoda.nie"), () => {
+          zgodaWidoczna = false;
+          rysuj();
+          el.querySelector<HTMLElement>('[data-fokus="start"]')?.focus();
+        }, "przycisk-drugorzedny", { "data-fokus": "zgoda-nie" }),
+      ),
+    );
+  }
+
+  async function pobierzModel() {
+    const model = opcjeN.model;
+    zgodaWidoczna = false;
+    pobieranieModelu = { pobrane: infoModelu(stanN, model)?.czesciowy_b ?? 0, calosc: null, start: null, t0: performance.now(), blad: null };
+    ekran = "model";
+    rysuj();
+    el.querySelector<HTMLElement>('[data-fokus="anuluj-model"]')?.focus();
+    try {
+      // `zgoda: true` wysyłamy tylko stąd: po kliknięciu „Pobierz” w oknie zgody
+      stanN = await api.napisyPobierzModel(model, true);
+    } catch (e) {
+      const k = kluczBledu(String(e));
+      if (k === "pobieranie_anulowane") {
+        pobieranieModelu = null;
+        ekran = "wybor";
+        pokazDymek(t("napisy.model.przerwane"));
+        await odswiezNapisy();
+        rysuj();
+        el.querySelector<HTMLElement>('[data-fokus="start"]')?.focus();
+        return;
+      }
+      if (pobieranieModelu) pobieranieModelu.blad = String(e);
+      rysuj();
+      el.querySelector<HTMLElement>('[data-fokus="ponow-model"]')?.focus();
+      return;
+    }
+    pobieranieModelu = null;
+    if (ekran !== "model") return;
+    ekran = "wybor";
+    // model jest: od razu zadanie, o które prosił użytkownik
+    await uruchom();
+  }
+
+  function opisPobranego(): string {
+    const p = pobieranieModelu;
+    if (!p) return "";
+    const j = jezyk();
+    return p.calosc ? t("napisy.model.pobrano_z", { a: formatujRozmiar(p.pobrane, j), b: formatujRozmiar(p.calosc, j) }) : formatujRozmiar(p.pobrane, j);
+  }
+
+  function tekstEtyPobierania(): string {
+    const p = pobieranieModelu;
+    if (!p || p.start === null) return "";
+    const eta = etaPobierania(p.pobrane, p.calosc, p.start, (performance.now() - p.t0) / 1000);
+    return eta !== null ? t("prosty.zostalo", { czas: formatujEta(eta) }) : "";
+  }
+
+  function ekranModel(): HTMLElement[] {
+    const p = pobieranieModelu;
+    const info = infoModelu(stanN, opcjeN.model);
+    const nazwa = info ? `${t(`napisy.model.${info.model}`)} · ${info.plik}` : "";
+    if (!p) {
+      ekran = "wybor";
+      return ekranWybor();
+    }
+    if (p.blad) {
+      const surowy = p.blad;
+      return [
+        h(
+          "section",
+          { class: "karta prosty-wynik prosty-wynik-blad", role: "alert" },
+          h("h1", { class: "prosty-wynik-tytul" }, ikona(IKONY.uwaga), t("napisy.model.blad.tytul")),
+          h("p", { class: "prosty-cicho" }, nazwa),
+          h("p", null, tlumaczBlad(surowy).split("\n")[0]),
+          h(
+            "div",
+            { class: "wiersz" },
+            przycisk(t("napisy.model.ponow"), () => void pobierzModel(), "przycisk-glowny", { "data-fokus": "ponow-model" }),
+            przycisk(t("napisy.model.wroc"), () => {
+              pobieranieModelu = null;
+              ekran = "wybor";
+              void odswiezNapisy();
+              rysuj();
+            }, "przycisk-drugorzedny", { "data-fokus": "wroc-model" }),
+            przycisk(t("prosty.blad.kopiuj"), () => void api.piszSchowek(tlumaczBlad(surowy)).then(() => pokazDymek(t("prosty.blad.skopiowano"))), "przycisk-tekstowy", { "data-fokus": "kopiuj-model" }),
+          ),
+          h("p", { class: "prosty-cicho" }, t("napisy.model.wznowi")),
+        ),
+      ];
+    }
+    const procent = p.calosc ? Math.min(100, (p.pobrane / p.calosc) * 100) : 0;
+    return [
+      naglowek(t("napisy.model.pobieram"), nazwa),
+      h(
+        "section",
+        { class: "karta prosty-praca" },
+        h("div", { class: "pasek prosty-pasek", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.floor(procent)), "aria-label": t("napisy.model.pobieram") },
+          h("div", { class: "pasek-wypelnienie", style: { width: `${procent}%` } })),
+        h("div", { class: "prosty-praca-wiersz" }, h("span", { class: "prosty-procent" }, opisPobranego()), h("span", { class: "prosty-zostalo" }, tekstEtyPobierania())),
+        h("p", { class: "prosty-cicho" }, t("napisy.model.pomoc", { host: HOST_MODELI })),
+        h("div", { class: "wiersz" }, przycisk(t("prosty.anuluj"), () => void api.napisyAnulujModel(), "przycisk-drugorzedny", { "data-fokus": "anuluj-model" })),
+      ),
+    ];
+  }
+
+  function tekstEtapu(): string {
+    const id = praca?.ids.find((i) => sklep.stan.zadania.get(i)?.stan.typ === "trwa") ?? praca?.ids[0];
+    const e = etapZadania(id !== undefined ? sklep.stan.postepy.get(id) : undefined);
+    if (!e) return t("napisy.etap.czekam");
+    return e.fragment ? `${t(e.klucz)} · ${t("napisy.etap.fragment", { i: e.fragment.i, n: e.fragment.n })}` : t(e.klucz);
+  }
+
+  function ekranGotoweNapisy(tytul: string, podtytul: string, gotowe: InfoZadania[], pokaz: HTMLElement | null, nastepny: HTMLElement): HTMLElement[] {
+    const wyniki = gotowe.map((z) => z.napisy).filter((w): w is NonNullable<InfoZadania["napisy"]> => !!w);
+    const pliki = wyniki.flatMap((w) => w.pliki);
+    const jez = wyniki.length === 1 ? nazwaJezyka(wyniki[0].jezyk) : null;
+    const kwestie = wyniki.reduce((a, w) => a + w.kwestie, 0);
+    return [
+      h(
+        "section",
+        { class: "karta prosty-wynik prosty-wynik-ok", role: "status" },
+        h("h1", { class: "prosty-wynik-tytul" }, ikona(IKONY.ok), tytul),
+        h("p", { class: "prosty-cicho" }, podtytul),
+        h("p", null, [jez ? t("napisy.gotowe.jezyk", { jezyk: "klucz" in jez ? t(jez.klucz) : jez.tekst }) : null, kwestie ? t("napisy.gotowe.kwestie", { n: kwestie }) : null].filter(Boolean).join(" · ")),
+        pliki.length ? h("ul", { class: "prosty-napisy-pliki", "aria-label": t("napisy.gotowe.pliki") }, pliki.slice(0, 6).map((f) => h("li", null, nazwaPliku(f)))) : null,
+        pliki.length > 6 ? h("p", { class: "prosty-cicho" }, t("napisy.gotowe.wiecej", { n: pliki.length - 6 })) : null,
+        wyniki.some((w) => w.zmieniona_nazwa) ? uwaga("info", ikona(IKONY.info), h("span", null, t("napisy.gotowe.zmieniona"))) : null,
+        h("div", { class: "wiersz" }, pokaz, nastepny),
+      ),
+    ];
+  }
+
   // ---------- start pracy ----------
   function zadaniaDoKolejki(): NoweZadanie[] {
     if (!rodzaj) return [];
@@ -473,6 +741,13 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const r = rodzaj;
     const d = dopisekAkcji(r, akcja, cel);
     const katalog = sklep.stan.konfig?.katalog_wyjscia ?? null;
+    if (akcja === AKCJA_NAPISOW) {
+      return pasujace().map((p) => ({
+        rodzaj: { typ: "napisy", wejscie: p.sciezka, opcje: opcjeDoKolejki(opcjeN, !!p.media?.wideo && !p.media.obraz) },
+        katalog,
+        dopisek: t("napisy.dopisek"),
+      }));
+    }
     return pasujace().map((p) => ({
       rodzaj: { typ: "konwersja", wejscie: p.sciezka, profil: profilAkcji(r, akcja, opcjeAkcji(p)) },
       katalog,
@@ -535,6 +810,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
           h("div", { class: "pasek prosty-pasek", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(procent), "aria-label": podtytul },
             h("div", { class: "pasek-wypelnienie", style: { width: `${s.procent}%` } })),
           h("div", { class: "prosty-praca-wiersz" }, h("span", { class: "prosty-procent" }, `${procent}%`), h("span", { class: "prosty-zostalo" }, s.eta ? t("prosty.zostalo", { czas: formatujEta(s.eta) }) : "")),
+          p.akcja === AKCJA_NAPISOW ? h("p", { class: "prosty-etap", "aria-live": "polite" }, tekstEtapu()) : null,
           h("p", { class: "prosty-cicho" }, t(pobieranie ? "prosty.trwa.pomoc_link" : "prosty.trwa.pomoc")),
           h(
             "div",
@@ -551,7 +827,9 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       const surowy = bledy[0].stan.typ === "blad" ? bledy[0].stan.komunikat : "";
       const naprawa = naprawaBledu(surowy);
       const tytul = pobieranie && naprawa === "aktualizuj" ? t("prosty.blad.pobieranie") : t("prosty.blad.tytul");
-      const opis = naprawa === "inny" ? t(pobieranie ? "prosty.blad.inny_link.opis" : "prosty.blad.inny.opis") : t(`prosty.blad.${naprawa}.opis`);
+      // napisy: komunikat z Rusta mówi konkretnie (brak dźwięku, cisza, brak modelu, za mało miejsca)
+      const opisNapisow = p.akcja === AKCJA_NAPISOW && kluczBledu(surowy) ? tlumaczBlad(surowy).split("\n")[0] : null;
+      const opis = opisNapisow ?? (naprawa === "inny" ? t(pobieranie ? "prosty.blad.inny_link.opis" : "prosty.blad.inny.opis") : t(`prosty.blad.${naprawa}.opis`));
       const glowny =
         naprawa === "aktualizuj"
           ? przycisk(t("prosty.blad.aktualizuj"), () => void napraw("aktualizuj"), "przycisk-glowny", { "data-fokus": "napraw" })
@@ -595,6 +873,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       ];
     }
     const tytul = t(tytulGotowe(p.rodzaj, p.akcja, p.cel));
+    if (p.akcja === AKCJA_NAPISOW) return ekranGotoweNapisy(tytul, podtytul, gotowe, pokaz, nastepny);
     return [
       h(
         "section",
@@ -659,6 +938,32 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     if (pr) pr.textContent = `${Math.floor(st.procent)}%`;
     const zo = el.querySelector(".prosty-zostalo");
     if (zo) zo.textContent = st.eta ? t("prosty.zostalo", { czas: formatujEta(st.eta) }) : "";
+    const et = el.querySelector(".prosty-etap");
+    if (et) {
+      const nowy = tekstEtapu();
+      if (et.textContent !== nowy) et.textContent = nowy;
+    }
+  });
+
+  // Postęp pobierania modelu: tylko pasek i liczby (fokus zostaje na „Anuluj”).
+  api.naPostepModelu((m) => {
+    if (!pobieranieModelu) return;
+    pobieranieModelu.pobrane = m.pobrane;
+    pobieranieModelu.calosc = m.calosc;
+    if (pobieranieModelu.start === null) {
+      pobieranieModelu.start = m.pobrane;
+      pobieranieModelu.t0 = performance.now();
+    }
+    if (ekran !== "model") return;
+    const procent = m.calosc ? Math.min(100, (m.pobrane / m.calosc) * 100) : 0;
+    const pasek = el.querySelector<HTMLElement>(".prosty-pasek");
+    pasek?.setAttribute("aria-valuenow", String(Math.floor(procent)));
+    const w = pasek?.querySelector<HTMLElement>(".pasek-wypelnienie");
+    if (w) w.style.width = `${procent}%`;
+    const pr = el.querySelector(".prosty-procent");
+    if (pr) pr.textContent = opisPobranego();
+    const zo = el.querySelector(".prosty-zostalo");
+    if (zo) zo.textContent = tekstEtyPobierania();
   });
 
   // Link w schowku przy powrocie do okna (jak w Pobierz; wyłączane w Ustawieniach).

@@ -628,3 +628,19 @@ h1, h2, h3, p { margin: 0; }
   .prosty-plik { flex-wrap: wrap; }
   .prosty-start-przycisk { width: 100%; }
 }
+
+/* S5 tryb Napisy: opcje pod kaflami, okno zgody na pobranie modelu, lista zapisanych plików.
+   Tylko istniejące tokeny (tekst, tekst-2, tekst-3, akcent na powierzchni): kontrast AA jak reszta trybu Prostego. */
+.prosty-napisy { display: flex; flex-direction: column; gap: var(--odstep-3); padding: var(--odstep-4); }
+.prosty-napisy-grupa { display: flex; flex-wrap: wrap; align-items: center; gap: var(--odstep-2) var(--odstep-3); }
+.prosty-napisy-grupa .prosty-chipy { padding: 0; }
+.prosty-napisy-etykieta { min-width: 9em; font-size: var(--rozmiar-s); font-weight: 600; color: var(--tekst-2); }
+.prosty-napisy-pola { display: flex; flex-wrap: wrap; gap: var(--odstep-3); }
+.prosty-napisy-pole { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; font-size: var(--rozmiar-s); color: var(--tekst); cursor: pointer; }
+.prosty-napisy-pole input { width: 18px; height: 18px; accent-color: var(--akcent); }
+.prosty-napisy .chip:focus-visible, .prosty-napisy-pole input:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; }
+.prosty-zgoda { display: flex; flex-direction: column; gap: var(--odstep-3); padding: var(--odstep-4); border-color: var(--akcent); }
+.prosty-zgoda h2 { margin: 0; font-size: var(--rozmiar-l); }
+.prosty-zgoda p { margin: 0; color: var(--tekst); }
+.prosty-etap { margin: 0; font-size: var(--rozmiar-s); color: var(--tekst-2); }
+.prosty-napisy-pliki { margin: 0; padding-left: 1.2em; font-family: var(--czcionka-mono); font-size: var(--rozmiar-s); color: var(--tekst); overflow-wrap: anywhere; }

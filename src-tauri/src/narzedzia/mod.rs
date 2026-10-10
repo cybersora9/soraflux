@@ -1,4 +1,4 @@
-//! Zewnętrzne narzędzia: ffmpeg, ffprobe, yt-dlp, deno.
+//! Zewnętrzne narzędzia: ffmpeg, ffprobe, yt-dlp, deno, whisper.cpp (`whisper-cli`, tryb Napisy).
 //! Kolejność wyszukiwania: ścieżka z konfigu → katalog narzędzi apki → PATH.
 //! yt-dlp z PATH (np. pip) bywa stary i YouTube odpowiada 403: gdy ma więcej niż
 //! [`MAKS_WIEK_YTDLP`] dni, a apka nie ma własnej kopii, pobieramy własną (patrz `ytdlp_decyzja`).
@@ -18,6 +18,9 @@ pub struct Sciezki {
     /// Deno: środowisko JS dla yt-dlp (wyzwania YouTube).
     #[serde(default)]
     pub deno: Option<PathBuf>,
+    /// whisper.cpp (`whisper-cli`): mowa na tekst w trybie Napisy.
+    #[serde(default)]
+    pub whisper: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -27,10 +30,12 @@ pub enum Narzedzie {
     Ffprobe,
     Ytdlp,
     Deno,
+    Whisper,
 }
 
 impl Narzedzie {
-    pub const WSZYSTKIE: [Narzedzie; 4] = [Narzedzie::Ffmpeg, Narzedzie::Ffprobe, Narzedzie::Ytdlp, Narzedzie::Deno];
+    pub const WSZYSTKIE: [Narzedzie; 5] =
+        [Narzedzie::Ffmpeg, Narzedzie::Ffprobe, Narzedzie::Ytdlp, Narzedzie::Deno, Narzedzie::Whisper];
 
     pub fn plik(self) -> &'static str {
         match (self, cfg!(windows)) {
@@ -38,17 +43,19 @@ impl Narzedzie {
             (Narzedzie::Ffprobe, true) => "ffprobe.exe",
             (Narzedzie::Ytdlp, true) => "yt-dlp.exe",
             (Narzedzie::Deno, true) => "deno.exe",
+            (Narzedzie::Whisper, true) => "whisper-cli.exe",
             (Narzedzie::Ffmpeg, false) => "ffmpeg",
             (Narzedzie::Ffprobe, false) => "ffprobe",
             (Narzedzie::Ytdlp, false) => "yt-dlp",
             (Narzedzie::Deno, false) => "deno",
+            (Narzedzie::Whisper, false) => "whisper-cli",
         }
     }
 
     fn argument_wersji(self) -> &'static [&'static str] {
         match self {
             Narzedzie::Ffmpeg | Narzedzie::Ffprobe => &["-hide_banner", "-version"],
-            Narzedzie::Ytdlp | Narzedzie::Deno => &["--version"],
+            Narzedzie::Ytdlp | Narzedzie::Deno | Narzedzie::Whisper => &["--version"],
         }
     }
 }
@@ -60,6 +67,7 @@ impl Sciezki {
             Narzedzie::Ffprobe => self.ffprobe.as_ref(),
             Narzedzie::Ytdlp => self.ytdlp.as_ref(),
             Narzedzie::Deno => self.deno.as_ref(),
+            Narzedzie::Whisper => self.whisper.as_ref(),
         }
     }
     pub fn ustaw(&mut self, n: Narzedzie, p: Option<PathBuf>) {
@@ -68,6 +76,7 @@ impl Sciezki {
             Narzedzie::Ffprobe => self.ffprobe = p,
             Narzedzie::Ytdlp => self.ytdlp = p,
             Narzedzie::Deno => self.deno = p,
+            Narzedzie::Whisper => self.whisper = p,
         }
     }
 }
@@ -110,6 +119,8 @@ pub fn wersja_z_tekstu(n: Narzedzie, tekst: &str) -> String {
         Narzedzie::Ffmpeg | Narzedzie::Ffprobe => pierwsza.split_whitespace().nth(2).unwrap_or(pierwsza).to_string(),
         // "deno 2.5.1 (stable, release, x86_64-pc-windows-msvc)" → "2.5.1"
         Narzedzie::Deno => pierwsza.split_whitespace().nth(1).unwrap_or(pierwsza).to_string(),
+        // "whisper.cpp version: 1.8.2" → "1.8.2"
+        Narzedzie::Whisper => pierwsza.rsplit(' ').next().unwrap_or(pierwsza).to_string(),
         // "2026.09.30" (albo "2026.09.30.232839" z kanału nightly)
         Narzedzie::Ytdlp => pierwsza.to_string(),
     }
@@ -290,6 +301,7 @@ mod testy {
         assert_eq!(wersja_z_tekstu(Narzedzie::Ffprobe, "ffprobe version 6.1.1-3ubuntu5 Copyright"), "6.1.1-3ubuntu5");
         assert_eq!(wersja_z_tekstu(Narzedzie::Deno, "deno 2.5.1 (stable, release, x86_64)\nv8 13"), "2.5.1");
         assert_eq!(wersja_z_tekstu(Narzedzie::Ytdlp, "2026.09.30\n"), "2026.09.30");
+        assert_eq!(wersja_z_tekstu(Narzedzie::Whisper, "whisper.cpp version: 1.8.2\n"), "1.8.2");
     }
 
     #[test]
