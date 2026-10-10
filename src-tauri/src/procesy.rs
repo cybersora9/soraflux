@@ -187,6 +187,42 @@ pub fn wolne_miejsce(katalog: &Path) -> Option<u64> {
     }
 }
 
+/// Pamięć RAM komputera w MiB: (całkowita, dostępna teraz). `None`, gdy system nie podał.
+pub fn pamiec_ram() -> (Option<u64>, Option<u64>) {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/proc/meminfo").map(|t| pamiec_z_meminfo(&t)).unwrap_or((None, None))
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        // SAFETY: struktura zainicjalizowana zerami z poprawnym dwLength, wskaźnik na lokalną zmienną.
+        unsafe {
+            let mut s: MEMORYSTATUSEX = std::mem::zeroed();
+            s.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+            if GlobalMemoryStatusEx(&mut s) == 0 {
+                return (None, None);
+            }
+            (Some(s.ullTotalPhys / 1_048_576), Some(s.ullAvailPhys / 1_048_576))
+        }
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
+    {
+        (None, None)
+    }
+}
+
+/// `/proc/meminfo` → (MemTotal, MemAvailable) w MiB.
+pub fn pamiec_z_meminfo(t: &str) -> (Option<u64>, Option<u64>) {
+    let pole = |nazwa: &str| {
+        t.lines()
+            .find_map(|l| l.strip_prefix(nazwa))
+            .and_then(|r| r.trim().trim_end_matches("kB").trim().parse::<u64>().ok())
+            .map(|kb| kb / 1024)
+    };
+    (pole("MemTotal:"), pole("MemAvailable:"))
+}
+
 /// Czy szacowany wynik (z 10% zapasu i 50 MB rezerwy) zmieści się na dysku.
 pub fn miejsce_wystarczy(potrzeba: u64, wolne: u64) -> bool {
     let z_zapasem = potrzeba.saturating_add(potrzeba / 10).saturating_add(50 * 1024 * 1024);
@@ -210,6 +246,15 @@ mod testy {
         assert!(!miejsce_wystarczy(u64::MAX, u64::MAX - 1));
         let w = wolne_miejsce(&std::env::temp_dir());
         assert!(w.is_some_and(|w| w > 0), "{w:?}");
+    }
+
+    #[test]
+    fn pamiec_z_proc_meminfo() {
+        let t = "MemTotal:       16318452 kB\nMemFree:  100 kB\nMemAvailable:    8159226 kB\n";
+        assert_eq!(pamiec_z_meminfo(t), (Some(15935), Some(7967)));
+        assert_eq!(pamiec_z_meminfo(""), (None, None));
+        #[cfg(target_os = "linux")]
+        assert!(pamiec_ram().0.is_some_and(|m| m > 0));
     }
 
     #[cfg(unix)]

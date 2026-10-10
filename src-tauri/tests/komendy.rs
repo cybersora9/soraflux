@@ -27,6 +27,7 @@ fn aplikacja(
     katalog_konfiguracji: std::path::PathBuf,
 ) -> (tauri::App<tauri::test::MockRuntime>, WebviewWindow<tauri::test::MockRuntime>) {
     let sciezki = Arc::new(RwLock::new(narzedzia::wykryj(&Sciezki::default(), &[])));
+    let katalog_modeli = katalog_konfiguracji.join("modele");
     let stan = StanApki {
         kolejka: Kolejka::nowa(2, Arc::new(Cisza), sciezki.clone()),
         sciezki,
@@ -37,6 +38,8 @@ fn aplikacja(
         enkodery: RwLock::new(vec![]),
         pamiec_narzedzi: Mutex::new(None),
         pliki_startowe: Mutex::new(vec![]),
+        katalog_modeli,
+        model_napisow: Default::default(),
     };
     let app = mock_builder()
         .manage(stan)
@@ -136,7 +139,7 @@ fn konfig_presety_i_sciezki() {
     let k = json!({
         "jezyk": "en", "motyw": "light", "rownolegle": 3, "rownolegle_wideo": 1, "niski_priorytet": true, "katalog_wyjscia": null,
         "katalog_pobierania": null, "schowek": true,
-        "sciezki": { "ffmpeg": null, "ffprobe": null, "ytdlp": null, "deno": null }, "kreator_zakonczony": true,
+        "sciezki": { "ffmpeg": null, "ffprobe": null, "ytdlp": null, "deno": null, "whisper": null }, "kreator_zakonczony": true,
         "motyw_wyglad": "jp-c", "wlasne_motywy": [{ "id": "wlasny-1", "nazwa": "Mój", "baza": "sora-b", "jasny": { "akcent": "#123456" }, "ciemny": {} }],
         "ostatnie_foldery": ["C:/Wideo/Gotowe"], "tryb": "prosty", "podpowiedz_prosty_pokazana": true
     });
@@ -344,4 +347,64 @@ fn normalizacja_sciezek() {
         "C:\\Users\\sora\\test\\plik.mp4"
     );
     assert_eq!(normalizuj(Path::new("/home/sora//test/./plik.mp4")), Path::new("/home/sora/test/plik.mp4"));
+}
+
+#[test]
+fn s5_napisy_stan_i_model_tylko_za_zgoda_z_przypieta_suma() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_app, okno) = aplikacja(tmp.path().to_path_buf());
+    let modele = tmp.path().join("modele");
+    std::fs::create_dir_all(&modele).unwrap();
+    std::fs::write(modele.join("ggml-small.bin"), b"model polozony recznie").unwrap();
+    std::fs::write(modele.join("ggml-base.bin.pobieranie"), vec![0u8; 1000]).unwrap();
+    let st = wywolaj(&okno, "napisy_stan", json!({})).unwrap();
+    assert_eq!(st["katalog_modeli"], json!(modele));
+    let m = st["modele"].as_array().unwrap();
+    assert_eq!(m.len(), 4);
+    assert_eq!(
+        (m[0]["model"].clone(), m[0]["pobrany"].clone(), m[0]["czesciowy_b"].clone()),
+        (json!("base"), json!(false), json!(1000))
+    );
+    assert_eq!((m[1]["model"].clone(), m[1]["pobrany"].clone()), (json!("small"), json!(true)));
+    assert_eq!(st["pobieranie_trwa"], json!(false));
+
+    // bez zgody: nic nie wychodzi do sieci
+    let e = wywolaj(&okno, "napisy_pobierz_model", json!({ "model": "base", "zgoda": false })).unwrap_err();
+    assert!(e.as_str().unwrap().contains("napisy_bez_zgody"), "{e}");
+    // zgoda, ale suma nieprzypięta w kodzie: odmowa przed połączeniem
+    if st["modele"][0]["do_pobrania"] == json!(false) {
+        let e = wywolaj(&okno, "napisy_pobierz_model", json!({ "model": "base", "zgoda": true })).unwrap_err();
+        assert!(e.as_str().unwrap().contains("model_bez_sumy"), "{e}");
+        assert_eq!(std::fs::metadata(modele.join("ggml-base.bin.pobieranie")).unwrap().len(), 1000, "część nietknięta");
+    }
+    wywolaj(&okno, "napisy_anuluj_model", json!({})).unwrap();
+}
+
+#[test]
+fn s5_zadanie_napisow_z_frontu() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_app, okno) = aplikacja(tmp.path().to_path_buf());
+    // kształt z src/api.ts (NoweZadanie typu „napisy”); bez whispera kończy się błędem brak_narzedzia
+    let ids = wywolaj(
+        &okno,
+        "dodaj_zadania",
+        json!({ "zadania": [{
+            "rodzaj": { "typ": "napisy", "wejscie": tmp.path().join("nie-ma.mp4"),
+                        "opcje": { "jezyk": "auto", "model": "base", "srt": true, "vtt": false, "wypal": null, "uklad": null } },
+            "katalog": null, "dopisek": "z napisami"
+        }] }),
+    )
+    .unwrap();
+    let id = ids[0].as_u64().unwrap();
+    let start = Instant::now();
+    loop {
+        let lista = wywolaj(&okno, "lista_zadan", json!({})).unwrap();
+        let z = lista.as_array().unwrap().iter().find(|z| z["id"] == json!(id)).cloned().unwrap();
+        assert_eq!(z["rodzaj"], json!("napisy"));
+        if z["stan"]["typ"] == json!("blad") {
+            break;
+        }
+        assert!(start.elapsed() < Duration::from_secs(20), "{z}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }

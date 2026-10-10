@@ -47,7 +47,7 @@ function wiersz(z: InfoZadania, p: Postep | undefined): HTMLElement {
   return h(
     "li",
     { class: `zadanie zadanie-${z.stan.typ}${ostrz ? " zadanie-ostrzezenie" : ""}` },
-    ikona(z.rodzaj === "pobranie" ? IKONY.pobierz : IKONY.konwertuj, "ikona zadanie-ikona"),
+    ikona(z.rodzaj === "pobranie" ? IKONY.pobierz : z.rodzaj === "napisy" ? IKONY.napisy : IKONY.konwertuj, "ikona zadanie-ikona"),
     h(
       "div",
       { class: "zadanie-srodek" },

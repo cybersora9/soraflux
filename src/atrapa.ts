@@ -4,6 +4,7 @@
 import type { Api } from "./api";
 import type {
   Info, StrumienAudio, StrumienWideo, InfoZadania, Konfig, PlikZFolderu, Media, NoweZadanie, PodgladPlanu, Postep, PostepNarzedzia, Preset, Profil, Szacunek,
+  PostepModelu, StanNapisow,
 } from "./typy";
 import { profilDla, rozszerzenie, nazwaPliku, toObraz, komendaDoPokazania, obrazDomyslny, gifDomyslny } from "./logika";
 
@@ -12,6 +13,7 @@ const sluchacze = {
   postep: new Set<Sluchacz<Postep>>(),
   stan: new Set<Sluchacz<InfoZadania>>(),
   narzedzia: new Set<Sluchacz<PostepNarzedzia>>(),
+  model: new Set<Sluchacz<PostepModelu>>(),
 };
 
 let konfig: Konfig = {
@@ -26,7 +28,7 @@ let konfig: Konfig = {
   motyw_wyglad: "sora-a",
   wlasne_motywy: [],
   ostatnie_foldery: [],
-  sciezki: { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null },
+  sciezki: { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null, whisper: null },
   kreator_zakonczony: true,
   tryb: "pelny",
   podpowiedz_prosty_pokazana: true,
@@ -52,6 +54,22 @@ const tx = (pl: string, en: string) => (konfig.jezyk === "en" ? en : pl);
 const MINIATURA = new URL("./atrapa-miniatura.jpg", import.meta.url).href;
 
 const narzedziaZnalezione = parametry.get("kreator") !== "1";
+
+// Napisy: ?napisy=gotowe = model już pobrany, ?napisy=bez_whispera = brak whisper-cli.
+const napisyParam = parametry.get("napisy");
+let modelPobrany = napisyParam === "gotowe";
+let przerwijModel = false;
+function stanNapisow(): StanNapisow {
+  const modele = ([["base", 142, 500], ["small", 466, 1000], ["medium", 1463, 2300], ["large_v3_turbo", 1549, 2600]] as const).map(([model, rozmiar_mb, ram_mb]) => ({
+    model, plik: `ggml-${model.replace(/_/g, "-")}.bin`, rozmiar_mb, ram_mb, pobrany: model === "base" && modelPobrany, czesciowy_b: null, do_pobrania: model !== "large_v3_turbo",
+    ostrzezenie_ram: model === "large_v3_turbo" ? ("ciasno" as const) : null,
+  }));
+  return {
+    whisper: napisyParam === "bez_whispera" ? null : "C:/Users/sora/AppData/Roaming/SoraConverter/narzedzia/whisper-cli.exe",
+    katalog_modeli: "C:/Users/sora/AppData/Roaming/SoraConverter/modele",
+    modele, ram_mb: 16_384, wolne_ram_mb: 9_000, pobieranie_trwa: false,
+  };
+}
 
 function wbudowane(): Preset[] {
   const p = (id: string, zakladka: "konwertuj" | "obrazy", profil: Profil): Preset => ({
@@ -241,7 +259,10 @@ function symuluj(z: InfoZadania, szybkosc: number, koniec?: Partial<InfoZadania>
     if (!biezace || biezace.stan.typ !== "trwa") return clearInterval(t);
     z.procent = Math.min(100, z.procent + szybkosc);
     sluchacze.postep.forEach((f) =>
-      f({ id: z.id, procent: z.procent, eta_s: (100 - z.procent) / szybkosc, predkosc_x: z.rodzaj === "pobranie" ? null : 3.4, bajty_s: z.rodzaj === "pobranie" ? 6_400_000 : null, przebieg: 1, przebiegi: 1, nieokreslony: false }),
+      f({
+        id: z.id, procent: z.procent, eta_s: (100 - z.procent) / szybkosc, predkosc_x: z.rodzaj === "konwersja" ? 3.4 : null, bajty_s: z.rodzaj === "pobranie" ? 6_400_000 : null, przebieg: 1, przebiegi: 1, nieokreslony: false,
+        etap: z.rodzaj === "napisy" ? (z.procent < 10 ? "dzwiek" : "rozpoznawanie") : null,
+      }),
     );
     zadania.set(z.id, { ...z });
     if (z.procent >= 100) {
@@ -307,7 +328,7 @@ export const atrapa: Api = {
     for (const n of nowe) {
       const id = nastepneId++;
       const r = n.rodzaj;
-      const nazwa = r.typ === "konwersja" ? nazwaPliku(r.wejscie) : r.opcje.tytul ?? r.url;
+      const nazwa = r.typ === "pobranie" ? r.opcje.tytul ?? r.url : nazwaPliku(r.wejscie);
       const z: InfoZadania = {
         id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null,
         rozmiar_wejscia: 432_013_312, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
@@ -320,6 +341,13 @@ export const atrapa: Api = {
         const wyjscie = `${n.katalog ?? rdzen.slice(0, Math.max(rdzen.lastIndexOf("/"), rdzen.lastIndexOf("\\")))}/${nazwaPliku(rdzen)}${n.dopisek ? ` (${n.dopisek})` : ""}.${r.profil.kontener}`;
         z.rozmiar_wejscia = m.rozmiar_b;
         koniec = { wyjscie, stan: { typ: "gotowe", wyjscie }, rozmiar_wyniku: Math.round(szacuj(m, r.profil).bajty ?? 77_594_624) };
+      }
+      if (r.typ === "napisy") {
+        const rdzen = r.wejscie.replace(/\.[^./\\]+$/, "");
+        const pliki = [...(r.opcje.srt ? [`${rdzen}.srt`] : []), ...(r.opcje.vtt ? [`${rdzen}.vtt`] : []), ...(r.opcje.wypal ? [`${rdzen} (${n.dopisek ?? "napisy"}).mp4`] : [])];
+        const wyjscie = r.opcje.wypal ? pliki[pliki.length - 1] : pliki[0];
+        z.rozmiar_wejscia = null;
+        koniec = { wyjscie, stan: { typ: "gotowe", wyjscie }, rozmiar_wyniku: 4_812, napisy: { jezyk: r.opcje.jezyk === "auto" ? (konfig.jezyk === "en" ? "en" : "pl") : r.opcje.jezyk, kwestie: 38, pliki, zmieniona_nazwa: false } };
       }
       emituj(z);
       setTimeout(() => symuluj(z, 7, koniec), 300);
@@ -374,10 +402,11 @@ export const atrapa: Api = {
             ffprobe: "C:/Users/sora/AppData/Roaming/SoraConverter/narzedzia/ffprobe.exe",
             ytdlp: ytdlpStary ? "C:/Users/sora/AppData/Local/Programs/Python/Python312/Scripts/yt-dlp.exe" : "C:/Users/sora/AppData/Roaming/SoraConverter/narzedzia/yt-dlp.exe",
             deno: "C:/Users/sora/AppData/Roaming/SoraConverter/narzedzia/deno.exe",
+            whisper: napisyParam === "bez_whispera" ? null : "C:/Users/sora/AppData/Roaming/SoraConverter/narzedzia/whisper-cli.exe",
           }
-        : { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null },
+        : { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null, whisper: null },
       wersje: narzedziaZnalezione
-        ? { ffmpeg: "7.1-full_build-www.gyan.dev", ffprobe: "7.1-full_build-www.gyan.dev", ytdlp: ytdlpStary ? "2026.07.04" : "2026.10.01", deno: "2.5.1" }
+        ? { ffmpeg: "7.1-full_build-www.gyan.dev", ffprobe: "7.1-full_build-www.gyan.dev", ytdlp: ytdlpStary ? "2026.07.04" : "2026.10.01", deno: "2.5.1", whisper: "1.8.2" }
         : {},
       enkodery: ["libx264", "libx265", "libsvtav1", "libvpx-vp9", "mpeg4", "h264_nvenc", "hevc_nvenc", "aac", "libmp3lame", "libopus", "libvorbis", "flac", "pcm_s16le", "libwebp", "libaom-av1", "png", "mjpeg", "gif", "bmp"],
       sprzet: narzedziaZnalezione ? ["h264_nvenc", "hevc_nvenc", "av1_nvenc"] : [],
@@ -407,6 +436,26 @@ export const atrapa: Api = {
     return atrapa.narzedziaStan();
   },
   ytdlpZapewnij: () => opoznij(false),
+  napisyStan: () => opoznij(stanNapisow()),
+  async napisyPobierzModel(model, zgoda) {
+    if (!zgoda) throw '@i18n {"k":"napisy_bez_zgody","a":{}}';
+    przerwijModel = false;
+    const calosc = (stanNapisow().modele.find((m) => m.model === model)?.rozmiar_mb ?? 142) * 1_048_576;
+    for (let i = 1; i <= 20; i++) {
+      await opoznij(null, 250);
+      if (przerwijModel) throw '@i18n {"k":"pobieranie_anulowane","a":{}}';
+      sluchacze.model.forEach((f) => f({ model, pobrane: (calosc * i) / 20, calosc }));
+    }
+    modelPobrany = true;
+    return stanNapisow();
+  },
+  async napisyAnulujModel() {
+    przerwijModel = true;
+  },
+  naPostepModelu(f) {
+    sluchacze.model.add(f);
+    return () => sluchacze.model.delete(f);
+  },
   czytajSchowek: () => opoznij(""),
   naPowrotOkna(f) {
     const g = () => f();

@@ -211,7 +211,63 @@ export interface OpcjePobrania {
 
 export type RodzajZadania =
   | { typ: "konwersja"; wejscie: string; profil: Profil }
-  | { typ: "pobranie"; url: string; opcje: OpcjePobrania; potem: Profil | null };
+  | { typ: "pobranie"; url: string; opcje: OpcjePobrania; potem: Profil | null }
+  | { typ: "napisy"; wejscie: string; opcje: OpcjeNapisow };
+
+// ---------- napisy (S5, whisper.cpp; kształt jak src-tauri/src/napisy/mod.rs) ----------
+export type JezykNapisow = "auto" | "pl" | "en";
+export type ModelNapisow = "base" | "small" | "medium" | "large_v3_turbo";
+export type StylNapisow = "rolki" | "srodek" | "klasyczny";
+export type Uklad = "pionowy" | "poziomy";
+
+export interface OpcjeNapisow {
+  jezyk: JezykNapisow;
+  model: ModelNapisow;
+  srt: boolean;
+  vtt: boolean;
+  /** Film z wypalonymi napisami w tym stylu (`null` = tylko pliki napisów). */
+  wypal: StylNapisow | null;
+  /** `null` = z wymiarów filmu. */
+  uklad: Uklad | null;
+}
+
+export interface WynikNapisow {
+  jezyk: string | null;
+  kwestie: number;
+  pliki: string[];
+  /** Plik o domyślnej nazwie już był: nowy dostał „ (1)”, nic nie nadpisano. */
+  zmieniona_nazwa: boolean;
+}
+
+export type OstrzezenieRam = "za_malo" | "ciasno";
+
+export interface InfoModelu {
+  model: ModelNapisow;
+  plik: string;
+  rozmiar_mb: number;
+  ram_mb: number;
+  pobrany: boolean;
+  /** Bajty przerwanego pobierania (wznowi się). */
+  czesciowy_b: number | null;
+  /** Suma SHA-256 przypięta w kodzie: tylko wtedy apka pobiera model sama. */
+  do_pobrania: boolean;
+  ostrzezenie_ram: OstrzezenieRam | null;
+}
+
+export interface StanNapisow {
+  whisper: string | null;
+  katalog_modeli: string;
+  modele: InfoModelu[];
+  ram_mb: number | null;
+  wolne_ram_mb: number | null;
+  pobieranie_trwa: boolean;
+}
+
+export interface PostepModelu {
+  model: ModelNapisow;
+  pobrane: number;
+  calosc: number | null;
+}
 
 export interface NoweZadanie {
   rodzaj: RodzajZadania;
@@ -245,7 +301,7 @@ export type Stan =
 export interface InfoZadania {
   id: number;
   nazwa: string;
-  rodzaj: "konwersja" | "pobranie";
+  rodzaj: "konwersja" | "pobranie" | "napisy";
   stan: Stan;
   procent: number;
   wyjscie: string | null;
@@ -255,6 +311,8 @@ export interface InfoZadania {
   awaria_sprzetu: boolean;
   /** „Gotowe z ostrzeżeniem” (np. ucięte źródło). */
   ostrzezenie: OstrzezenieWyniku | null;
+  /** Zadanie napisów: język, kwestie, zapisane pliki. */
+  napisy?: WynikNapisow;
 }
 
 export type OstrzezenieWyniku = { typ: "uciete"; zrodlo_konczy_s: number; wynik_s: number; oczekiwane_s: number };
@@ -270,6 +328,8 @@ export interface Postep {
   przebiegi: number;
   /** Nieznany czas trwania: pasek nieokreślony. */
   nieokreslony: boolean;
+  /** Etap zadania napisów (`napisy.etap.*`). */
+  etap?: string | null;
 }
 
 export interface Sciezki {
@@ -277,9 +337,11 @@ export interface Sciezki {
   ffprobe: string | null;
   ytdlp: string | null;
   deno: string | null;
+  /** whisper.cpp (`whisper-cli`), tryb Napisy. */
+  whisper?: string | null;
 }
 
-export type Narzedzie = "ffmpeg" | "ffprobe" | "ytdlp" | "deno";
+export type Narzedzie = "ffmpeg" | "ffprobe" | "ytdlp" | "deno" | "whisper";
 export type Pakiet = "ffmpeg" | "ffmpeg_full" | "ytdlp" | "deno";
 
 /** Skąd jest yt-dlp: ręcznie wskazany, własna kopia apki (tylko tę aktualizujemy), PATH (pip). */

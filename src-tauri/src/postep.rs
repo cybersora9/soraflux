@@ -73,6 +73,9 @@ pub struct Postep {
     /// Nieznany czas trwania (stream, część GIF-ów): front pokazuje pasek nieokreślony.
     #[serde(default)]
     pub nieokreslony: bool,
+    /// Etap zadania z kilkoma krokami (napisy: `dzwiek`, `rozpoznawanie`, `wypalanie`; klucz i18n `napisy.etap.*`).
+    #[serde(default)]
+    pub etap: Option<String>,
 }
 
 /// Postęp całego zadania z wieloma przebiegami (np. 2 przebiegi x264, GIF z paletą).

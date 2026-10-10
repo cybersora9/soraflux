@@ -8,7 +8,8 @@ Identifiers and code comments are in Polish; the UI is Polish and English (`src/
 | `kolejka.rs` | job queue and dispatcher |
 | `sonda.rs` | ffprobe probe, produces `Media` |
 | `pobieracz/` | downloader (yt-dlp) |
-| `narzedzia/` | external tools (ffmpeg, ffprobe, yt-dlp, deno) |
+| `narzedzia/` | external tools (ffmpeg, ffprobe, yt-dlp, deno, whisper.cpp) |
+| `napisy/` | subtitles from speech (whisper.cpp): cues, SRT/VTT/ASS, arguments |
 | `szacunek.rs` | output size estimate |
 | `dziennik.rs` | local error log and report |
 | `konfig.rs` | app configuration |
@@ -103,8 +104,17 @@ Enums with data are tagged with a `typ` field (plain unions in TS). The containe
 - `RunEvent::Exit` cancels everything; on Windows a Job Object with `KILL_ON_JOB_CLOSE` kills the tree even if the app crashes.
 - Error messages (`blad.rs`) are bilingual: Rust sends an i18n key plus parameters and the frontend translates them with `tlumaczBlad`. Format: `@i18n {"k":…,"a":{…}}` followed by the raw stderr tail.
 
+## Subtitles mode (S5, whisper.cpp)
+- `RodzajZadania::Napisy { wejscie, opcje: OpcjeNapisow }` is a queue job like a conversion (counts against the video limit). Steps, each cancellable (process tree killed, `*.part.*` removed): ffprobe → no audio track = error `napisy_brak_audio` → free space check (WAV of the longest chunk in the temp dir; burned video in the output folder) → ffmpeg extracts the first audio track to WAV 16 kHz mono s16 → `whisper-cli -oj -pp` writes JSON → `napisy::format` builds cues → `name.srt` / `name.vtt` (written as `.part`, renamed) → optionally `name (subtitled).mp4` with the `ass` filter.
+- Long files (> 15 min) are split into 10-minute chunks (one WAV and one whisper run each, timestamps shifted by the chunk start). No overlap: a word on a chunk boundary can be split.
+- Cues: at most 2 lines, max 24 characters per line for vertical videos and 42 for horizontal ones; long segments are split into several cues with time proportional to characters; no overlaps; at most 7 s per cue. `[BLANK_AUDIO]`, `[Music]`, `(music)` etc. are dropped; nothing left = error `napisy_cisza`, no file written.
+- Burned-in styles (`Rolki` = reels, `Srodek`, `Klasyczny`) are an ASS file with `PlayResX/Y` = video size, sizes computed from the shorter side, reels text above the bottom ~22 % of the frame. ffmpeg and whisper run with the job temp dir as the working directory and get relative ASCII names (`audio-000.wav`, `napisy.ass`): no escaping of Windows paths in the filter and no narrow-`argv` problem with non-ASCII paths; the model path is passed relative when that makes it ASCII.
+- Progress: `Postep.etap` = `dzwiek` / `rozpoznawanie` / `wypalanie`, `przebieg/przebiegi` = chunk, ETA from the elapsed time.
+- Outputs never overwrite anything: the same reservation as conversions (`name (1).srt`); `InfoZadania.napisy` lists the files, the detected language and `zmieniona_nazwa`.
+- Models (`napisy::ModelNapisow`: base, small, medium, large-v3-turbo) live in `<app data>/modele/`. `napisy_pobierz_model` needs `zgoda: true` (sent only from the consent card in the GUI), refuses a model without a SHA-256 pinned in code (`model_bez_sumy`), resumes `*.pobieranie` with `Range`, verifies SHA-256 before renaming. A model file put into the folder by hand is used as is. RAM warning (`napisy::ostrzezenie_ram`) is shown before start, not enforced.
+
 ## External tools
-- ffmpeg, ffprobe, yt-dlp, Deno. Lookup order: path from the config → the app's tools directory (app data or `portable/`, next to the `.exe`) → PATH.
+- ffmpeg, ffprobe, yt-dlp, Deno, whisper.cpp (`whisper-cli`, detected or picked manually, no automatic download yet). Lookup order: path from the config → the app's tools directory (app data or `portable/`, next to the `.exe`) → PATH.
 - yt-dlp: version = date `YYYY.MM.DD` → age in days. A yt-dlp from PATH (pip) older than 30 days with no own copy → when the user opens Download, the app downloads its own copy (official GitHub release, `SHA2-256SUMS`), which takes precedence over PATH. "Update yt-dlp" updates only the own copy and never touches pip. Error 403 / "Sign in to confirm" / nsig → "The site blocked the download. Click Update yt-dlp and try again."
 - First-run wizard: what is present, what is missing, "download" (Windows: gyan.dev *release essentials*, optionally *full*, `.sha256` checksum from the same release). Links live in a single file, `narzedzia/zrodla.rs` (sources).
 - `ffmpeg -encoders` (codecs without an encoder are greyed out in the GUI), `ffmpeg -filters` (`zscale` → HDR tonemapping) and a trial encode of 1 frame with the hardware encoders; the result is cached per ffmpeg path.

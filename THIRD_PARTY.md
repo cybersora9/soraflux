@@ -23,6 +23,8 @@ processes (no linking).
 | **FFmpeg** (ffmpeg, ffprobe) | LGPL-2.1+; buildy z x264/x265 itd. jako całość GPL-3.0 / builds with x264/x265 etc. are GPL-3.0 as a whole | Windows: <https://www.gyan.dev/ffmpeg/builds/> (`ffmpeg-release-essentials.zip` domyślnie albo `ffmpeg-release-full.zip`, suma w pliku `.zip.sha256` obok), build GPL-3.0. Linux/macOS: menedżer pakietów / package manager. Kod źródłowy / source: <https://ffmpeg.org/download.html> |
 | **yt-dlp** | Unlicense | <https://github.com/yt-dlp/yt-dlp/releases> (`SHA2-256SUMS`). Własna kopia w katalogu narzędzi apki; yt-dlp z pipa/PATH nie jest aktualizowany ani zmieniany / own copy in the app's tools folder, a pip/PATH copy is never touched |
 | **Deno** | MIT | <https://github.com/denoland/deno/releases> (`*.zip.sha256sum`) |
+| **whisper.cpp** (`whisper-cli`, tryb Napisy / Subtitles mode) | MIT | <https://github.com/ggml-org/whisper.cpp>. Na razie tylko wykrywany albo wskazany ręcznie (bez automatycznego pobierania) / for now only detected or picked manually (no automatic download) |
+| **Modele whisper.cpp** (`ggml-*.bin`, wagi OpenAI Whisper / OpenAI Whisper weights) | MIT | <https://huggingface.co/ggerganov/whisper.cpp>. Pobierane tylko po zgodzie użytkownika, z sumą SHA-256 przypiętą w kodzie (`src-tauri/src/napisy/mod.rs`), ze wznawianiem / downloaded only after user consent, with a SHA-256 pinned in code, resumable |
 
 Kodeki w buildach FFmpeg (m.in. x264, x265, SVT-AV1, libvpx, libaom, LAME,
 Opus, Vorbis, libwebp) mają własne licencje; ich wykaz jest w dokumentacji

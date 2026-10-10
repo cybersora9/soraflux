@@ -29,4 +29,5 @@ export const IKONY = {
   gif: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M10 9.5H8v5h2v-2M13 9.5v5M16 14.5v-5h2.5M16 12h2"/>'),
   glosnosc: svg('<path d="M4 9.5v5M8 6.5v11M12 3.5v17M16 7.5v9M20 10.5v3"/>'),
   strzalka: svg('<path d="m9 6 6 6-6 6"/>'),
+  napisy: svg('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 11h10M7 15h4M13 15h4"/>'),
 };

@@ -7,6 +7,7 @@ pub mod dziennik;
 pub mod kolejka;
 pub mod komendy;
 pub mod konfig;
+pub mod napisy;
 pub mod narzedzia;
 pub mod pobieracz;
 pub mod postep;
@@ -87,6 +88,9 @@ pub fn komendy_apki<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bo
         komendy::ytdlp_info,
         komendy::ytdlp_aktualizuj,
         komendy::ytdlp_zapewnij,
+        komendy::napisy_stan,
+        komendy::napisy_pobierz_model,
+        komendy::napisy_anuluj_model,
     ]
 }
 
@@ -141,6 +145,8 @@ pub fn run() {
             let nadajnik = NadajnikOkna { app: app.handle().clone(), katalog_danych: katalog_danych.clone() };
             let kolejka =
                 Kolejka::z_opcjami(komendy::opcje_kolejki(&k), Arc::new(nadajnik), sciezki.clone(), Some(plik_w_toku));
+            let katalog_modeli = katalog_danych.join("modele");
+            kolejka.ustaw_katalog_modeli(Some(katalog_modeli.clone()));
             let argumenty: Vec<String> = std::env::args().skip(1).collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             app.manage(StanApki {
@@ -153,6 +159,8 @@ pub fn run() {
                 pamiec_narzedzi: Mutex::new(None),
                 katalog_danych,
                 pliki_startowe: Mutex::new(sciezki_z_argumentow(&argumenty, &cwd)),
+                katalog_modeli,
+                model_napisow: Default::default(),
             });
             Ok(())
         })
@@ -164,6 +172,7 @@ pub fn run() {
             // Zamknięcie okna w trakcie pracy: żadnego ffmpeg w tle (na Windows dodatkowo Job Object).
             if let Some(s) = app.try_state::<StanApki>() {
                 s.kolejka.anuluj_wszystko();
+                s.model_napisow.przerwij.store(true, std::sync::atomic::Ordering::SeqCst);
             }
         }
     });

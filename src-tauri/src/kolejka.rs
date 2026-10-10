@@ -5,7 +5,9 @@
 
 use crate::blad;
 use crate::budowniczy::{self, Kontekst};
-use crate::narzedzia::Sciezki;
+use crate::napisy::plan::{self as plan_napisow, Etap};
+use crate::napisy::{format as format_napisow, OpcjeNapisow, Uklad, WynikNapisow};
+use crate::narzedzia::{self, Sciezki};
 use crate::pobieracz::{self, OpcjePobrania};
 use crate::postep::{self, LiniaYtdlp, ParserFfmpeg, Postep};
 use crate::procesy::{self, Drzewo};
@@ -19,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, BufReader};
 use tokio::sync::Notify;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -60,6 +62,12 @@ pub enum RodzajZadania {
         #[serde(default)]
         potem: Option<Profil>,
     },
+    /// Napisy z mowy (whisper.cpp): SRT/VTT obok źródła, opcjonalnie film z wypalonymi napisami.
+    Napisy {
+        wejscie: PathBuf,
+        #[serde(default)]
+        opcje: OpcjeNapisow,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -93,6 +101,9 @@ pub struct InfoZadania {
     pub awaria_sprzetu: bool,
     /// Gotowe, ale z ostrzeżeniem (np. źródło urywa się wcześniej, niż mówi nagłówek).
     pub ostrzezenie: Option<OstrzezenieWyniku>,
+    /// Zadanie napisów: język, liczba kwestii, wszystkie zapisane pliki.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub napisy: Option<WynikNapisow>,
 }
 
 /// „Gotowe z ostrzeżeniem”.
@@ -171,11 +182,13 @@ pub struct Kolejka {
     /// Build ffmpeg ma `zscale` (tonemapping HDR). Ustawiane po wykryciu filtrów.
     zscale: Arc<AtomicBool>,
     dziennik: Option<PathBuf>,
+    /// Katalog modeli whisper.cpp (`None` = tryb Napisy niedostępny).
+    katalog_modeli: Arc<RwLock<Option<PathBuf>>>,
 }
 
 fn nazwa_zadania(r: &RodzajZadania) -> String {
     match r {
-        RodzajZadania::Konwersja { wejscie, .. } => {
+        RodzajZadania::Konwersja { wejscie, .. } | RodzajZadania::Napisy { wejscie, .. } => {
             wejscie.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
         }
         RodzajZadania::Pobranie { url, opcje, .. } => opcje.tytul.clone().unwrap_or_else(|| url.clone()),
@@ -188,6 +201,16 @@ fn zadanie_wideo(r: &RodzajZadania) -> bool {
         RodzajZadania::Konwersja { profil, .. } => !profil.kontener.obraz() || profil.gif.is_some(),
         // Pobieranie czeka głównie na sieć: nie zajmuje limitu wideo (D27).
         RodzajZadania::Pobranie { .. } => false,
+        // whisper zajmuje procesor (albo GPU) jak kodowanie wideo
+        RodzajZadania::Napisy { .. } => true,
+    }
+}
+
+/// Odczyt współdzielonej wartości także po panice innego wątku (bez `unwrap`).
+fn czytaj<T: Clone>(l: &RwLock<T>) -> T {
+    match l.read() {
+        Ok(g) => g.clone(),
+        Err(e) => e.into_inner().clone(),
     }
 }
 
@@ -219,6 +242,15 @@ impl Kolejka {
             sciezki,
             zscale: Arc::new(AtomicBool::new(true)),
             dziennik,
+            katalog_modeli: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// Katalog modeli whisper.cpp (dane apki albo `portable/`).
+    pub fn ustaw_katalog_modeli(&self, k: Option<PathBuf>) {
+        match self.katalog_modeli.write() {
+            Ok(mut g) => *g = k,
+            Err(e) => *e.into_inner() = k,
         }
     }
 
@@ -237,6 +269,7 @@ impl Kolejka {
                 rodzaj: match nowe.rodzaj {
                     RodzajZadania::Konwersja { .. } => "konwersja",
                     RodzajZadania::Pobranie { .. } => "pobranie",
+                    RodzajZadania::Napisy { .. } => "napisy",
                 },
                 stan: Stan::Oczekuje,
                 procent: 0.0,
@@ -245,6 +278,7 @@ impl Kolejka {
                 rozmiar_wyniku: None,
                 awaria_sprzetu: false,
                 ostrzezenie: None,
+                napisy: None,
             };
             let wideo = zadanie_wideo(&nowe.rodzaj);
             w.zadania.insert(id, Wpis { info: info.clone(), nowe, anuluj: Arc::new(Notify::new()), wideo });
@@ -431,10 +465,7 @@ impl Kolejka {
                 Ok((plik, kolejne))
             }
             RodzajZadania::Konwersja { wejscie, profil } => {
-                // Unikalny katalog zadania (pid + licznik globalny): logi 2 przebiegów, paleta.
-                static LICZNIK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-                let n = LICZNIK.fetch_add(1, Ordering::Relaxed);
-                let tmp = std::env::temp_dir().join(format!("soraconverter-{}-{n}-{id}", std::process::id()));
+                let tmp = katalog_zadania(id);
                 let _ = std::fs::create_dir_all(&tmp);
                 let w = self
                     .konwertuj(
@@ -447,6 +478,15 @@ impl Kolejka {
                         &tmp,
                         &anuluj,
                     )
+                    .await;
+                let _ = std::fs::remove_dir_all(&tmp);
+                w.map(|p| (p, None))
+            }
+            RodzajZadania::Napisy { wejscie, opcje } => {
+                let tmp = katalog_zadania(id);
+                let _ = std::fs::create_dir_all(&tmp);
+                let w = self
+                    .napisy(id, &wejscie, &opcje, nowe.katalog.as_deref(), nowe.dopisek.as_deref(), &tmp, &anuluj)
                     .await;
                 let _ = std::fs::remove_dir_all(&tmp);
                 w.map(|p| (p, None))
@@ -632,7 +672,7 @@ impl Kolejka {
                             let (procent, eta_s) = postep::postep_przebiegu(&m, czas, przebieg, przebiegi);
                             self.zglos(Postep {
                                 id, procent, eta_s, predkosc_x: m.predkosc_x, bajty_s: None, przebieg, przebiegi,
-                                nieokreslony: czas.is_none(),
+                                nieokreslony: czas.is_none(), etap: None,
                             });
                         }
                     }
@@ -701,7 +741,7 @@ impl Kolejka {
                             }
                             self.zglos(Postep {
                                 id, procent: procent.min(99.0), eta_s, predkosc_x: None, bajty_s,
-                                przebieg: 1, przebiegi: 1, nieokreslony: calosc.is_none(),
+                                przebieg: 1, przebiegi: 1, nieokreslony: calosc.is_none(), etap: None,
                             });
                         }
                         LiniaYtdlp::Plik(p) => plik = Some(PathBuf::from(p)),
@@ -735,12 +775,301 @@ impl Kolejka {
         }
     }
 
+    fn zwolnij(&self, p: &Path) {
+        if let Ok(mut w) = self.wewn.lock() {
+            w.zarezerwowane.remove(p);
+        }
+    }
+
+    /// Zapis małego pliku wyniku (SRT, VTT) przez `*.part.*` i zmianę nazwy, jak przy konwersji.
+    fn zapisz_wynik(&self, wyjscie: &Path, tresc: &str) -> Result<(), Przerwanie> {
+        let czesc = sciezka_czesci(wyjscie);
+        self.w_toku(&czesc, true);
+        let wynik = std::fs::write(&czesc, tresc)
+            .and_then(|()| std::fs::rename(&czesc, wyjscie))
+            .map_err(|e| Przerwanie::Blad(blad::kod("zapis_wyniku", &[("blad", &e)])));
+        if wynik.is_err() {
+            let _ = std::fs::remove_file(&czesc);
+        }
+        self.w_toku(&czesc, false);
+        self.zwolnij(wyjscie);
+        wynik
+    }
+
+    /// Zadanie napisów: dźwięk → whisper (we fragmentach) → SRT/VTT → opcjonalnie wypalenie.
+    /// Anulowanie działa na każdym etapie (zabicie drzewa procesu, sprzątanie `*.part.*`).
+    #[allow(clippy::too_many_arguments)]
+    async fn napisy(
+        &self,
+        id: u64,
+        wejscie: &Path,
+        opcje: &OpcjeNapisow,
+        katalog: Option<&Path>,
+        dopisek: Option<&str>,
+        tmp: &Path,
+        anuluj: &Notify,
+    ) -> Result<PathBuf, Przerwanie> {
+        let bl = |k: &str, a: &[(&str, &dyn std::fmt::Display)]| Przerwanie::Blad(blad::kod(k, a));
+        if !opcje.cokolwiek() {
+            return Err(bl("napisy_nic", &[]));
+        }
+        // procesy pracują w katalogu tymczasowym: ścieżki względne zamieniamy na bezwzględne
+        let wejscie = std::path::absolute(wejscie).unwrap_or_else(|_| wejscie.to_path_buf());
+        let katalog =
+            katalog.map(Path::to_path_buf).or_else(|| wejscie.parent().map(Path::to_path_buf)).unwrap_or_default();
+        let katalog = std::path::absolute(&katalog).unwrap_or(katalog);
+        upewnij_katalog(&katalog)?;
+        let s = czytaj(&self.sciezki);
+        let ffmpeg = s.ffmpeg.ok_or_else(|| bl("brak_narzedzia", &[("nazwa", &"ffmpeg")]))?;
+        let ffprobe = s.ffprobe.ok_or_else(|| bl("brak_narzedzia", &[("nazwa", &"ffprobe")]))?;
+        let whisper = s.whisper.ok_or_else(|| bl("brak_narzedzia", &[("nazwa", &"whisper.cpp")]))?;
+        let plik_modelu = opcje.model.opis().plik;
+        let model = czytaj(&self.katalog_modeli)
+            .map(|k| opcje.model.sciezka(&k))
+            .filter(|p| p.is_file())
+            .ok_or_else(|| bl("napisy_brak_modelu", &[("model", &plik_modelu)]))?;
+
+        let media = sonda::sonduj(&ffprobe, &wejscie).await.map_err(Przerwanie::Blad)?;
+        if !plan_napisow::ma_dzwiek(&media) {
+            return Err(bl("napisy_brak_audio", &[]));
+        }
+        let obraz = media.wideo.as_ref().filter(|_| !media.obraz).map(|v| (v.w, v.h));
+        if opcje.wypal.is_some() && obraz.is_none() {
+            return Err(bl("napisy_wypal_bez_obrazu", &[]));
+        }
+        // miejsce: WAV najdłuższego fragmentu w katalogu tymczasowym, film z napisami w folderze wyniku
+        let wav_b = plan_napisow::najdluzszy_fragment_s(media.czas_s)
+            .map(|c| (c * plan_napisow::BAJTY_WAV_NA_S as f64) as u64)
+            .unwrap_or(0);
+        sprawdz_miejsce_b(wav_b, tmp)?;
+        if opcje.wypal.is_some() {
+            sprawdz_miejsce_b(plan_napisow::szacunek_wypalenia_b(&media).unwrap_or(0), &katalog)?;
+            let f = ffmpeg.clone();
+            let filtry = tokio::task::spawn_blocking(move || narzedzia::filtry(&f)).await.unwrap_or_default();
+            if !filtry.iter().any(|x| x == "ass") {
+                return Err(bl("napisy_brak_libass", &[]));
+            }
+        }
+
+        let start = std::time::Instant::now();
+        let fragmenty = plan_napisow::fragmenty(media.czas_s);
+        let n = fragmenty.len();
+        let wypalanie = opcje.wypal.is_some();
+        let watki = plan_napisow::liczba_watkow(std::thread::available_parallelism().map(|x| x.get()).unwrap_or(2));
+        let model_arg = plan_napisow::sciezka_dla_whispera(&model, tmp);
+        let zglos = |etap: Etap, i: usize, ulamek: f64| {
+            let procent = plan_napisow::procent_calosci(etap, i, n, ulamek, wypalanie);
+            self.zglos(Postep {
+                id,
+                procent,
+                eta_s: plan_napisow::eta(start.elapsed().as_secs_f64(), procent),
+                predkosc_x: None,
+                bajty_s: None,
+                przebieg: (i + 1).min(255) as u8,
+                przebiegi: n.min(255) as u8,
+                nieokreslony: false,
+                etap: Some(etap.klucz().to_string()),
+            });
+        };
+        let mut segmenty = Vec::new();
+        let mut jezyk = None;
+        for (i, f) in fragmenty.iter().enumerate() {
+            let wav = PathBuf::from(format!("audio-{i:03}.wav"));
+            let baza = PathBuf::from(format!("tekst-{i:03}"));
+            let czas = f.dl_s.or(media.czas_s.map(|c| (c - f.od_s).max(0.0))).filter(|c| *c > 0.0);
+            zglos(Etap::Dzwiek, i, 0.0);
+            let mut parser = ParserFfmpeg::default();
+            let args = plan_napisow::argumenty_audio(&wejscie, f, &tmp.join(&wav));
+            self.uruchom_etap(
+                &ffmpeg,
+                "ffmpeg",
+                &args,
+                tmp,
+                anuluj,
+                |l| parser.linia(l).and_then(|m| czas.map(|c| m.czas_s / c)),
+                |u| zglos(Etap::Dzwiek, i, u),
+            )
+            .await?;
+            zglos(Etap::Rozpoznawanie, i, 0.0);
+            let args = plan_napisow::argumenty_whisper(&model_arg, &wav, &baza, opcje.jezyk.kod(), watki);
+            self.uruchom_etap(&whisper, "whisper.cpp", &args, tmp, anuluj, plan_napisow::postep_whispera, |u| {
+                zglos(Etap::Rozpoznawanie, i, u)
+            })
+            .await?;
+            let _ = std::fs::remove_file(tmp.join(&wav));
+            let json = tmp.join(format!("tekst-{i:03}.json"));
+            let tekst = std::fs::read(&json).map_err(|e| bl("napisy_brak_wyniku", &[("blad", &e)]))?;
+            let w = format_napisow::czytaj_json(&String::from_utf8_lossy(&tekst), (f.od_s * 1000.0) as u64)
+                .map_err(|e| bl("napisy_brak_wyniku", &[("blad", &e)]))?;
+            let _ = std::fs::remove_file(&json);
+            jezyk = jezyk.or(w.jezyk);
+            segmenty.extend(w.segmenty);
+        }
+        if format_napisow::segmenty_mowy(&segmenty).is_empty() {
+            return Err(bl("napisy_cisza", &[]));
+        }
+
+        let uklad = opcje.uklad.unwrap_or_else(|| Uklad::z_wymiarow(obraz.map(|o| o.0), obraz.map(|o| o.1)));
+        let kwestie = format_napisow::kwestie(&segmenty, uklad.max_znakow());
+        let rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("napisy"));
+        let mut wynik = WynikNapisow {
+            jezyk: jezyk.or_else(|| Some(opcje.jezyk.kod().to_string()).filter(|j| j != "auto")),
+            kwestie: kwestie.len(),
+            ..Default::default()
+        };
+        // najpierw film (najdłuższy etap): anulowanie albo błąd wypalania nie zostawia SRT/VTT z przerwanego zadania
+        let mut film = None;
+        if let (Some(styl), Some((w, h))) = (opcje.wypal, obraz) {
+            let p = format_napisow::parametry_stylu(styl, w, h);
+            let ass = format_napisow::do_ass(&format_napisow::kwestie(&segmenty, p.max_znakow), &p, w, h);
+            std::fs::write(tmp.join("napisy.ass"), ass).map_err(|e| bl("zapis_wyniku", &[("blad", &e)]))?;
+            let mut nazwa = rdzen.clone();
+            let d = dopisek.map(czysty_dopisek).filter(|d| !d.is_empty()).unwrap_or_else(|| "subtitles".to_string());
+            nazwa.push(format!(" ({d})"));
+            let wy = self.zarezerwuj(&katalog, &nazwa, "mp4", &wejscie);
+            let mut domyslna = nazwa.clone();
+            domyslna.push(".mp4");
+            wynik.zmieniona_nazwa |= wy != katalog.join(domyslna);
+            let czesc = sciezka_czesci(&wy);
+            self.w_toku(&czesc, true);
+            zglos(Etap::Wypalanie, n.saturating_sub(1), 0.0);
+            let mut parser = ParserFfmpeg::default();
+            let args = plan_napisow::argumenty_wypalenia(&wejscie, &media, "napisy.ass", &czesc);
+            let r = self
+                .uruchom_etap(
+                    &ffmpeg,
+                    "ffmpeg",
+                    &args,
+                    tmp,
+                    anuluj,
+                    |l| parser.linia(l).and_then(|m| media.czas_s.filter(|c| *c > 0.0).map(|c| m.czas_s / c)),
+                    |u| zglos(Etap::Wypalanie, n.saturating_sub(1), u),
+                )
+                .await
+                .and_then(|()| std::fs::rename(&czesc, &wy).map_err(|e| bl("zapis_wyniku", &[("blad", &e)])));
+            if r.is_err() {
+                usun_z_ponowieniem(&czesc).await;
+            }
+            self.w_toku(&czesc, false);
+            if r.is_err() {
+                self.zwolnij(&wy);
+            }
+            r?;
+            film = Some(wy);
+        }
+        let teksty = [
+            (opcje.srt, "srt", format_napisow::do_srt as fn(&[format_napisow::Kwestia]) -> String),
+            (opcje.vtt, "vtt", format_napisow::do_vtt),
+        ];
+        for (wlaczone, ext, tresc) in teksty {
+            if !wlaczone {
+                continue;
+            }
+            let wy = self.zarezerwuj(&katalog, &rdzen, ext, &wejscie);
+            wynik.zmieniona_nazwa |= wy != cel_bez_kolizji(&katalog, &wejscie, ext);
+            self.zapisz_wynik(&wy, &tresc(&kwestie))?;
+            wynik.pliki.push(wy);
+        }
+
+        // główny wynik (pokaż w folderze): film z napisami, inaczej SRT/VTT
+        let glowny = film.clone().or_else(|| wynik.pliki.first().cloned()).ok_or_else(|| bl("napisy_nic", &[]))?;
+        wynik.pliki.extend(film);
+        self.ustaw(id, |i| {
+            i.wyjscie = Some(glowny.clone());
+            i.napisy = Some(wynik);
+        });
+        Ok(glowny)
+    }
+
+    /// Proces etapu napisów: postęp z linii stdout i stderr (ffmpeg pisze na stdout, whisper na stderr),
+    /// ogon stderr do błędu, anulowanie zabija drzewo. Linie czytane bajtowo (stderr whispera nie musi być UTF-8).
+    #[allow(clippy::too_many_arguments)]
+    async fn uruchom_etap(
+        &self,
+        program: &Path,
+        nazwa: &str,
+        args: &[OsString],
+        cwd: &Path,
+        anuluj: &Notify,
+        mut ulamek: impl FnMut(&str) -> Option<f64>,
+        mut zglos: impl FnMut(f64),
+    ) -> Result<(), Przerwanie> {
+        let niski = self.opcje().niski_priorytet;
+        let blad_startu = |e: &dyn std::fmt::Display| {
+            Przerwanie::Blad(blad::kod("uruchomienie", &[("program", &nazwa), ("blad", e)]))
+        };
+        let mut dziecko = procesy::komenda_z(program, niski)
+            .args(args)
+            .current_dir(cwd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| blad_startu(&e))?;
+        let drzewo = Drzewo::przypnij(&dziecko, niski);
+        let (Some(wy), Some(bl)) = (dziecko.stdout.take(), dziecko.stderr.take()) else {
+            drzewo.zabij();
+            return Err(blad_startu(&"stdio"));
+        };
+        let (mut wy, mut bl) = (BufReader::new(wy), BufReader::new(bl));
+        let (mut bufor_wy, mut bufor_bl) = (Vec::new(), Vec::new());
+        let (mut koniec_wy, mut koniec_bl) = (false, false);
+        let mut ogon: VecDeque<String> = VecDeque::with_capacity(50);
+        let status = loop {
+            if koniec_wy && koniec_bl {
+                break dziecko.wait().await;
+            }
+            tokio::select! {
+                l = linia_bajtow(&mut wy, &mut bufor_wy), if !koniec_wy => match l {
+                    Some(l) => if let Some(u) = ulamek(&l) { zglos(u) },
+                    None => koniec_wy = true,
+                },
+                l = linia_bajtow(&mut bl, &mut bufor_bl), if !koniec_bl => match l {
+                    Some(l) => {
+                        if let Some(u) = ulamek(&l) {
+                            zglos(u);
+                        } else {
+                            if ogon.len() == 50 {
+                                ogon.pop_front();
+                            }
+                            ogon.push_back(l);
+                        }
+                    }
+                    None => koniec_bl = true,
+                },
+                _ = anuluj.notified() => {
+                    drzewo.zabij();
+                    let _ = dziecko.kill().await;
+                    let _ = dziecko.wait().await;
+                    return Err(Przerwanie::Anulowane);
+                }
+            }
+        };
+        let ogon = Vec::from(ogon).join("\n");
+        match status {
+            Ok(s) if s.success() => Ok(()),
+            Ok(s) => Err(Przerwanie::Blad(blad::z_ogonem(
+                "napisy_proces",
+                &[("program", &nazwa), ("kod", &s.code().unwrap_or(-1))],
+                &ogon,
+            ))),
+            Err(e) => Err(Przerwanie::Blad(e.to_string())),
+        }
+    }
+
     fn zglos(&self, p: Postep) {
         if let Some(w) = self.wewn.lock().unwrap().zadania.get_mut(&p.id) {
             w.info.procent = p.procent;
         }
         self.nadajnik.postep(&p);
     }
+}
+
+/// Unikalny katalog tymczasowy zadania (pid + licznik globalny): logi 2 przebiegów, paleta, WAV napisów.
+fn katalog_zadania(id: u64) -> PathBuf {
+    static LICZNIK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = LICZNIK.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("soraconverter-{}-{n}-{id}", std::process::id()))
 }
 
 fn popraw(o: Opcje) -> Opcje {
@@ -760,6 +1089,31 @@ fn sprawdz_miejsce(media: &Media, profil: &Profil, katalog: &Path) -> Result<(),
         potrzeba / 1_048_576 + 1,
         wolne / 1_048_576
     )))
+}
+
+/// Miejsce na dysku na `potrzeba` bajtów (z zapasem jak przy konwersji); brak danych = przepuszczamy.
+fn sprawdz_miejsce_b(potrzeba: u64, katalog: &Path) -> Result<(), Przerwanie> {
+    let Some(wolne) = procesy::wolne_miejsce(katalog) else { return Ok(()) };
+    if procesy::miejsce_wystarczy(potrzeba, wolne) {
+        return Ok(());
+    }
+    Err(Przerwanie::Blad(blad::kod(
+        "napisy_miejsce",
+        &[("folder", &katalog.display()), ("potrzeba", &(potrzeba / 1_048_576 + 50)), ("wolne", &(wolne / 1_048_576))],
+    )))
+}
+
+/// Jedna linia (bez `\n` i `\r`) jako tekst zastępczy UTF-8; `None` = koniec strumienia albo błąd.
+/// `bufor` przeżywa przerwanie w `select!` (read_until dopisuje to, co już przeczytał).
+async fn linia_bajtow<R: AsyncBufRead + Unpin>(r: &mut R, bufor: &mut Vec<u8>) -> Option<String> {
+    match r.read_until(b'\n', bufor).await {
+        Ok(0) | Err(_) => None,
+        Ok(_) => {
+            let l = String::from_utf8_lossy(bufor).trim_end_matches(['\r', '\n']).to_string();
+            bufor.clear();
+            Some(l)
+        }
+    }
 }
 
 #[derive(Debug)]

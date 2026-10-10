@@ -51,8 +51,9 @@ export function rozpoznaj(media: Media[]): { rodzaj: Exclude<Rodzaj, "link">; po
 }
 
 export const AKCJE: Record<Rodzaj, string[]> = {
-  film: ["wyslij", "telefon", "mp3", "gif"],
-  dzwiek: ["mp3", "mowa", "glosnosc"],
+  // „napisy” (S5) nie jest konwersją: zadanie typu `napisy` (whisper.cpp), bez profilu, patrz `src/napisy.ts`
+  film: ["wyslij", "telefon", "mp3", "gif", "napisy"],
+  dzwiek: ["mp3", "mowa", "glosnosc", "napisy"],
   zdjecia: ["www", "jpg", "pol"],
   link: ["film", "mp3", "telefon"],
 };
@@ -196,6 +197,7 @@ export function dopisekAkcji(r: Rodzaj, akcja: string, cel?: Cel): string | null
 /** Nagłówek stanu „gotowe” (klucz): przy wysyłce mówi wprost, że zmieści się w limicie. */
 export function tytulGotowe(r: Rodzaj, akcja: string, cel?: Cel): string {
   if (r === "film" && akcja === "wyslij") return `prosty.gotowe.${cel ?? "mail"}`;
+  if (akcja === "napisy") return "napisy.gotowe";
   return "prosty.gotowe";
 }
 
