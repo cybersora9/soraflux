@@ -10,6 +10,7 @@ import { formatujRozmiar, toObraz, zmianaRozmiaru } from "./logika";
 import { aktywneZadania, pokazDymek, sklep, trybApki, ZAKLADKI_TRYBU, type Zakladka } from "./sklep";
 import { rozstrzygnijTryb } from "./prosty";
 import { ustawTryb } from "./tryb";
+import { czyPokazacInformacje, pokazInformacje } from "./przegladarka";
 import { stworzWidokPlikowy, type WidokPlikowy } from "./widoki/plikowy";
 import { stworzWidokKolejki } from "./widoki/kolejka";
 import { stworzWidokUstawien } from "./widoki/ustawienia";
@@ -307,4 +308,5 @@ async function start(): Promise<void> {
   }
 }
 
-void start();
+if (czyPokazacInformacje(api.wTauri, location.hostname)) pokazInformacje(app, jezykSystemu());
+else void start();
