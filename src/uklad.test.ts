@@ -1,0 +1,30 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const css = readFileSync(join(__dirname, "style.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** Body of the first top-level rule whose selector list contains exactly `selector`. */
+function regula(selector: string): string {
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (m[1].split(",").map((x) => x.trim()).includes(selector)) return m[2];
+  }
+  return "";
+}
+
+describe("toggle switches must not scroll the whole document", () => {
+  // Regression: the hidden checkbox is position:absolute. Without a positioned
+  // ancestor it was laid out against the initial containing block, outside the
+  // scrolling <main class="tresc">, so focusing it scrolled the document and the
+  // 100vh #app slid up, leaving a black strip below (reported with the flip toggle).
+  it("the absolutely positioned input has a positioned parent", () => {
+    expect(regula(".przelacznik-input")).toMatch(/position:\s*absolute/);
+    expect(regula(".przelacznik")).toMatch(/position:\s*relative/);
+  });
+
+  it("the scroll container is itself a containing block (defence in depth)", () => {
+    const tresc = regula(".tresc");
+    expect(tresc).toMatch(/overflow-y:\s*auto/);
+    expect(tresc).toMatch(/position:\s*relative/);
+  });
+});

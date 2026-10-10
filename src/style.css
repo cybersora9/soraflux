@@ -62,7 +62,7 @@ h1, h2, h3, p { margin: 0; }
 .nawigacja-stopka { margin-top: auto; padding: 0 var(--odstep-2); font-size: var(--rozmiar-xs); color: var(--tekst-3); }
 
 /* ---------- treść ---------- */
-.tresc { flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
+.tresc { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
 .widok {
   max-width: 1120px;
   margin: 0 auto;
@@ -252,7 +252,7 @@ h1, h2, h3, p { margin: 0; }
 .suwak::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%; background: var(--powierzchnia); border: 2px solid var(--akcent); box-shadow: var(--cien); }
 .suwak::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--powierzchnia); border: 2px solid var(--akcent); }
 
-.przelacznik { display: inline-flex; align-items: center; gap: var(--odstep-3); cursor: pointer; min-height: 36px; }
+.przelacznik { position: relative; display: inline-flex; align-items: center; gap: var(--odstep-3); cursor: pointer; min-height: 36px; }
 .przelacznik-input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .przelacznik-tor { position: relative; width: 36px; height: 20px; flex: none; border-radius: var(--promien-pelny); background: var(--powierzchnia-3); border: 1px solid var(--obramowanie-mocne); transition: background var(--przejscie), border-color var(--przejscie); }
 .przelacznik-galka { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--tekst-2); transition: transform var(--przejscie), background var(--przejscie); }
