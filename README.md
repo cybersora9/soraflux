@@ -6,8 +6,9 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 <p align="center"><b>English</b> · <a href="README.pl.md">Polski</a></p>
 
-<h3 align="center"><a href="https://github.com/cybersora9/soraflux/releases/latest">⬇ Download SoraFlux for Windows</a></h3>
-<p align="center">Windows 10/11 (64-bit) · <a href="#installation">How to install, step by step</a></p>
+<h3 align="center"><a href="https://github.com/cybersora9/soraflux/releases/latest/download/SoraFlux-setup.exe">⬇ Download SoraFlux for Windows</a></h3>
+<p align="center">Windows 10/11 (64-bit), one file, double-click to install · <a href="#installation">Step by step</a> · <a href="https://github.com/cybersora9/soraflux/releases/latest">All files and checksums</a><br>
+<sub>SoraFlux is a Windows program, not a website: it does not open in a browser. Don't download "Source code".</sub></p>
 
 ![Demo: two videos dropped in, "For phones (480p 25 fps)", Convert, the queue shows 412 MB → 74 MB (−82%)](docs/showcase/demo.webp)
 
@@ -74,14 +75,13 @@ All screenshots are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](z
 
 SoraFlux is a normal Windows program with an installer. You don't need to know anything about GitHub or code.
 
-1. Open the **[latest release](https://github.com/cybersora9/soraflux/releases/latest)** (or on the repository page, click **Releases** in the right-hand column).
-2. Scroll down to **Assets** and click **`SoraFlux_x.y.z_x64-setup.exe`** (x.y.z is the version, e.g. 1.3.0). The browser saves it to your **Downloads** folder.
-   Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app.
-3. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux_…_x64-setup.exe`.
-4. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
-5. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
-6. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
-7. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
+1. Click **[Download SoraFlux for Windows](https://github.com/cybersora9/soraflux/releases/latest/download/SoraFlux-setup.exe)**. The browser saves `SoraFlux-setup.exe` to your **Downloads** folder.
+   (The [release page](https://github.com/cybersora9/soraflux/releases/latest) has the same file plus checksums. Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app, and it does not open in a browser.)
+2. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux-setup.exe`.
+3. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
+4. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
+5. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
+6. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
 
 You can also right-click a video, audio or image file in Explorer and pick **Convert with SoraFlux**.
 
@@ -89,7 +89,7 @@ You can also right-click a video, audio or image file in Explorer and pick **Con
 - **Portable mode:** create a folder named `portable` next to `SoraFlux.exe` (e.g. on a USB stick). Settings, presets, the log and the downloaded tools then live in that folder, nothing in your user profile.
 - **Updating:** from 1.3.0 on, Settings → "Check for updates" downloads and installs a new version (signed, verified by the app). From 1.2.x, install 1.3.0 once by hand: download the new installer and run it over the old version; settings and presets are kept.
 - **Uninstalling:** Windows Settings → Apps → Installed apps → SoraFlux → Uninstall.
-- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux_1.3.0_x64-setup.exe` and compare the result with the number in that file.
+- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux-setup.exe` and compare the result with the number in that file.
 
 ## How to use
 

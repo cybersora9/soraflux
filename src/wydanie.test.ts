@@ -46,6 +46,15 @@ describe("wydanie (B10, B11, E28)", () => {
     expect(draft.slice(0, 200)).toContain("steps.istnieje.outputs.jest == '0'");
   });
 
+  it("stały link do instalatora: kopia SoraFlux-setup.exe powstaje PO latest-json (inaczej updater wybrałby ją zamiast pliku z wersją), opis wydania zaczyna się od pobrania", () => {
+    const r = czytaj(".github/workflows/release.yml");
+    expect(r.indexOf("wydanie/SoraFlux-setup.exe")).toBeGreaterThan(r.indexOf("latest-json.mjs"));
+    expect(r).toContain("body_path: .github/RELEASE_HEADER.md");
+    expect(czytaj(".github/RELEASE_HEADER.md")).toContain("releases/latest/download/SoraFlux-setup.exe");
+    expect(czytaj("README.md")).toContain("releases/latest/download/SoraFlux-setup.exe");
+    expect(czytaj("README.pl.md")).toContain("releases/latest/download/SoraFlux-setup.exe");
+  });
+
   it("E28: updater z GitHub Releases, klucz tylko publiczny, artefakty updatera nie psują lokalnego buildu", () => {
     const u = konf.plugins.updater;
     expect(u.endpoints).toEqual(["https://github.com/cybersora9/soraflux/releases/latest/download/latest.json"]);
