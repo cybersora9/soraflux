@@ -2,9 +2,10 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { jezyk, t, tlumaczBlad } from "../i18n";
+import { jezyk, t } from "../i18n";
 import { formatujCzas, formatujEta, formatujRozmiar, sciezkaDoPokazania, zmianaRozmiaru } from "../logika";
 import { liczba, przycisk } from "../komponenty/pola";
+import { blokBledu } from "../komponenty/wspolne";
 import { sklep, trybApki } from "../sklep";
 import type { InfoZadania, Postep } from "../typy";
 
@@ -73,7 +74,7 @@ function wiersz(z: InfoZadania, p: Postep | undefined): HTMLElement {
         "div",
         { class: "zadanie-dol" },
         z.stan.typ === "blad"
-          ? h("details", { class: "zadanie-blad-szczegoly" }, h("summary", null, t("kolejka.blad_szczegoly")), h("pre", null, tlumaczBlad(z.stan.komunikat)))
+          ? blokBledu(z.stan.komunikat, "zadanie-blad")
           : h(
               "span",
               { class: "zadanie-szczegoly", title: wynik ?? undefined },

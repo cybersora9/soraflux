@@ -428,7 +428,6 @@ done
     s
 }
 
-#[cfg(unix)]
 fn pobranie(url: &str, potem: Option<Profil>, katalog: &Path) -> NoweZadanie {
     use soraconverter_lib::pobieracz::{OpcjePobrania, Wybor};
     NoweZadanie {
@@ -728,4 +727,61 @@ async fn p1_zmniejsz_nie_powieksza_i_szacunek_trafia() {
         assert!(wynik <= zrodlo, "{mb} MB: wynik {wynik} B > źródło {zrodlo} B");
         assert!(odchylka <= 0.15, "{mb} MB: szacunek {s} B, wynik {wynik} B");
     }
+}
+
+/// P5 (test na żywo 1.4.0): zamknięty port → surowe „[WinError 10061] Nie mona nawiza poczenia…”.
+/// Atrapa yt-dlp pisze komunikat w CP852 (strona konsoli polskiego Windows): zadanie kończy się kluczem
+/// „brak połączenia”, a w ogonie (Szczegóły techniczne) polskie litery są całe. Sprawdza też, że yt-dlp
+/// dostaje `--encoding utf-8` i `PYTHONUTF8=1`.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p5_brak_polaczenia_po_polsku_bez_krzakow() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let s = tmp.path().join("yt-dlp-cp852");
+    // "Nie można nawiązać połączenia" w CP852: ż=0xBE ą=0xA5 ć=0x86 ł=0x88
+    let skrypt = r#"#!/bin/sh
+case " $* " in *" --encoding utf-8 "*) ;; *) echo "brak --encoding utf-8" >&2; exit 3;; esac
+[ "$PYTHONUTF8" = "1" ] || { echo "brak PYTHONUTF8" >&2; exit 4; }
+printf "ERROR: [generic] x: Unable to download webpage: [WinError 10061] Nie mo\276na nawi\245za\206 po\210\245czenia\n" >&2
+exit 1
+"#;
+    std::fs::write(&s, skrypt).unwrap();
+    std::fs::set_permissions(&s, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut sc = sciezki();
+    sc.ytdlp = Some(s);
+    let k = Kolejka::nowa(1, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sc)));
+    let id = k.dodaj(pobranie("http://127.0.0.1:59999/x.mp4", None, tmp.path()));
+    let w = czekaj_na(&k, &[id], Duration::from_secs(30)).await;
+    let Stan::Blad { komunikat } = &w[0].stan else { panic!("{w:?}") };
+    assert_eq!(blad::klucz(komunikat).as_deref(), Some("yt.polaczenie"), "{komunikat}");
+    assert!(komunikat.contains("Nie można nawiązać połączenia"), "{komunikat}");
+}
+
+/// P5 na prawdziwym yt-dlp (jak `pobranie_prawdziwym_ytdlp_z_lokalnego_serwera`: bez yt-dlp pomijany, w CI
+/// go nie ma, w bramce u opiekuna jest). Zamknięty port na 127.0.0.1: na Windowsie to dokładnie przypadek
+/// z testu na żywo ([WinError 10061] po polsku), na Linuksie [Errno 111]. Oczekiwane: klucz „brak połączenia”,
+/// w ogonie bez znaku zastępczego.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p5_prawdziwy_ytdlp_zamkniety_port() {
+    let mut sc = sciezki();
+    if let Ok(p) = std::env::var("SORACONVERTER_YTDLP") {
+        sc.ytdlp = Some(p.into());
+    }
+    if sc.ytdlp.is_none() {
+        eprintln!("POMINIĘTE: brak yt-dlp (ustaw SORACONVERTER_YTDLP)");
+        return;
+    }
+    std::env::set_var("NO_PROXY", "127.0.0.1");
+    std::env::set_var("no_proxy", "127.0.0.1");
+    // wolny port: zajęty na chwilę i zwolniony, więc nikt na nim nie słucha
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let tmp = tempfile::tempdir().unwrap();
+    let k = Kolejka::nowa(1, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sc)));
+    let id = k.dodaj(pobranie(&format!("http://127.0.0.1:{port}/x.mp4"), None, tmp.path()));
+    let w = czekaj_na(&k, &[id], Duration::from_secs(60)).await;
+    let Stan::Blad { komunikat } = &w[0].stan else { panic!("{w:?}") };
+    eprintln!("{komunikat}");
+    assert_eq!(blad::klucz(komunikat).as_deref(), Some("yt.polaczenie"), "{komunikat}");
+    assert!(!komunikat.contains('\u{fffd}'), "{komunikat}");
 }

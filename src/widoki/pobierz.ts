@@ -5,11 +5,11 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t, tekstBledu, tlumaczBlad } from "../i18n";
+import { t, tekstBledu } from "../i18n";
 import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
-import { folderWyjscia } from "../komponenty/wspolne";
+import { blokBledu, folderWyjscia } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { Info, NoweZadanie, OpcjePobrania, Profil, Wybor } from "../typy";
 
@@ -274,7 +274,7 @@ export function stworzWidokPobierania(): WidokPobierania {
         { class: "film-tresc" },
         h("div", { class: "film-tytul" }, tytul),
         w.blad
-          ? uwaga("blad", ikona(IKONY.uwaga), h("span", null, tlumaczBlad(w.blad)))
+          ? uwaga("blad", ikona(IKONY.uwaga), blokBledu(w.blad))
           : !i
             ? h("div", { class: "film-opis" }, t("pobierz.sprawdzam"))
             : h("div", { class: "film-opis" }, opis),

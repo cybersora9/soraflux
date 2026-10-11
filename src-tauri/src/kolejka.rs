@@ -679,14 +679,14 @@ impl Kolejka {
             .map_err(|e| Przerwanie::Blad(blad::kod("uruchomienie", &[("program", &"yt-dlp"), ("blad", &e)])))?;
         let drzewo = Drzewo::przypnij(&dziecko, niski);
         let stderr = tokio::spawn(ogon(dziecko.stderr.take().unwrap()));
-        let mut linie = BufReader::new(dziecko.stdout.take().unwrap()).lines();
+        let mut linie = procesy::LinieBajtow::nowe(dziecko.stdout.take().unwrap());
         let mut plik = None;
         // Wideo + audio to dwa pliki pobierane po kolei: liczymy postęp w sumie.
         let mut skonczone_czesci: u8 = 0;
         let mut ostatni_procent = 0.0;
         let status = loop {
             tokio::select! {
-                l = linie.next_line() => match l {
+                l = linie.nastepna() => match l {
                     Ok(Some(l)) => match postep::linia_ytdlp(&l) {
                         LiniaYtdlp::Postep { pobrane, calosc, bajty_s, eta_s } => {
                             let ulamek = calosc.filter(|c| *c > 0).map(|c| (pobrane as f64 / c as f64).min(1.0)).unwrap_or(0.0);
@@ -850,10 +850,12 @@ fn upewnij_katalog(katalog: &Path) -> Result<(), Przerwanie> {
 }
 
 /// Ostatnie 50 linii stderr (do komunikatu błędu).
+/// Ostatnie 50 linii stderr. Linie dekodowane przez [`procesy::dekoduj`] (P5: zły bajt nie urywa ogona,
+/// komunikat systemu w stronie kodowej konsoli wraca z polskimi literami).
 async fn ogon(r: impl AsyncRead + Unpin) -> String {
-    let mut linie = BufReader::new(r).lines();
+    let mut linie = procesy::LinieBajtow::nowe(r);
     let mut bufor: VecDeque<String> = VecDeque::with_capacity(50);
-    while let Ok(Some(l)) = linie.next_line().await {
+    while let Ok(Some(l)) = linie.nastepna().await {
         if bufor.len() == 50 {
             bufor.pop_front();
         }

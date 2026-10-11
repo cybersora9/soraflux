@@ -421,7 +421,18 @@ export const atrapa: Api = {
     }
     return konfig.sciezki;
   },
-  ytdlpInfo: (url) => opoznij({ ...INFO_PRZYKLAD, url } as Info, 500),
+  async ytdlpInfo(url) {
+    // błędy jak z komunikat_bledu w Rust (P5/P6): zamknięty port i 404
+    if (/:59999\//.test(url)) {
+      await opoznij(null, 300);
+      throw '@i18n {"k":"yt.polaczenie","a":{}}\n\nERROR: [generic] x: Unable to download webpage: HTTPConnection(host=\'127.0.0.1\', port=59999): Failed to establish a new connection: [WinError 10061] Nie można nawiązać połączenia, ponieważ komputer docelowy aktywnie go odmawia';
+    }
+    if (/nie-ma|404/.test(url)) {
+      await opoznij(null, 300);
+      throw '@i18n {"k":"yt.nie_znaleziono","a":{}}\n\nERROR: [generic] x: Unable to download webpage: HTTP Error 404: Not Found';
+    }
+    return opoznij({ ...INFO_PRZYKLAD, url } as Info, 500);
+  },
   async ytdlpAktualizuj() {
     await opoznij(null, 600);
     ytdlpStary = false;
