@@ -61,6 +61,8 @@ export function listaPlikow(
   usun: (i: number) => void,
   wyczysc: () => void,
   wybor?: { wybrany: number; wybierz: (i: number) => void },
+  /** Uwaga przy wierszu (np. „już się mieści”, „nie ma dźwięku”): widoczna od razu, nie pod panelem. */
+  uwagaPliku?: (p: PlikWejscia) => { tekst: string; blokuje: boolean } | null,
 ): HTMLElement {
   return h(
     "div",
@@ -74,11 +76,12 @@ export function listaPlikow(
     h(
       "ul",
       { class: "pliki-lista" },
-      pliki.map((p, i) =>
-        h(
+      pliki.map((p, i) => {
+        const u = p.blad ? null : uwagaPliku?.(p) ?? null;
+        return h(
           "li",
           {
-            class: "plik" + (p.blad ? " plik-blad" : "") + (wybor?.wybrany === i ? " plik-wybrany" : ""),
+            class: "plik" + (p.blad ? " plik-blad" : "") + (u?.blokuje ? " plik-zablokowany" : "") + (wybor?.wybrany === i ? " plik-wybrany" : ""),
             "aria-current": wybor?.wybrany === i ? "true" : undefined,
           },
           ikona(p.media?.obraz ? IKONY.obrazy : p.media && !p.media.wideo ? IKONY.nuta : IKONY.film, "ikona plik-ikona"),
@@ -89,10 +92,11 @@ export function listaPlikow(
               : { class: "plik-tekst" },
             h("div", { class: "plik-nazwa", title: sciezkaDoPokazania(p.sciezka) }, nazwaPliku(p.sciezka)),
             h("div", { class: "plik-opis", title: p.blad ? tlumaczBlad(p.blad) : undefined }, p.blad ? opisBleduPliku(p.blad) : opisMediow(p.media)),
+            u ? h("div", { class: "plik-uwaga" + (u.blokuje ? " plik-uwaga-blad" : ""), id: `plik-uwaga-${i}` }, u.tekst) : null,
           ),
           h("button", { type: "button", class: "ikona-przycisk", "aria-label": t("pliki.usun"), title: t("pliki.usun"), onclick: () => usun(i) }, ikona(IKONY.x)),
-        ),
-      ),
+        );
+      }),
     ),
   );
 }
@@ -200,15 +204,19 @@ export function opisBledu(b: BladProfilu): string {
       return t("blad.kodek_audio", { kodek: t(`kodek.${b.kodek}`), kontener: b.kontener.toUpperCase() });
     case "za_maly_rozmiar":
       return t("blad.za_maly_rozmiar");
+    case "juz_sie_miesci":
+      return t("blad.juz_sie_miesci", { r: formatujRozmiar(b.zrodlo_b, jezyk()) });
     default:
       return t(`blad.${b.typ}`);
   }
 }
 
 /** Uwagi pod panelem: błędy profilu i podpowiedzi (bez tej o AAC, którą pokazuje panel). */
-export function uwagi(podpowiedzi: Podpowiedz[], blad: BladProfilu | null): HTMLElement | null {
+export function uwagi(podpowiedzi: Podpowiedz[], blad: BladProfilu | null, info: BladProfilu | null = null): HTMLElement | null {
   const lista: HTMLElement[] = [];
   if (blad) lista.push(uwaga("blad", ikona(IKONY.uwaga), h("span", null, opisBledu(blad))));
+  // błąd, który dotyczy tylko wybranego pliku (np. „już się mieści”): informacja, nie blokada całej listy
+  if (info) lista.push(uwaga("info", ikona(IKONY.info), h("span", null, opisBledu(info))));
   for (const p of podpowiedzi) {
     if (p.typ === "mono_niski_hz") continue;
     lista.push(uwaga("info", ikona(IKONY.info), h("span", null, opisPodpowiedzi(p))));

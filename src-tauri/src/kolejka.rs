@@ -502,8 +502,7 @@ impl Kolejka {
         let media = sonda::sonduj(&ffprobe, wejscie).await.map_err(Przerwanie::Blad)?;
         let kt = Kontekst { zscale: self.zscale.load(Ordering::Relaxed), katalog_tmp: Some(tmp.to_path_buf()) };
         // Szybki test profilu, zanim cokolwiek zarezerwujemy.
-        budowniczy::plan_z(&media, profil, wejscie, Path::new("x"), &kt)
-            .map_err(|e| Przerwanie::Blad(e.to_string()))?;
+        budowniczy::plan_z(&media, profil, wejscie, Path::new("x"), &kt).map_err(blad_profilu)?;
 
         sprawdz_miejsce(&media, profil, &katalog)?;
         let mut rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
@@ -740,6 +739,14 @@ impl Kolejka {
             w.info.procent = p.procent;
         }
         self.nadajnik.postep(&p);
+    }
+}
+
+/// Błąd profilu jako komunikat zadania. „Już się mieści” idzie kluczem i18n (to nie usterka, tylko decyzja).
+fn blad_profilu(e: budowniczy::BladProfilu) -> Przerwanie {
+    match e {
+        budowniczy::BladProfilu::JuzSieMiesci { .. } => Przerwanie::Blad(blad::kod("juz_sie_miesci", &[])),
+        e => Przerwanie::Blad(e.to_string()),
     }
 }
 

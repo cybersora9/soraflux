@@ -175,7 +175,8 @@ export type BladProfilu =
   | { typ: "zla_predkosc" }
   | { typ: "zle_ciecie" }
   | { typ: "zly_bitrate_audio" }
-  | { typ: "zle_wymiary" };
+  | { typ: "zle_wymiary" }
+  | { typ: "juz_sie_miesci"; zrodlo_b: number };
 
 export interface PodgladPlanu {
   przebiegi: string[][];
@@ -186,7 +187,7 @@ export interface PodgladPlanu {
 export interface Szacunek {
   bajty: number | null;
   dokladny: boolean;
-  ostrzezenie: "ogromny" | "wiekszy_niz_zrodlo" | null;
+  ostrzezenie: "ogromny" | "wiekszy_niz_zrodlo" | "juz_sie_miesci" | null;
   /** Docelowy bitrate wyższy niż źródło: tyle kb/s ma źródło. */
   zrodlo_kbps: number | null;
 }

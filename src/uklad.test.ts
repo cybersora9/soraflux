@@ -28,3 +28,13 @@ describe("toggle switches must not scroll the whole document", () => {
     expect(tresc).toMatch(/position:\s*relative/);
   });
 });
+
+describe("P1: the 'bigger than the original' warning fits at 860 px", () => {
+  // Regression: .szacunek had white-space: nowrap, so the warning ran past the right edge of the window.
+  it("the estimate wraps and the warning text may break", () => {
+    expect(regula(".szacunek")).toMatch(/flex-wrap:\s*wrap/);
+    expect(regula(".szacunek")).toMatch(/min-width:\s*0/);
+    expect(regula(".szacunek")).not.toMatch(/white-space:\s*nowrap/);
+    expect(regula(".szacunek-ostrzezenie")).toMatch(/white-space:\s*normal/);
+  });
+});

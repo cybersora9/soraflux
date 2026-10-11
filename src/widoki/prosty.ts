@@ -8,8 +8,8 @@ import { IKONY } from "../ikony";
 import { jezyk, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujEta, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
 import {
-  akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, kluczBledu, napisPrzycisku, naprawaBledu, opcjeLinku, opisPliku,
-  opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
+  akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, gotoweZUwaga, kluczBledu, miesciSie, napisPrzycisku, naprawaBledu,
+  opcjeLinku, opisPliku, opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
 } from "../prosty";
 import { przycisk, uwaga } from "../komponenty/pola";
 import { nazwaFolderu } from "../komponenty/wspolne";
@@ -76,6 +76,12 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
   const el = h("div", { class: "widok widok-prosty" });
 
   const pasujace = () => pliki.filter((p) => p.media && rodzaj && rodzaj !== "link" && rodzajMediow(p.media) === rodzaj);
+  /** „Do wysłania”: pliki, które już mieszczą się w celu, pomijamy (kodowanie by je tylko powiększyło). */
+  const juzMieszczace = (c: Cel = cel) => (rodzaj === "film" && akcja === "wyslij" ? pasujace().filter((p) => miesciSie(p.media?.rozmiar_b, c)) : []);
+  const doZrobienia = () => {
+    const pomin = new Set(juzMieszczace());
+    return pasujace().filter((p) => !pomin.has(p));
+  };
   const czasPierwszego = () => pasujace()[0]?.media?.czas_s ?? null;
   const opcjeAkcji = (p: Plik) => ({ cel, zrodlo: p.sciezka, gifOd, czas: p.media?.czas_s ?? null });
 
@@ -210,12 +216,16 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       return h(
         "div",
         { class: "prosty-chipy", role: "group", "aria-label": t("prosty.cel.etykieta") },
-        (Object.keys(CELE) as Cel[]).map((c) =>
-          h("button", {
-            type: "button", class: "chip" + (c === cel ? " aktywny" : ""), "aria-pressed": String(c === cel), "data-fokus": `cel-${c}`,
+        (Object.keys(CELE) as Cel[]).map((c) => {
+          // ✓ = każdy plik już się mieści w tym limicie (nie trzeba nic zmniejszać)
+          const miesci = pasujace().length > 0 && juzMieszczace(c).length === pasujace().length;
+          return h("button", {
+            type: "button", class: "chip" + (c === cel ? " aktywny" : "") + (miesci ? " chip-miesci" : ""), "aria-pressed": String(c === cel), "data-fokus": `cel-${c}`,
+            "data-miesci": miesci ? "tak" : undefined,
+            title: miesci ? t("prosty.cel.miesci") : undefined,
             onclick: () => ((cel = c), przeliczSzacunki(), rysuj()),
-          }, t(`prosty.cel.${c}`)),
-        ),
+          }, miesci ? ikona(IKONY.ok) : null, t(`prosty.cel.${c}`), miesci ? h("span", { class: "wizualnie-ukryte" }, ` (${t("prosty.cel.miesci")})`) : null);
+        }),
       );
     }
     if (rodzaj === "film" && a === "gif") {
@@ -282,7 +292,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const k = sklep.stan.konfig;
     const doLinku = rodzaj === "link";
     const folder = doLinku ? k?.katalog_pobierania : k?.katalog_wyjscia;
-    const gotowe = !sondowanie && !!rodzaj && (doLinku ? !!link?.info : pasujace().length > 0);
+    const gotowe = !sondowanie && !!rodzaj && (doLinku ? !!link?.info : doZrobienia().length > 0);
+    const mieszczace = sondowanie || doLinku ? [] : juzMieszczace();
     const n = doLinku ? 1 : pasujace().length;
     const [klucz, par] = rodzaj ? napisPrzycisku(rodzaj, akcja, { cel, n }) : ["prosty.link.sprawdz", {}];
     const naprawaLinku = link?.blad && naprawaBledu(link.blad) === "aktualizuj";
@@ -292,6 +303,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       kartaPliku(),
       naprawaLinku ? uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t("prosty.blad.aktualizuj.opis")), przycisk(t("prosty.blad.aktualizuj"), () => void aktualizujISprawdz(), "przycisk-maly")) : null,
       pozostale > 0 ? uwaga("info", ikona(IKONY.info), h("span", null, t("prosty.mieszane", { n: pozostale }))) : null,
+      mieszczace.length ? uwagaMieszczace(mieszczace) : null,
       // link nie działa: kafle nic by nie dały, zostaje opis błędu i „Zmień”
       rodzaj && !(doLinku && link?.blad) ? kafle() : null,
       doLinku ? h("p", { class: "notka" }, t("prosty.prawa")) : null,
@@ -311,9 +323,22 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
           ),
           rodzaj && gotowe ? przycisk([ikona(IKONY.strzalka), t("prosty.wiecej")], doPelnego, "przycisk-tekstowy prosty-wiecej", { "data-fokus": "wiecej" }) : null,
         ),
-        przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", { disabled: !gotowe, "data-fokus": "start" }),
+        przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", {
+          disabled: !gotowe, "data-fokus": "start", "aria-describedby": mieszczace.length ? "prosty-miesci" : undefined,
+        }),
       ),
     ].filter((x): x is HTMLElement => !!x);
+  }
+
+  /** „Ten plik już się mieści (3,1 MB)”: zamiast zmniejszania, które by go powiększyło. */
+  function uwagaMieszczace(lista: Plik[]): HTMLElement {
+    const wszystkie = lista.length === pasujace().length;
+    const tekst = lista.length === 1 && wszystkie
+      ? t("prosty.juz_miesci", { r: formatujRozmiar(lista[0].media?.rozmiar_b, jezyk()) })
+      : wszystkie
+        ? t("prosty.juz_miesci_wszystkie", { n: lista.length })
+        : t("prosty.juz_miesci_czesc", { n: lista.length });
+    return uwaga("info", ikona(IKONY.ok), h("span", { id: "prosty-miesci", class: "prosty-miesci" }, tekst));
   }
 
   async function zmienFolder(doLinku: boolean): Promise<boolean> {
@@ -357,7 +382,10 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
         const tekst = kazdy
           ? `${lista.length} × ${opisWyniku(null, po! / lista.length, { jezyk: jezyk(), ok: t("prosty.ok"), porownaj: false })}`
           : opisWyniku(przed || null, po, { jezyk: jezyk(), ok: t("prosty.ok"), porownaj });
-        szacunki[a] = r === "film" && a === "gif" && tekst ? `${t("prosty.gif.dlugosc", { s: DLUGOSC_GIF })} · ${tekst}` : tekst;
+        const mieszcza = r === "film" && a === "wyslij" && w.length > 0 && w.every((x) => x?.ostrzezenie === "juz_sie_miesci");
+        szacunki[a] = mieszcza
+          ? t("prosty.wynik.miesci")
+          : r === "film" && a === "gif" && tekst ? `${t("prosty.gif.dlugosc", { s: DLUGOSC_GIF })} · ${tekst}` : tekst;
         const wynik = el.querySelector(`[data-akcja-prosta="${a}"] .prosty-akcja-wynik`);
         if (wynik) wynik.textContent = szacunki[a];
       });
@@ -473,7 +501,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const r = rodzaj;
     const d = dopisekAkcji(r, akcja, cel);
     const katalog = sklep.stan.konfig?.katalog_wyjscia ?? null;
-    return pasujace().map((p) => ({
+    return doZrobienia().map((p) => ({
       rodzaj: { typ: "konwersja", wejscie: p.sciezka, profil: profilAkcji(r, akcja, opcjeAkcji(p)) },
       katalog,
       dopisek: d ? t(d) : null,
@@ -594,12 +622,13 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
         ),
       ];
     }
-    const tytul = t(tytulGotowe(p.rodzaj, p.akcja, p.cel));
+    const kluczTytulu = tytulGotowe(p.rodzaj, p.akcja, p.cel, gotowe.map((z) => ({ przed: z.rozmiar_wejscia ?? null, po: z.rozmiar_wyniku ?? null })));
+    const zUwaga = gotoweZUwaga(kluczTytulu);
     return [
       h(
         "section",
-        { class: "karta prosty-wynik prosty-wynik-ok", role: "status" },
-        h("h1", { class: "prosty-wynik-tytul" }, ikona(IKONY.ok), tytul),
+        { class: `karta prosty-wynik ${zUwaga ? "prosty-wynik-uwaga" : "prosty-wynik-ok"}`, role: "status" },
+        h("h1", { class: "prosty-wynik-tytul" }, ikona(zUwaga ? IKONY.uwaga : IKONY.ok), t(kluczTytulu)),
         h("p", { class: "prosty-cicho" }, podtytul),
         lcd,
         h("p", { class: "prosty-cicho" }, gotowe.length === 1 && pierwszy ? t("prosty.zapisano", { nazwa: nazwaPliku(pierwszy) }) : t("prosty.zapisano_n", { n: gotowe.length })),

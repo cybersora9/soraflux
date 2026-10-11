@@ -122,6 +122,14 @@ function mediaDla(sciezka: string): Media {
       napisy: [{ indeks: 3, kodek: "mov_text", jezyk: "pol", tekstowe: true }],
     };
   }
+  // mały klip jak w teście na żywo 1.4.0 (P1): 3,1 MB, 1280×720, 8 s, ok. 3,2 Mb/s
+  if (/maly|small/i.test(sciezka)) {
+    const a = audioPrzyklad({ kbps: 128 });
+    return {
+      ...baza, czas_s: 8, rozmiar_b: 3_250_586, kbps: 3250, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+      wideo: wideoPrzyklad({ w: 1280, h: 720, fps: 30, kbps: 3120 }), audio: a, sciezki_audio: [a],
+    };
+  }
   const a = audioPrzyklad({});
   return {
     ...baza, czas_s: 187.4, rozmiar_b: 432_013_312, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
@@ -159,7 +167,12 @@ function szacuj(m: Media, p: Profil): Szacunek {
   let zrodloKbps: number | null = null;
   if (p.wideo && m.wideo && !["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"].includes(p.kontener)) {
     const j = p.wideo.jakosc;
-    if (j.typ === "rozmiar_mb") return { bajty: j.mb * 1024 * 1024 * 0.98, dokladny: true, ostrzezenie: null, zrodlo_kbps: null };
+    if (j.typ === "rozmiar_mb") {
+      // jak plan_rozmiaru w Rust: cel ≥ źródło → nie kodujemy; bitrate obrazu nie wyższy niż w źródle
+      if (m.rozmiar_b && j.mb * 1024 * 1024 >= m.rozmiar_b) return { bajty: m.rozmiar_b, dokladny: true, ostrzezenie: "juz_sie_miesci", zrodlo_kbps: null };
+      const kv = Math.min((j.mb * 8192 * 0.97) / Math.max(czas, 0.1) - a, m.wideo.kbps ?? Infinity);
+      return { bajty: ((kv + a) * 1000 / 8) * czas * 1.01, dokladny: true, ostrzezenie: null, zrodlo_kbps: null };
+    }
     if (j.typ === "bitrate") {
       // jak szacunek.rs: min(docelowy, źródłowy)
       const sufit = m.wideo.kbps ?? Infinity;

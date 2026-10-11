@@ -142,6 +142,10 @@ h1, h2, h3, p { margin: 0; }
 .plik-nazwa { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plik-opis { font-size: var(--rozmiar-xs); color: var(--tekst-3); font-variant-numeric: tabular-nums; }
 .plik-blad .plik-opis { color: var(--blad); }
+.plik-uwaga { font-size: var(--rozmiar-xs); color: var(--uwaga); line-height: 1.3; margin-top: 2px; }
+.plik-uwaga-blad { color: var(--blad); }
+.plik-zablokowany .plik-nazwa { opacity: 0.75; }
+.wizualnie-ukryte { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- przyciski ---------- */
 .przycisk {
@@ -326,10 +330,11 @@ h1, h2, h3, p { margin: 0; }
 .folder .ikona { color: var(--tekst-3); }
 .folder-etykieta { color: var(--tekst-3); white-space: nowrap; }
 .folder-sciezka { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--tekst); }
-.szacunek { display: flex; align-items: baseline; gap: var(--odstep-2); white-space: nowrap; }
-.szacunek-etykieta { font-size: var(--rozmiar-s); color: var(--tekst-3); }
-.szacunek-wartosc { font-size: var(--rozmiar-l); font-variant-numeric: tabular-nums; }
-.szacunek-ostrzezenie { display: inline-flex; align-items: center; gap: 4px; color: var(--uwaga); font-size: var(--rozmiar-s); }
+/* ostrzeżenie się zawija zamiast wychodzić za prawą krawędź okna (P1: przy 860 px było ucięte) */
+.szacunek { display: flex; align-items: baseline; gap: var(--odstep-2); flex-wrap: wrap; min-width: 0; }
+.szacunek-etykieta { font-size: var(--rozmiar-s); color: var(--tekst-3); white-space: nowrap; }
+.szacunek-wartosc { font-size: var(--rozmiar-l); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.szacunek-ostrzezenie { display: inline-flex; align-items: center; gap: 4px; color: var(--uwaga); font-size: var(--rozmiar-s); white-space: normal; min-width: 0; max-width: 100%; }
 .szacunek-ostrzezenie .ikona { width: 14px; height: 14px; }
 
 /* ---------- kolejka ---------- */
@@ -539,7 +544,7 @@ h1, h2, h3, p { margin: 0; }
 .folder-pelna { font-size: var(--rozmiar-xs); color: var(--tekst-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .folder-ostatnie { width: auto; max-width: 220px; height: 32px; font-size: var(--rozmiar-s); }
 .pasek-akcji .folder-blok { flex: 1 1 440px; min-width: min(440px, 100%); }
-.pasek-akcji .szacunek { margin-left: auto; }
+.pasek-akcji .szacunek { margin-left: auto; flex: 0 1 auto; }
 .folder-wybrany { min-width: 180px; }
 
 /* ---------- v1.2: dymek z akcją, gotowe z ostrzeżeniem ---------- */
@@ -595,6 +600,9 @@ h1, h2, h3, p { margin: 0; }
 .prosty-znaczek { display: inline-flex; align-items: center; gap: 3px; min-height: 1.5em; margin-bottom: -2px; font-size: var(--rozmiar-xs); font-weight: 700; color: var(--tekst-2); }
 .prosty-znaczek .ikona { width: 12px; height: 12px; color: var(--ok); }
 .prosty-chipy { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--odstep-4) var(--odstep-4); }
+.prosty-chipy .chip { display: inline-flex; align-items: center; gap: 4px; }
+.chip-miesci .ikona { width: 14px; height: 14px; color: var(--ok); }
+.chip-miesci.aktywny .ikona { color: inherit; }
 .prosty-gif { display: flex; flex-wrap: wrap; align-items: center; gap: var(--odstep-2); padding: 0 var(--odstep-4) var(--odstep-4); font-size: var(--rozmiar-s); color: var(--tekst-2); }
 .prosty-gif .tekst { width: 5.5em; }
 .prosty-gif-dl { font-family: var(--czcionka-mono); }

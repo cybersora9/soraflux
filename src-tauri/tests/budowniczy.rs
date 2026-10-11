@@ -8,7 +8,8 @@ use std::path::Path;
 fn film(czas: f64) -> Media {
     Media {
         czas_s: Some(czas),
-        rozmiar_b: Some(50_000_000),
+        // rozmiar zgodny z bitrate (5000 kb/s), bo „zmniejsz do X MB” porównuje cel z rozmiarem źródła
+        rozmiar_b: Some((czas * 5000.0 * 125.0) as u64),
         kbps: Some(5000),
         format: Some("mov,mp4,m4a,3gp,3g2,mj2".into()),
         wideo: Some(StrumienWideo {
@@ -365,7 +366,7 @@ fn h265_w_mp4_ma_tag_hvc1_i_dwa_przebiegi_x265() {
     let mut p = Profil::dla(Kontener::Mp4);
     p.wideo = Some(ProfilWideo {
         kodek: KodekWideo::H265,
-        jakosc: JakoscWideo::RozmiarMb { mb: 50.0 },
+        jakosc: JakoscWideo::RozmiarMb { mb: 20.0 },
         ..Default::default()
     });
     let pl = plan(&film(60.0), &p, r"C:\Filmy\wy.mp4");

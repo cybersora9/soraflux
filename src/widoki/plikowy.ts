@@ -4,8 +4,8 @@
 import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t, tekstBledu } from "../i18n";
-import { profilDla, profilSzybkiejAkcji, sklonuj, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja } from "../logika";
+import { jezyk, t, tekstBledu } from "../i18n";
+import { formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
 import { kartaInformacji } from "../komponenty/info";
@@ -52,6 +52,8 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   let mbAkcji = 10;
   let szacunek = { tekst: "", ostrzezenie: null as string | null };
   let przebiegi: string[][] = [];
+  /** „Zmniejsz do X MB”: pliki, które już są mniejsze (P1). Nie trafiają do kolejki, wiersz mówi dlaczego. */
+  let mieszczace = new Set<string>();
   let uwagiEl: HTMLElement | null = null;
   let foldery: string[] = [];
   const opcjeFolderu: OpcjeFolderu = { struktura: true, rozszerzenia: "", pomin: true };
@@ -208,6 +210,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
               podglad.odswiez();
             },
           },
+          uwagaPliku,
         )
       : null;
     const b = pliki[wybrany];
@@ -218,8 +221,16 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     );
   }
 
+  function uwagaPliku(p: PlikWejscia): { tekst: string; blokuje: boolean } | null {
+    if (mieszczace.has(p.sciezka)) return { tekst: t("plik.miesci", { r: formatujRozmiar(p.media?.rozmiar_b, jezyk()) }), blokuje: true };
+    return null;
+  }
+
+  /** Pliki, które naprawdę pójdą do kolejki. */
+  const doKonwersji = () => pliki.filter((p) => p.media && !p.blad && !uwagaPliku(p)?.blokuje);
+
   function rysujStopke() {
-    const gotowe = pliki.filter((p) => p.media && !p.blad).length;
+    const gotowe = doKonwersji().length;
     const zablokowane = gotowe === 0 || !!uwagiEl?.querySelector(".uwaga-blad");
     stopka.replaceChildren(
       folderWyjscia("katalog_wyjscia"),
@@ -241,12 +252,17 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
 
   const przelicz = debounce(async () => {
     const lista = zMedia();
+    const mieszczaceBylo = [...mieszczace].join("\n");
     if (lista.length === 0) {
       szacunek = { tekst: "", ostrzezenie: null };
       przebiegi = [];
       uwagiEl = null;
+      mieszczace = new Set();
     } else {
-      const wyniki = await Promise.all(lista.slice(0, 200).map((p) => api.szacuj(p.media!, profil)));
+      const wszystkie = await Promise.all(lista.slice(0, 200).map((p) => api.szacuj(p.media!, profil)));
+      mieszczace = new Set(lista.slice(0, 200).filter((_, i) => wszystkie[i].ostrzezenie === "juz_sie_miesci").map((p) => p.sciezka));
+      // do sumy tylko to, co naprawdę zostanie zakodowane
+      const wyniki = wszystkie.filter((w) => w.ostrzezenie !== "juz_sie_miesci");
       const znane = wyniki.filter((w) => w.bajty !== null);
       const suma = znane.reduce((s, w) => s + (w.bajty ?? 0), 0);
       const dokladny = wyniki.every((w) => w.dokladny);
@@ -264,15 +280,22 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
           rysujStopke();
         });
       }
+      const nMiesci = mieszczace.size;
       szacunek = {
-        tekst: znane.length ? opisSzacunku(suma, dokladny) : t("szacunek.brak"),
-        ostrzezenie: ostrz === "ogromny" ? t("szacunek.ogromny") : ostrz === "wiekszy_niz_zrodlo" ? t("szacunek.wiekszy") : zrodloKbps ? t("szacunek.zrodlo_kbps", { n: zrodloKbps }) : null,
+        tekst: wyniki.length === 0 ? "" : znane.length ? opisSzacunku(suma, dokladny) : t("szacunek.brak"),
+        ostrzezenie:
+          nMiesci && wyniki.length === 0 ? t("szacunek.juz_sie_miesci")
+          : nMiesci ? t("szacunek.juz_sie_miesci_czesc", { n: nMiesci, z: wszystkie.length })
+          : ostrz === "ogromny" ? t("szacunek.ogromny") : ostrz === "wiekszy_niz_zrodlo" ? t("szacunek.wiekszy") : zrodloKbps ? t("szacunek.zrodlo_kbps", { n: zrodloKbps }) : null,
       };
       const b = biezacy() ?? { sciezka: lista[0].sciezka, media: lista[0].media! };
       const plan = await api.planKomendy(b.sciezka, b.media, profil);
       przebiegi = plan.przebiegi;
-      uwagiEl = uwagi(plan.podpowiedzi, plan.blad);
+      // „już się mieści” blokuje tylko ten plik (wiersz na liście), chyba że dotyczy wszystkich
+      const blokujeWszystko = plan.blad?.typ !== "juz_sie_miesci" || wyniki.length === 0;
+      uwagiEl = uwagi(plan.podpowiedzi, blokujeWszystko ? plan.blad : null, blokujeWszystko ? null : plan.blad);
     }
+    if ([...mieszczace].join("\n") !== mieszczaceBylo) rysujLewa();
     uwagiMiejsce.replaceChildren(...(uwagiEl ? [uwagiEl] : []));
     komendaMiejsce.replaceChildren(...[podgladKomendy(przebiegi)].filter((x): x is HTMLElement => !!x));
     rysujStopke();
@@ -333,8 +356,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
 
   async function start() {
     const katalog = sklep.stan.konfig?.katalog_wyjscia ?? null;
-    const doKolejki: NoweZadanie[] = pliki
-      .filter((p) => p.media && !p.blad)
+    const doKolejki: NoweZadanie[] = doKonwersji()
       .map((p) => ({
         rodzaj: { typ: "konwersja", wejscie: p.sciezka, profil: sklonuj(profil) },
         katalog: katalogDlaPliku(p, katalog, opcjeFolderu),

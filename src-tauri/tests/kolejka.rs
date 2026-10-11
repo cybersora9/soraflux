@@ -667,3 +667,65 @@ async fn gif_szacunek_skalibrowany() {
         assert!((0.5..2.0).contains(&r), "{f:?}: szacunek {szac:.0} B, wynik {jest:.0} B (×{r:.2})");
     }
 }
+
+/// P1 (test na żywo 1.4.0): „Do wysłania” zrobiło z 3,1 MB plik 15,0 MB (+391%), a kafel obiecywał 23,5 MB.
+/// Źródło jak na żywo (1280×720, 8 s, H.264 ok. 3,2 Mb/s): cel większy niż plik → zadanie odmawia
+/// (nic nie powstaje), cel mniejszy → wynik nie większy niż źródło, szacunek ±15% od prawdziwego.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p1_zmniejsz_nie_powieksza_i_szacunek_trafia() {
+    let tmp = tempfile::tempdir().unwrap();
+    let we = tmp.path().join("p1.mp4");
+    let ok = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=1280x720:rate=30:duration=8",
+        ])
+        .args(["-f", "lavfi", "-i", "sine=frequency=300:duration=8"])
+        .args(["-c:v", "libx264", "-preset", "veryfast", "-b:v", "3000k", "-maxrate", "3200k", "-bufsize", "6400k"])
+        .args(["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest"])
+        .arg(&we)
+        .status()
+        .unwrap();
+    assert!(ok.success());
+    let zrodlo = std::fs::metadata(&we).unwrap().len();
+    let ffprobe = sciezki().ffprobe.unwrap();
+    let media = soraconverter_lib::sonda::sonduj(&ffprobe, &we).await.unwrap();
+    let profil = |mb: f32| {
+        let mut p = Profil::dla(Kontener::Mp4);
+        p.wideo = Some(ProfilWideo {
+            rozdzielczosc: Rozdzielczosc::Wysokosc { h: 720 },
+            nie_powiekszaj: true,
+            jakosc: JakoscWideo::RozmiarMb { mb },
+            ..Default::default()
+        });
+        p.audio = Some(ProfilAudio { kodek: KodekAudio::Aac, kbps: 96, ..Default::default() });
+        p
+    };
+    let k = Kolejka::nowa(2, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sciezki())));
+    let cele = [1.0f32, 2.0, 10.0, 25.0, 100_000.0];
+    let ids: Vec<u64> = cele.iter().map(|mb| k.dodaj(konwersja(&we, profil(*mb), None))).collect();
+    let w = czekaj_na(&k, &ids, Duration::from_secs(240)).await;
+    for (mb, z) in cele.iter().zip(&w) {
+        let p = profil(*mb);
+        let szac = soraconverter_lib::szacunek::szacuj(&media, &p);
+        if (*mb as f64) * 1_048_576.0 >= zrodlo as f64 {
+            let Stan::Blad { komunikat } = &z.stan else { panic!("{mb} MB: plik już się mieści, a zadanie {z:?}") };
+            assert_eq!(blad::klucz(komunikat).as_deref(), Some("juz_sie_miesci"), "{komunikat}");
+            assert_eq!(szac.ostrzezenie, Some(soraconverter_lib::szacunek::Ostrzezenie::JuzSieMiesci));
+            continue;
+        }
+        let Stan::Gotowe { wyjscie } = &z.stan else { panic!("{mb} MB: {z:?}") };
+        let wynik = std::fs::metadata(wyjscie).unwrap().len();
+        let s = szac.bajty.unwrap();
+        let odchylka = (s as f64 - wynik as f64).abs() / wynik as f64;
+        eprintln!("{mb} MB: źródło {zrodlo} B, wynik {wynik} B, szacunek {s} B ({:.1}%)", odchylka * 100.0);
+        assert!(wynik <= zrodlo, "{mb} MB: wynik {wynik} B > źródło {zrodlo} B");
+        assert!(odchylka <= 0.15, "{mb} MB: szacunek {s} B, wynik {wynik} B");
+    }
+}
