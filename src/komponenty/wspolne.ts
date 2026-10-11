@@ -7,6 +7,7 @@ import { jezyk, maKlucz, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujRozmiar, komendaDoPokazania, nazwaPliku, sciezkaDoPokazania, sklonuj } from "../logika";
 import { pokazDymek, sklep } from "../sklep";
 import type { BladProfilu, Media, Podpowiedz, Preset, Profil } from "../typy";
+import { komunikatPominietych, type Pominiety } from "../upuszczanie";
 import { przycisk, uwaga } from "./pola";
 
 export interface PlikWejscia {
@@ -323,4 +324,13 @@ export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = 
 export function opisSzacunku(bajty: number | null, dokladny: boolean): string {
   if (bajty === null) return t("szacunek.brak");
   return `${dokladny ? "" : "≈ "}${formatujRozmiar(bajty, jezyk())}`;
+}
+
+/** Dymek o pominiętych przy upuszczeniu (P3): 5 s, a na Obrazach z przyciskiem „Przejdź do Konwertuj”. */
+export function dymekPominietych(pominiete: Pominiety[], doKonwertuj?: (sciezki: string[]) => void): void {
+  const k = komunikatPominietych(pominiete);
+  if (!k) return;
+  const tekst = t(k.klucz, { ...k.parametry, ...(k.parametry.powod ? { powod: t(String(k.parametry.powod)) } : {}) });
+  const akcja = doKonwertuj && k.doKonwertuj.length ? { etykieta: t("upusc.do_konwertuj"), zrob: () => (sklep.ustaw({ dymek: null }), doKonwertuj(k.doKonwertuj)) } : undefined;
+  pokazDymek(tekst, "blad", akcja, 5000);
 }

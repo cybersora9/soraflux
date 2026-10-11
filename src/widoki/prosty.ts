@@ -12,7 +12,8 @@ import {
   opcjeLinku, opisPliku, opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
 } from "../prosty";
 import { przycisk, uwaga } from "../komponenty/pola";
-import { nazwaFolderu } from "../komponenty/wspolne";
+import { dymekPominietych, nazwaFolderu } from "../komponenty/wspolne";
+import { klasyfikujUpuszczone } from "../upuszczanie";
 import { pokazDymek, sklep } from "../sklep";
 import type { Info, InfoZadania, Media, NoweZadanie, Profil, Wybor } from "../typy";
 
@@ -413,6 +414,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
 
   async function dodaj(sciezki: string[]) {
     const rozwiniete = await api.rozwinFoldery(sciezki, []);
+    dymekPominietych(klasyfikujUpuszczone(sciezki, rozwiniete.map((r) => r.sciezka), "prosty").pominiete);
     if (rozwiniete.length === 0) return;
     pliki = rozwiniete.map((r) => ({ sciezka: r.sciezka, media: null }));
     link = null;

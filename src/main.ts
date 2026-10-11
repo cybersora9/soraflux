@@ -33,7 +33,13 @@ function stworzWidoki(): Record<Zakladka, Widok> {
     prosty: stworzWidokProsty({ doPelnego }),
     konwertuj: stworzWidokPlikowy("konwertuj"),
     pobierz: stworzWidokPobierania(),
-    obrazy: stworzWidokPlikowy("obrazy"),
+    // P3: wideo/audio upuszczone na Obrazy → przycisk w dymku przenosi je do Konwertuj
+    obrazy: stworzWidokPlikowy("obrazy", {
+      doKonwertuj: (s) => {
+        sklep.ustaw({ zakladka: "konwertuj" });
+        void (widoki?.konwertuj as WidokPlikowy | undefined)?.dodaj(s);
+      },
+    }),
     kolejka: stworzWidokKolejki(),
     ustawienia: stworzWidokUstawien(),
   };

@@ -6,6 +6,7 @@ import type {
   Info, StrumienAudio, StrumienWideo, InfoZadania, Konfig, PlikZFolderu, Media, NoweZadanie, PodgladPlanu, Postep, PostepNarzedzia, Preset, Profil, Szacunek,
 } from "./typy";
 import { profilDla, rozszerzenie, nazwaPliku, toObraz, komendaDoPokazania, obrazDomyslny, gifDomyslny } from "./logika";
+import { ROZSZERZENIA_MEDIOW } from "./upuszczanie";
 
 type Sluchacz<T> = (x: T) => void;
 const sluchacze = {
@@ -353,7 +354,7 @@ export const atrapa: Api = {
     opoznij(
       s.flatMap((p): PlikZFolderu[] =>
         /\.[a-z0-9]+$/i.test(p)
-          ? [{ sciezka: p, podkatalog: null }]
+          ? ROZSZERZENIA_MEDIOW.includes(rozszerzenie(p)) ? [{ sciezka: p, podkatalog: null }] : [] // jak `zbierz` w komendy.rs
           : (konfig.jezyk === "en"
               ? ["day-1/beach.mp4", "day-1/sunset.mov", "day-2/boat-trip.mp4", "drone-footage.mkv"]
               : ["dzien-1/plaza.mp4", "dzien-1/zachod-slonca.mov", "dzien-2/rejs.mp4", "film-z-drona.mkv"])

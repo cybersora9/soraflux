@@ -11,10 +11,11 @@ import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola"
 import { kartaInformacji } from "../komponenty/info";
 import { podgladPrzedPo } from "../komponenty/podglad";
 import {
-  folderWyjscia, listaPlikow, opisSzacunku, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
+  dymekPominietych, folderWyjscia, listaPlikow, opisSzacunku, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
 } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { NoweZadanie, Preset, Profil } from "../typy";
+import { klasyfikujUpuszczone } from "../upuszczanie";
 
 export interface WidokPlikowy {
   el: HTMLElement;
@@ -43,7 +44,7 @@ export function rozszerzeniaZTekstu(t: string): string[] {
   return [...new Set(t.toLowerCase().split(/[\s,;]+/).map((x) => x.replace(/^\*?\./, "")).filter(Boolean))];
 }
 
-export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy {
+export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKonwertuj?: (sciezki: string[]) => void } = {}): WidokPlikowy {
   const obrazy = rodzaj === "obrazy";
   let pliki: PlikWejscia[] = [];
   let wybrany = 0;
@@ -313,8 +314,6 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     rysujStopke();
   }, 150);
 
-  const pasuje = (s: string) => !obrazy || toObraz(s) || s.toLowerCase().endsWith(".gif");
-
   async function sonduj(nowe: PlikWejscia[], bylyPuste: boolean) {
     for (const wpis of nowe) {
       try {
@@ -336,8 +335,11 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     const rozwiniete = await api.rozwinFoldery(sciezki, rozszerzeniaZTekstu(opcjeFolderu.rozszerzenia));
     const noweFoldery = sciezki.filter((s) => rozwiniete.some((r) => r.podkatalog !== null && r.sciezka.startsWith(s)));
     foldery = [...new Set([...foldery, ...noweFoldery])];
+    // P3: nieobsługiwane pliki (i wideo na Obrazach) już nie znikają bez słowa
+    const { przyjete, pominiete } = klasyfikujUpuszczone(sciezki, rozwiniete.map((r) => r.sciezka), rodzaj);
+    dymekPominietych(pominiete, opcje.doKonwertuj);
     const nowe: PlikWejscia[] = rozwiniete
-      .filter((r) => pasuje(r.sciezka) && !pliki.some((p) => p.sciezka === r.sciezka))
+      .filter((r) => przyjete.includes(r.sciezka) && !pliki.some((p) => p.sciezka === r.sciezka))
       .map((r) => ({ sciezka: r.sciezka, media: null, podkatalog: r.podkatalog }));
     if (nowe.length === 0) {
       if (foldery.length) rysujLewa();
@@ -358,7 +360,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     const rozwiniete = await api.rozwinFoldery(foldery, rozszerzeniaZTekstu(opcjeFolderu.rozszerzenia));
     const stare = new Map(pliki.map((p) => [p.sciezka, p]));
     const zFolderow: PlikWejscia[] = rozwiniete
-      .filter((r) => r.podkatalog !== null && pasuje(r.sciezka))
+      .filter((r) => r.podkatalog !== null && (!obrazy || toObraz(r.sciezka) || r.sciezka.toLowerCase().endsWith(".gif")))
       .map((r) => stare.get(r.sciezka) ?? { sciezka: r.sciezka, media: null, podkatalog: r.podkatalog });
     pliki = [...luzne, ...zFolderow];
     wybrany = Math.min(wybrany, Math.max(0, pliki.length - 1));
