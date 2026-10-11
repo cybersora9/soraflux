@@ -51,7 +51,7 @@ function doPelnego(p: Przekazanie): void {
   void ustawTryb("pelny", cel);
   const w = widoki[cel] as WidokPlikowy;
   w.ustawProfil(p.profil);
-  void w.dodaj(p.sciezki);
+  void w.dodaj(p.sciezki, { zachowajCiecie: true });
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;

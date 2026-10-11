@@ -64,6 +64,8 @@
   "panel.ciecie.do": "Koniec",
   "panel.ciecie.koniec_pliku": "do końca",
   "panel.ciecie.pomoc": "GG:MM:SS, MM:SS albo sekundy. Puste = cały plik.",
+  "panel.ciecie.uciete": "Koniec był za długością pliku: przycięty do {czas}.",
+  "panel.ciecie.plakietka": "Fragment {zakres}",
   "panel.kodek_wideo": "Kodek wideo",
   "panel.enkoder": "Enkoder",
   "panel.enkoder.programowy": "Procesor (najlepsza jakość)",

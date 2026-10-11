@@ -5,7 +5,7 @@ import { t } from "../i18n";
 import {
   BITRATY_AUDIO, CZESTOTLIWOSCI, FPS, KODEKI_AUDIO, KODEKI_WIDEO, KONTENERY_ANIMACJI, KONTENERY_AUDIO,
   KONTENERY_OBRAZU, KONTENERY_WIDEO, WYSOKOSCI, audioDomyslne, etykietaWysokosci, formatujCzas, gifDomyslny,
-  obrazDomyslny, parsujCzas, podpowiedzAac, sklonuj, tylkoAudio, wideoDomyslne, zmienKontener, niskiAac,
+  obrazDomyslny, opisCiecia, parsujCzas, podpowiedzAac, sklonuj, stanCiecia, tylkoAudio, wideoDomyslne, zmienKontener, niskiAac,
 } from "../logika";
 import type {
   Dopasowanie, Dithering, Fps, JakoscWideo, KodekAudio, KodekWideo, Kontener, Media, Petla, Profil, ProfilAudio,
@@ -50,6 +50,8 @@ export const ENKODER_AUDIO: Partial<Record<KodekAudio, string>> = {
 export function panelUstawien(o: OpcjePanelu): Panel {
   let p = sklonuj(o.profil);
   let zaawansowaneOtwarte = false;
+  /** Koniec fragmentu był za długością pliku i został przycięty (P2). */
+  let ciecieUciete = false;
   const brakEnkodera = (e: string | undefined) => {
     const lista = o.enkodery?.() ?? [];
     return !!e && lista.length > 0 && !lista.includes(e);
@@ -337,16 +339,35 @@ export function panelUstawien(o: OpcjePanelu): Panel {
 
   function ciecie(): HTMLElement {
     const c = p.ciecie;
-    const ustaw = (od: number | null, koniec: number | null) =>
-      zmien((x) => (x.ciecie = od === null && koniec === null ? null : { od: od ?? 0, koniec }), false);
     const czasMedia = o.media?.()?.czas_s ?? null;
+    const ustaw = (od: number | null, koniec: number | null) => {
+      const s = stanCiecia({ ciecie: p.ciecie, przyciete: ciecieUciete }, { typ: "pola", od, koniec, czas: czasMedia });
+      const przebuduj = s.przyciete || ciecieUciete;
+      ciecieUciete = s.przyciete;
+      // przycięty koniec: przerysowanie, żeby pole pokazało prawdziwą wartość i uwagę
+      zmien((x) => (x.ciecie = s.ciecie), przebuduj);
+      if (!przebuduj) el.querySelector(".zaawansowane > summary")?.replaceWith(naglowekZaawansowanych());
+    };
     const od = tekst(c && c.od > 0 ? formatujCzas(c.od) : "", (v) => ustaw(parsujCzas(v), p.ciecie?.koniec ?? null), {
       placeholder: "00:00", class: "tekst czas", "aria-label": t("panel.ciecie.od"),
     });
     const koniec = tekst(c?.koniec != null ? formatujCzas(c.koniec) : "", (v) => ustaw(p.ciecie?.od ?? null, parsujCzas(v)), {
       placeholder: czasMedia ? formatujCzas(czasMedia) : t("panel.ciecie.koniec_pliku"), class: "tekst czas", "aria-label": t("panel.ciecie.do"),
     });
-    return pole(t("panel.ciecie"), h("div", { class: "wymiary" }, od, h("span", { class: "razy" }, "–"), koniec), t("panel.ciecie.pomoc"));
+    if (ciecieUciete) {
+      koniec.classList.add("tekst-poprawione");
+      koniec.setAttribute("aria-describedby", "ciecie-uciete");
+    }
+    return pole(
+      t("panel.ciecie"),
+      h(
+        "div",
+        { class: "kolumna" },
+        h("div", { class: "wymiary" }, od, h("span", { class: "razy" }, "–"), koniec),
+        ciecieUciete && czasMedia ? h("span", { class: "pole-poprawione", id: "ciecie-uciete", role: "status" }, t("panel.ciecie.uciete", { czas: formatujCzas(czasMedia) })) : null,
+      ),
+      t("panel.ciecie.pomoc"),
+    );
   }
 
   // ---------- zaawansowane wideo ----------
@@ -575,6 +596,19 @@ export function panelUstawien(o: OpcjePanelu): Panel {
     return h("section", { class: `sekcja ${klasa}`.trim() }, tytul ? h("h3", { class: "sekcja-tytul" }, tytul) : null, h("div", { class: "siatka-pol" }, pola));
   }
 
+  /** Fragment od–do siedzi w Zaawansowanych (poza GIF-em i kopią strumieni): po zwinięciu widać go na plakietce (P2). */
+  function naglowekZaawansowanych(): HTMLElement {
+    const wZaawansowanych = o.tryb !== "obraz" && !(p.kontener === "gif" || (p.kontener === "webp" && p.gif)) && p.wideo?.kodek !== "kopiuj";
+    return h(
+      "summary",
+      null,
+      t("panel.zaawansowane"),
+      wZaawansowanych && p.ciecie
+        ? h("span", { class: "plakietka plakietka-akcent plakietka-ciecie" }, t("panel.ciecie.plakietka", { zakres: opisCiecia(p.ciecie) ?? "" }))
+        : null,
+    );
+  }
+
   function rysuj(): void {
     const czesci: (HTMLElement | null)[] = [sekcja(null, [chipyFormatu()], "sekcja-formaty")];
     let zaawansowane: (HTMLElement | null)[] = [];
@@ -615,7 +649,7 @@ export function panelUstawien(o: OpcjePanelu): Panel {
     const szczegoly = h(
       "details",
       { class: "zaawansowane", open: zaawansowaneOtwarte, ontoggle: (e: Event) => (zaawansowaneOtwarte = (e.target as HTMLDetailsElement).open) },
-      h("summary", null, t("panel.zaawansowane")),
+      naglowekZaawansowanych(),
       h("div", { class: "zaawansowane-tresc" }, zaawansowane),
     );
     el.replaceChildren(...czesci.filter((x): x is HTMLElement => !!x), szczegoly);
@@ -627,6 +661,7 @@ export function panelUstawien(o: OpcjePanelu): Panel {
     profil: () => sklonuj(p),
     ustaw(nowy: Profil) {
       p = sklonuj(nowy);
+      if (!p.ciecie) ciecieUciete = false;
       rysuj();
     },
     odswiez: rysuj,

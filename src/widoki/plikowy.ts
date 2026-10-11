@@ -5,7 +5,7 @@ import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t, tekstBledu } from "../i18n";
-import { formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja } from "../logika";
+import { formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
 import { kartaInformacji } from "../komponenty/info";
@@ -18,7 +18,8 @@ import type { NoweZadanie, Preset, Profil } from "../typy";
 
 export interface WidokPlikowy {
   el: HTMLElement;
-  dodaj(sciezki: string[]): Promise<void>;
+  /** `zachowajCiecie`: wejście z trybu Prostego niesie własny fragment (GIF), nie kasujemy go. */
+  dodaj(sciezki: string[], o?: { zachowajCiecie?: boolean }): Promise<void>;
   odswiez(): void;
   /** Wejście z trybu Prostego („Więcej ustawień”): profil akcji bez zaznaczonego presetu ani szybkiej akcji. */
   ustawProfil(p: Profil): void;
@@ -97,6 +98,14 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
 
   const podglad = podgladPrzedPo({ plik: biezacy, profil: () => profil });
 
+  /** Fragment od–do po zdarzeniu (P2): zmiana listy plików i szybka akcja inna niż „Wytnij” go kasują. */
+  function zdarzenieCiecia(z: ZdarzenieCiecia) {
+    const nowe = stanCiecia({ ciecie: profil.ciecie, przyciete: false }, z).ciecie;
+    if (nowe === profil.ciecie) return;
+    profil = { ...profil, ciecie: nowe };
+    panel.ustaw(profil);
+  }
+
   function ustawProfil(p: Profil) {
     profil = sklonuj(p);
     panel.ustaw(profil);
@@ -127,7 +136,8 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     const zastosuj = (a: SzybkaAkcja) => {
       aktywnaAkcja = a;
       aktywnyPreset = null;
-      ustawProfil(profilSzybkiejAkcji(a, profil, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null }));
+      const ciecie = stanCiecia({ ciecie: profil.ciecie, przyciete: false }, { typ: "akcja", akcja: a }).ciecie;
+      ustawProfil(profilSzybkiejAkcji(a, { ...profil, ciecie }, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null }));
       rysujAkcje();
       rysujPresety();
     };
@@ -189,6 +199,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
             pliki.splice(i, 1);
             if (wybrany >= pliki.length) wybrany = Math.max(0, pliki.length - 1);
             if (pliki.length === 0) foldery = [];
+            zdarzenieCiecia({ typ: "pliki" });
             rysujLewa();
             przelicz();
             podglad.odswiez();
@@ -197,6 +208,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
             pliki = [];
             foldery = [];
             wybrany = 0;
+            zdarzenieCiecia({ typ: "pliki" });
             rysujLewa();
             przelicz();
             podglad.odswiez();
@@ -320,7 +332,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     }
   }
 
-  async function dodaj(sciezki: string[]) {
+  async function dodaj(sciezki: string[], o: { zachowajCiecie?: boolean } = {}) {
     const rozwiniete = await api.rozwinFoldery(sciezki, rozszerzeniaZTekstu(opcjeFolderu.rozszerzenia));
     const noweFoldery = sciezki.filter((s) => rozwiniete.some((r) => r.podkatalog !== null && r.sciezka.startsWith(s)));
     foldery = [...new Set([...foldery, ...noweFoldery])];
@@ -333,6 +345,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     }
     const bylyPuste = pliki.length === 0;
     pliki.push(...nowe);
+    if (!o.zachowajCiecie) zdarzenieCiecia({ typ: "pliki" });
     rysujLewa();
     rysujStopke();
     await sonduj(nowe, bylyPuste);

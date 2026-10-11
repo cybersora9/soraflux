@@ -312,6 +312,48 @@ export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?
   }
 }
 
+// ---------- fragment od–do: stan formularza (P2 z testu 1.4.0) ----------
+// Ukryte „Fragment od–do” (zwinięte Zaawansowane) przycinało kolejne konwersje: 00:06–00:20 z poprzedniego
+// pliku i „Zmniejsz do 10 MB” na nowym 8-sekundowym dały 2 s. Fragment należy do plików, nie do ustawień.
+
+export interface StanCiecia {
+  ciecie: import("./typy").Ciecie | null;
+  /** Koniec był za długością pliku i został przycięty (pole pokazuje to wprost). */
+  przyciete: boolean;
+}
+
+export type ZdarzenieCiecia =
+  /** Lista plików się zmieniła: nowe upuszczenie, usunięcie, „Wyczyść”. */
+  | { typ: "pliki" }
+  /** Szybka akcja: fragment zostaje tylko przy „Wytnij fragment”. */
+  | { typ: "akcja"; akcja: SzybkaAkcja }
+  /** Wpis w polach od–do; `czas` = długość wybranego pliku (null = nieznana). */
+  | { typ: "pola"; od: number | null; koniec: number | null; czas: number | null };
+
+export function stanCiecia(s: StanCiecia, z: ZdarzenieCiecia): StanCiecia {
+  switch (z.typ) {
+    case "pliki":
+      return { ciecie: null, przyciete: false };
+    case "akcja":
+      return z.akcja === "wytnij" ? s : { ciecie: null, przyciete: false };
+    case "pola": {
+      if (z.od === null && z.koniec === null) return { ciecie: null, przyciete: false };
+      const dl = z.czas && z.czas > 0 ? z.czas : null;
+      const przyciete = dl !== null && z.koniec !== null && z.koniec > dl;
+      const koniec = przyciete ? dl : z.koniec;
+      // koniec przycięty do pełnej długości i początek od zera = cały plik, czyli bez cięcia
+      if ((z.od ?? 0) === 0 && przyciete) return { ciecie: null, przyciete: true };
+      return { ciecie: { od: z.od ?? 0, koniec }, przyciete };
+    }
+  }
+}
+
+/** Plakietka na zwiniętym „Zaawansowane”, gdy fragment jest aktywny: „00:06–00:20”, „od 00:06”. */
+export function opisCiecia(c: import("./typy").Ciecie | null): string | null {
+  if (!c) return null;
+  return c.koniec !== null ? `${formatujCzas(c.od)}–${formatujCzas(c.koniec)}` : `${formatujCzas(c.od)}–`;
+}
+
 /** Opis pliku na karcie informacji (punkt 4.5). Wartości gotowe do pokazania. */
 export function wierszeInformacji(m: import("./typy").Media): [string, string][] {
   const w: [string, string][] = [];

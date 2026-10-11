@@ -64,6 +64,8 @@
   "panel.ciecie.do": "End",
   "panel.ciecie.koniec_pliku": "to the end",
   "panel.ciecie.pomoc": "HH:MM:SS, MM:SS or seconds. Empty = whole file.",
+  "panel.ciecie.uciete": "The end was past the file length: clamped to {czas}.",
+  "panel.ciecie.plakietka": "Range {zakres}",
   "panel.kodek_wideo": "Video codec",
   "panel.enkoder": "Encoder",
   "panel.enkoder.programowy": "CPU (best quality)",
