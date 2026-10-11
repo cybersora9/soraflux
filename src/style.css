@@ -481,6 +481,8 @@ h1, h2, h3, p { margin: 0; }
 .wersja { font-size: var(--rozmiar-s); color: var(--tekst-2); display: inline-flex; align-items: center; gap: var(--odstep-2); }
 .wersja code { font-family: var(--czcionka-mono); font-size: var(--rozmiar-xs); padding: 2px 6px; border-radius: var(--promien-s); background: var(--powierzchnia-3); }
 .widok-pobierz .uwaga small { display: block; color: var(--tekst-2); font-weight: 400; }
+.film-nieaktualny { opacity: 0.55; }
+.film-nieaktualny-opis { font-size: var(--rozmiar-xs); color: var(--uwaga); }
 @media (max-width: 760px) {
   .film { grid-template-columns: 1fr; }
 }

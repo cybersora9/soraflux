@@ -324,6 +324,7 @@
   "pobierz.grupa.audio": "Audio only",
   "pobierz.jakosc": "Download quality",
   "pobierz.usun": "Remove",
+  "pobierz.nieaktualny": "This result is for a link that is no longer in the field. Click Check.",
   "pobierz.napisy_dostepne": "subtitles: {j}",
   "pobierz.rozdzialy_n": "chapters: {n}",
   "pobierz.na_zywo": "live",

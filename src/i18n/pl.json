@@ -324,6 +324,7 @@
   "pobierz.grupa.audio": "Tylko dźwięk",
   "pobierz.jakosc": "Jakość pobierania",
   "pobierz.usun": "Usuń",
+  "pobierz.nieaktualny": "Ten wynik dotyczy linku, którego nie ma już w polu. Kliknij Sprawdź.",
   "pobierz.napisy_dostepne": "napisy: {j}",
   "pobierz.rozdzialy_n": "rozdziały: {n}",
   "pobierz.na_zywo": "na żywo",
