@@ -259,7 +259,10 @@ export interface InfoZadania {
   ostrzezenie: OstrzezenieWyniku | null;
 }
 
-export type OstrzezenieWyniku = { typ: "uciete"; zrodlo_konczy_s: number; wynik_s: number; oczekiwane_s: number };
+export type OstrzezenieWyniku =
+  | { typ: "uciete"; zrodlo_konczy_s: number; wynik_s: number; oczekiwane_s: number }
+  /** P9: cięcie bez ponownego kodowania trwa wyraźnie inaczej niż zamówione (klatka kluczowa). */
+  | { typ: "niedokladne_ciecie"; wynik_s: number; oczekiwane_s: number };
 
 export interface Postep {
   id: number;

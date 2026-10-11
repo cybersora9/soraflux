@@ -814,3 +814,37 @@ fn p4_regula_blokady_formatu() {
     let nic = Media { wideo: None, audio: None, sciezki_audio: vec![], ..film(10.0) };
     assert_eq!(wynik(&nic, &Profil::dla(Kontener::Mp3)), Some(BladProfilu::PustyWynik));
 }
+
+/// P9: dwa tryby cięcia 02–05 tym samym budowniczym. Bez kodowania: kopia strumieni od klatki kluczowej
+/// (kolejka potem sprawdza długość); „Dokładnie”: ponowne kodowanie, `-ss` przed `-i` jest co do klatki.
+#[test]
+fn p9_ciecie_kopia_i_dokladne() {
+    let ciecie = Some(Ciecie { od: 2.0, koniec: Some(5.0) });
+    let mut kopia = Profil::dla(Kontener::Mkv);
+    kopia.wideo = Some(ProfilWideo { kodek: KodekWideo::Kopiuj, ..Default::default() });
+    kopia.audio = Some(ProfilAudio { kodek: KodekAudio::Kopiuj, ..Default::default() });
+    kopia.ciecie = ciecie.clone();
+    let mut dokladnie = Profil::dla(Kontener::Mkv);
+    dokladnie.wideo =
+        Some(ProfilWideo { kodek: KodekWideo::H264, jakosc: JakoscWideo::Crf { crf: 18 }, ..Default::default() });
+    dokladnie.ciecie = ciecie;
+
+    let pk = plan(&film(8.0), &kopia, "wy.mkv");
+    let a = &pk.przebiegi[0];
+    assert!(ma(a, &["-ss", "2", "-t", "3", "-i", "we.mp4"]));
+    assert!(ma(a, &["-c:v", "copy"]) && ma(a, &["-c:a", "copy"]));
+    assert!(ma(a, &["-avoid_negative_ts", "make_zero"]));
+    assert!(pk.podpowiedzi.contains(&Podpowiedz::CiecieKlatkaKluczowa));
+    assert!(budowniczy::ciecie_bez_kodowania(&kopia));
+
+    let pd = plan(&film(8.0), &dokladnie, "wy.mkv");
+    let a = &pd.przebiegi[0];
+    assert!(ma(a, &["-ss", "2", "-t", "3", "-i", "we.mp4"]));
+    assert!(ma(a, &["-c:v", "libx264"]) && ma(a, &["-crf", "18"]));
+    assert!(ma(a, &["-c:a", "aac"]));
+    assert!(!a.contains(&"-avoid_negative_ts".to_string()), "przy kodowaniu znaczniki od zera i tak");
+    assert!(!pd.podpowiedzi.contains(&Podpowiedz::CiecieKlatkaKluczowa));
+    assert!(!budowniczy::ciecie_bez_kodowania(&dokladnie));
+    // bez fragmentu to nie jest cięcie
+    assert!(!budowniczy::ciecie_bez_kodowania(&Profil { ciecie: None, ..kopia }));
+}

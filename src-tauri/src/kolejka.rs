@@ -106,6 +106,34 @@ pub enum OstrzezenieWyniku {
         wynik_s: f64,
         oczekiwane_s: f64,
     },
+    /// P9 (test 1.4.0): cięcie bez ponownego kodowania zaczyna się na klatce kluczowej, więc przy rzadkich
+    /// klatkach kluczowych wynik trwa wyraźnie dłużej (02–05 → 5,09 s; 06–20 na 8 s → cały plik).
+    NiedokladneCiecie { wynik_s: f64, oczekiwane_s: f64 },
+}
+
+/// Tolerancja długości cięcia bez ponownego kodowania (sekundy). Mniejsze przesunięcia to normalna cena
+/// cięcia na klatce kluczowej; większe użytkownik musi zobaczyć.
+pub const TOLERANCJA_CIECIA_S: f64 = 1.0;
+
+/// Ocena długości wyniku po zadaniu (ffprobe wyniku vs oczekiwana). `kopia` = cięcie bez ponownego kodowania:
+/// różnica ponad [`TOLERANCJA_CIECIA_S`] → [`OstrzezenieWyniku::NiedokladneCiecie`]; inaczej sprawdzenie
+/// uciętego źródła ([`sprawdz_uciecie`]).
+pub fn ocen_dlugosc(
+    oczekiwane_s: Option<f64>,
+    wynik_s: Option<f64>,
+    od_s: f64,
+    predkosc: f32,
+    kopia: bool,
+) -> Option<OstrzezenieWyniku> {
+    if kopia {
+        if let (Some(o), Some(w)) = (oczekiwane_s, wynik_s) {
+            if (w - o).abs() > TOLERANCJA_CIECIA_S {
+                return Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: w, oczekiwane_s: o });
+            }
+            return None;
+        }
+    }
+    sprawdz_uciecie(oczekiwane_s, wynik_s, od_s, predkosc)
 }
 
 /// Próg „wynik krótszy niż oczekiwany”: poniżej 97% czasu z nagłówka.
@@ -528,11 +556,13 @@ impl Kolejka {
         self.w_toku(&czesc, false);
         wynik?;
         // Ucięte źródło: ffmpeg kończy „sukcesem”, a wynik jest krótszy niż nagłówek.
+        // Cięcie bez ponownego kodowania: wynik może być dłuższy o kawałek do klatki kluczowej (P9).
         if !profil.kontener.obraz() || profil.gif.is_some() {
             let oczekiwane = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc);
             let wynik_s = sonda::sonduj(&ffprobe, &wyjscie).await.ok().and_then(|m| m.czas_s);
             let od = profil.ciecie.as_ref().map(|c| c.od).unwrap_or(0.0);
-            if let Some(o) = sprawdz_uciecie(oczekiwane, wynik_s, od, profil.predkosc) {
+            let kopia = budowniczy::ciecie_bez_kodowania(profil);
+            if let Some(o) = ocen_dlugosc(oczekiwane, wynik_s, od, profil.predkosc, kopia) {
                 self.ustaw(id, |i| i.ostrzezenie = Some(o));
             }
         }
@@ -911,6 +941,34 @@ mod testy {
             panic!()
         };
         assert_eq!(zrodlo_konczy_s, 20.0);
+    }
+
+    /// P9: przypadki z testu na żywo (źródło z jedną klatką kluczową, 8 s).
+    #[test]
+    fn p9_ocena_dlugosci_ciecia() {
+        // 02–05 bez kodowania: 5,09 s zamiast 3 s
+        assert_eq!(
+            ocen_dlugosc(Some(3.0), Some(5.09), 2.0, 1.0, true),
+            Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: 5.09, oczekiwane_s: 3.0 })
+        );
+        // 06–20 na pliku 8 s: oczekiwane 2 s (koniec przycięty do długości), wynik cały plik 8,02 s
+        assert_eq!(
+            ocen_dlugosc(Some(2.0), Some(8.02), 6.0, 1.0, true),
+            Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: 8.02, oczekiwane_s: 2.0 })
+        );
+        // w tolerancji (zwykłe przesunięcie o ułamek sekundy): bez ostrzeżenia
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(3.4), 2.0, 1.0, true), None);
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(2.1), 2.0, 1.0, true), None);
+        // za krótki przy kopii też jest niedokładny (granica dokładnie 1 s nie ostrzega)
+        assert!(ocen_dlugosc(Some(10.0), Some(8.5), 0.0, 1.0, true).is_some());
+        assert_eq!(ocen_dlugosc(Some(10.0), Some(9.0), 0.0, 1.0, true), None);
+        // z ponownym kodowaniem: dłuższy wynik to nie sprawa cięcia, krótszy = ucięte źródło jak dotąd
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(5.09), 2.0, 1.0, false), None);
+        assert!(matches!(
+            ocen_dlugosc(Some(179.0), Some(32.0), 0.0, 1.0, false),
+            Some(OstrzezenieWyniku::Uciete { .. })
+        ));
+        assert_eq!(ocen_dlugosc(None, Some(3.0), 0.0, 1.0, true), None);
     }
 
     #[test]

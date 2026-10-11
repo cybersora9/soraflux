@@ -347,6 +347,16 @@ pub fn bitrate_z_rozmiaru(mb: f32, czas_s: f64, kbps_audio: u32) -> Result<u32, 
     Ok(wideo as u32)
 }
 
+/// Cięcie bez ponownego kodowania: fragment od–do i same kopie strumieni (obraz i dźwięk albo ich brak).
+/// Taki wynik zaczyna się na klatce kluczowej, więc kolejka sprawdza jego długość (P9).
+pub fn ciecie_bez_kodowania(profil: &Profil) -> bool {
+    profil.ciecie.is_some()
+        && !profil.kontener.obraz()
+        && profil.wideo.as_ref().is_none_or(|w| w.kodek == KodekWideo::Kopiuj)
+        && profil.audio.as_ref().is_none_or(|a| a.kodek == KodekAudio::Kopiuj)
+        && (profil.wideo.is_some() || profil.audio.is_some())
+}
+
 /// Plan „zmniejsz do X MB” (usterka P1 z testu 1.4.0: 3,1 MB → 15,0 MB, szacunek 23,5 MB).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]

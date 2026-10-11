@@ -52,6 +52,8 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
   let aktywnyPreset: string | null = null;
   let aktywnaAkcja: SzybkaAkcja | null = null;
   let mbAkcji = 10;
+  /** P9: „Dokładnie (ponowne kodowanie)” przy „Wytnij fragment”, domyślnie wyłączone. */
+  let dokladneCiecie = false;
   let szacunek = { tekst: "", ostrzezenie: null as string | null };
   let przebiegi: string[][] = [];
   /** „Zmniejsz do X MB”: pliki, które już są mniejsze (P1). Nie trafiają do kolejki, wiersz mówi dlaczego. */
@@ -146,7 +148,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
       aktywnaAkcja = a;
       aktywnyPreset = null;
       const ciecie = stanCiecia({ ciecie: profil.ciecie, przyciete: false }, { typ: "akcja", akcja: a }).ciecie;
-      ustawProfil(profilSzybkiejAkcji(a, { ...profil, ciecie }, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null }));
+      ustawProfil(profilSzybkiejAkcji(a, { ...profil, ciecie }, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null, dokladnie: dokladneCiecie }));
       rysujAkcje();
       rysujPresety();
     };
@@ -174,7 +176,19 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
           ),
         ),
       ),
-      ...(aktywnaAkcja === "wytnij" ? [uwaga("info", ikona(IKONY.info), h("span", null, t("akcje.wytnij.pomoc")))] : []),
+      ...(aktywnaAkcja === "wytnij"
+        ? [
+            h(
+              "div",
+              { class: "wytnij-opcje" },
+              przelacznik(t("akcje.wytnij.dokladnie"), dokladneCiecie, (v) => {
+                dokladneCiecie = v;
+                zastosuj("wytnij");
+              }, t("akcje.wytnij.dokladnie.opis")),
+            ),
+            uwaga("info", ikona(IKONY.info), h("span", null, t(dokladneCiecie ? "akcje.wytnij.pomoc_dokladnie" : "akcje.wytnij.pomoc"))),
+          ]
+        : []),
     );
   }
 

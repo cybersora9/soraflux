@@ -265,6 +265,13 @@ export function sklonuj<T>(x: T): T {
 export type SzybkaAkcja = "rozmiar" | "mp3" | "gif" | "telefon" | "wytnij";
 export const SZYBKIE_AKCJE: SzybkaAkcja[] = ["rozmiar", "mp3", "gif", "telefon", "wytnij"];
 
+/** Sekundy z jednym miejscem po przecinku, bez zbędnego „,0”: „5,1 s”, „3 s” (ostrzeżenie o cięciu). */
+export function formatujSekundy(s: number, jezyk: "pl" | "en" = "pl"): string {
+  const r = Math.round(s * 10) / 10;
+  const t = Number.isInteger(r) ? String(r) : r.toFixed(1);
+  return `${jezyk === "pl" ? t.replace(".", ",") : t} s`;
+}
+
 /** Kontener dla cięcia bez ponownego kodowania: ten sam co źródło (kopia strumieni musi pasować). */
 export function kontenerKopii(sciezkaZrodla: string | null): Kontener {
   const ext = sciezkaZrodla ? rozszerzenie(sciezkaZrodla) : "";
@@ -276,7 +283,7 @@ export function kontenerKopii(sciezkaZrodla: string | null): Kontener {
  * Profil po jednym kliknięciu szybkiej akcji. Cięcie od–do z bieżącego profilu zostaje
  * (np. „Zrób GIF” z wybranego fragmentu), resztę można potem dopracować w panelu.
  */
-export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?: number; zrodlo?: string | null } = {}): Profil {
+export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?: number; zrodlo?: string | null; dokladnie?: boolean } = {}): Profil {
   const zostaw = { ciecie: obecny.ciecie };
   switch (a) {
     case "rozmiar": {
@@ -304,9 +311,15 @@ export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?
       return { ...p, ...zostaw };
     }
     case "wytnij": {
-      const p = profilDla(kontenerKopii(opcje.zrodlo ?? null));
-      p.wideo = { ...wideoDomyslne("kopiuj") };
-      p.audio = { ...audioDomyslne("aac"), kodek: "kopiuj" };
+      const k = kontenerKopii(opcje.zrodlo ?? null);
+      const p = profilDla(k);
+      if (opcje.dokladnie) {
+        // P9 „Dokładnie (ponowne kodowanie)”: co do klatki, wolniej; CRF 18 = prawie bez straty jakości
+        p.wideo = { ...wideoDomyslne(domyslnyKodekWideo(k) ?? "h264"), jakosc: { typ: "crf", crf: 18 } };
+      } else {
+        p.wideo = { ...wideoDomyslne("kopiuj") };
+        p.audio = { ...audioDomyslne("aac"), kodek: "kopiuj" };
+      }
       return { ...p, ciecie: obecny.ciecie ?? { od: 0, koniec: null } };
     }
   }

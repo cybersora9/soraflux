@@ -6,7 +6,7 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t, tlumaczBlad } from "../i18n";
-import { blokadaFormatu, formatujCzas, formatujEta, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
+import { blokadaFormatu, formatujCzas, formatujEta, formatujSekundy, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
 import {
   akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, gotoweZUwaga, kluczBledu, miesciSie, napisPrzycisku, naprawaBledu,
   opcjeLinku, opisPliku, opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
@@ -626,7 +626,9 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
           h("h1", { class: "prosty-wynik-tytul" }, ikona(IKONY.uwaga), t("prosty.uwaga.tytul")),
           h("p", { class: "prosty-cicho" }, podtytul),
           lcd,
-          h("p", null, t("prosty.uwaga.uciete", { czas: formatujCzas(ostrz.zrodlo_konczy_s), oczekiwane: formatujCzas(ostrz.oczekiwane_s) })),
+          h("p", null, ostrz.typ === "uciete"
+            ? t("prosty.uwaga.uciete", { czas: formatujCzas(ostrz.zrodlo_konczy_s), oczekiwane: formatujCzas(ostrz.oczekiwane_s) })
+            : t("kolejka.niedokladne_ciecie", { wynik: formatujSekundy(ostrz.wynik_s, jezyk()), oczekiwane: formatujSekundy(ostrz.oczekiwane_s, jezyk()) })),
           h("div", { class: "wiersz" }, pokaz, przycisk(t("prosty.uwaga.inny"), zakoncz, "przycisk-drugorzedny", { "data-fokus": "nastepny" })),
         ),
       ];

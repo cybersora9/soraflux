@@ -3,7 +3,7 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t } from "../i18n";
-import { formatujCzas, formatujEta, formatujRozmiar, sciezkaDoPokazania, zmianaRozmiaru } from "../logika";
+import { formatujCzas, formatujEta, formatujRozmiar, formatujSekundy, sciezkaDoPokazania, zmianaRozmiaru } from "../logika";
 import { liczba, przycisk } from "../komponenty/pola";
 import { blokBledu } from "../komponenty/wspolne";
 import { sklep, trybApki } from "../sklep";
@@ -18,6 +18,9 @@ function etykietaStanu(z: InfoZadania): string {
 export function opisOstrzezenia(z: InfoZadania): string | null {
   const o = z.ostrzezenie;
   if (!o) return null;
+  if (o.typ === "niedokladne_ciecie") {
+    return t("kolejka.niedokladne_ciecie", { wynik: formatujSekundy(o.wynik_s, jezyk()), oczekiwane: formatujSekundy(o.oczekiwane_s, jezyk()) });
+  }
   return t("kolejka.uciete", { czas: formatujCzas(o.zrodlo_konczy_s), oczekiwane: formatujCzas(o.oczekiwane_s) });
 }
 

@@ -785,3 +785,78 @@ async fn p5_prawdziwy_ytdlp_zamkniety_port() {
     assert_eq!(blad::klucz(komunikat).as_deref(), Some("yt.polaczenie"), "{komunikat}");
     assert!(!komunikat.contains('\u{fffd}'), "{komunikat}");
 }
+
+/// P9 (test na żywo 1.4.0): źródło z jedną klatką kluczową (x264, keyint 250, 8 s). Cięcie 02–05 bez
+/// kodowania dało 5,09 s, a 06–20 cały plik 8,02 s, oba ze stanem „Gotowe”. Teraz: kopia = „Gotowe
+/// z ostrzeżeniem” z prawdziwą długością; „Dokładnie” (ponowne kodowanie) = 3,0 s ±0,1 bez ostrzeżenia.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p9_ciecie_bez_kodowania_ostrzega_a_dokladne_trafia() {
+    use soraconverter_lib::kolejka::OstrzezenieWyniku;
+    let tmp = tempfile::tempdir().unwrap();
+    let we = tmp.path().join("jedna-klatka.mp4");
+    let ok = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=640x360:rate=30:duration=8",
+        ])
+        .args(["-f", "lavfi", "-i", "sine=frequency=300:duration=8"])
+        .args([
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "250",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+        ])
+        .arg(&we)
+        .status()
+        .unwrap();
+    assert!(ok.success());
+    let kopia = |od: f64, koniec: f64| {
+        let mut p = Profil::dla(Kontener::Mp4);
+        p.wideo = Some(ProfilWideo { kodek: KodekWideo::Kopiuj, ..Default::default() });
+        p.audio = Some(ProfilAudio { kodek: KodekAudio::Kopiuj, ..Default::default() });
+        p.ciecie = Some(Ciecie { od, koniec: Some(koniec) });
+        p
+    };
+    let mut dokladnie = Profil::dla(Kontener::Mp4);
+    dokladnie.wideo = Some(ProfilWideo { jakosc: JakoscWideo::Crf { crf: 18 }, ..Default::default() });
+    dokladnie.ciecie = Some(Ciecie { od: 2.0, koniec: Some(5.0) });
+    let k = Kolejka::nowa(2, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sciezki())));
+    let ids = vec![
+        k.dodaj(konwersja(&we, kopia(2.0, 5.0), None)),
+        k.dodaj(konwersja(&we, kopia(6.0, 20.0), None)),
+        k.dodaj(konwersja(&we, dokladnie, None)),
+    ];
+    let w = czekaj_na(&k, &ids, Duration::from_secs(120)).await;
+    let ffprobe = sciezki().ffprobe.unwrap();
+    let mut dlugosci = Vec::new();
+    for z in &w {
+        let Stan::Gotowe { wyjscie } = &z.stan else { panic!("{z:?}") };
+        dlugosci.push(soraconverter_lib::sonda::sonduj(&ffprobe, wyjscie).await.unwrap().czas_s.unwrap());
+    }
+    eprintln!(
+        "02–05 kopia: {:.2} s, 06–20 kopia: {:.2} s, 02–05 dokładnie: {:.2} s",
+        dlugosci[0], dlugosci[1], dlugosci[2]
+    );
+    for (i, oczekiwane) in [(0, 3.0), (1, 2.0)] {
+        let Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s, oczekiwane_s }) = w[i].ostrzezenie.clone() else {
+            panic!("kopia {i}: brak ostrzeżenia, wynik {:.2} s: {:?}", dlugosci[i], w[i])
+        };
+        assert!((oczekiwane_s - oczekiwane).abs() < 0.01, "{oczekiwane_s}");
+        assert!((wynik_s - dlugosci[i]).abs() < 0.05);
+    }
+    assert!((dlugosci[2] - 3.0).abs() <= 0.1, "dokładnie: {:.3} s", dlugosci[2]);
+    assert_eq!(w[2].ostrzezenie, None);
+}
