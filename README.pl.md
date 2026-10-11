@@ -87,6 +87,7 @@ Możesz też kliknąć prawym przyciskiem plik wideo, audio albo obraz w Eksplor
 
 - **Wymagania:** Windows 10 albo 11, 64-bit. Instalator jest mały, bo nie ma w nim ffmpeg ani yt-dlp: apka pobiera je z oficjalnych wydań przy pierwszym starcie (jedno kliknięcie, sprawdzenie SHA256).
 - **Wersja przenośna:** utwórz folder `portable` obok `SoraFlux.exe` (np. na pendrivie). Ustawienia, presety, dziennik i pobrane narzędzia lądują wtedy w nim, nic w profilu użytkownika.
+- **Aktualna wersja:** 1.4.1, wydanie z poprawkami ([co naprawiono](RELEASE_NOTES_1.4.1.md)).
 - **Aktualizacja:** od 1.3.0 Ustawienia → „Sprawdź aktualizacje” pobiera i instaluje nową wersję (podpisaną, apka sprawdza podpis). Z 1.2.x zainstaluj 1.3.0 raz ręcznie: pobierz nowy instalator i uruchom go na starej wersji; ustawienia i presety zostają.
 - **Odinstalowanie:** Ustawienia Windows → Aplikacje → Zainstalowane aplikacje → SoraFlux → Odinstaluj.
 - **Sprawdzenie pliku (opcjonalnie):** każde wydanie ma `SHA256SUMS.txt`. W PowerShellu wpisz `Get-FileHash $HOME\Downloads\SoraFlux-setup.exe` i porównaj wynik z liczbą w tym pliku.

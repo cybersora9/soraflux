@@ -294,7 +294,7 @@ export interface InfoYtdlp {
   wersja: string | null;
   wiek_dni: number | null;
   pochodzenie: Pochodzenie;
-  /** Starszy niż 30 dni: YouTube może odmawiać. */
+  /** Starszy niż 30 dni: serwisy mogą odmawiać. */
   stary: boolean;
 }
 

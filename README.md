@@ -87,6 +87,7 @@ You can also right-click a video, audio or image file in Explorer and pick **Con
 
 - **Requirements:** Windows 10 or 11, 64-bit. The installer is small because ffmpeg and yt-dlp are not inside: the app downloads them from their official releases on first start (one click, SHA256 verified).
 - **Portable mode:** create a folder named `portable` next to `SoraFlux.exe` (e.g. on a USB stick). Settings, presets, the log and the downloaded tools then live in that folder, nothing in your user profile.
+- **Current version:** 1.4.1, a bug-fix release ([what was fixed](RELEASE_NOTES_1.4.1.md)).
 - **Updating:** from 1.3.0 on, Settings → "Check for updates" downloads and installs a new version (signed, verified by the app). From 1.2.x, install 1.3.0 once by hand: download the new installer and run it over the old version; settings and presets are kept.
 - **Uninstalling:** Windows Settings → Apps → Installed apps → SoraFlux → Uninstall.
 - **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux-setup.exe` and compare the result with the number in that file.
