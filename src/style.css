@@ -62,7 +62,7 @@ h1, h2, h3, p { margin: 0; }
 .nawigacja-stopka { margin-top: auto; padding: 0 var(--odstep-2); font-size: var(--rozmiar-xs); color: var(--tekst-3); }
 
 /* ---------- treść ---------- */
-.tresc { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
+.tresc { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; scroll-padding-bottom: var(--wys-paska, 0px); }
 .widok {
   max-width: 1120px;
   margin: 0 auto;
@@ -113,7 +113,13 @@ h1, h2, h3, p { margin: 0; }
 .strefa:hover, .strefa:focus-visible { border-color: var(--akcent); background: var(--akcent-slaby); color: var(--tekst); }
 .strefa-ikona { width: 36px; height: 36px; color: var(--akcent); }
 .strefa-tytul { font-weight: 600; color: var(--tekst); font-size: var(--rozmiar-l); }
-.strefa-pomoc { font-size: var(--rozmiar-s); color: var(--tekst-3); max-width: 240px; }
+.strefa-pomoc { font-size: var(--rozmiar-s); color: var(--tekst-3); max-width: 320px; }
+/* P10: niskie okno (minimum 860×600): niższa pusta strefa i mniejszy odstęp u góry, żeby strefa
+   z podpisami mieściła się nad paskiem akcji bez przewijania */
+@media (max-height: 720px) {
+  .widok { padding-top: var(--odstep-5); }
+  .strefa:not(.strefa-kompaktowa) { min-height: 140px; padding: var(--odstep-4); }
+}
 .strefa-kompaktowa { min-height: 0; flex-direction: row; padding: var(--odstep-3) var(--odstep-4); border-radius: var(--promien-l); }
 .strefa-kompaktowa .strefa-ikona { width: 20px; height: 20px; }
 .strefa-kompaktowa .strefa-tytul { font-size: var(--rozmiar-m); }
@@ -317,24 +323,29 @@ h1, h2, h3, p { margin: 0; }
 .komenda-pre { width: 100%; margin: 0; padding: var(--odstep-3); max-height: 220px; overflow: auto; border-radius: var(--promien-m); background: var(--tlo); border: 1px solid var(--obramowanie); font-family: var(--czcionka-mono); font-size: var(--rozmiar-xs); line-height: 1.6; white-space: pre-wrap; word-break: break-all; color: var(--tekst-2); }
 
 /* ---------- pasek akcji ---------- */
+/* P10: jeden wiersz od 860 px (krótkie etykiety, mniejsze odstępy, ostrzeżenie się zawija); wysokość
+   paska idzie do --wys-paska → scroll-padding-bottom w .tresc, więc fokus nie ląduje pod paskiem */
 .pasek-akcji {
   position: sticky;
   bottom: 0;
   margin-top: auto;
   display: flex;
   align-items: center;
-  gap: var(--odstep-5);
-  padding: var(--odstep-4) 0 var(--odstep-5);
+  gap: var(--odstep-3);
+  padding: var(--odstep-3) 0 var(--odstep-3);
   /* przejście tylko w górnym odstępie: przy 30% prześwitywały podpisy pod suwakiem (test na żywo 1.2.1, okno 800 px) */
   background: linear-gradient(to bottom, transparent, var(--tlo) var(--odstep-3));
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
+.pasek-akcji > .przycisk-glowny { flex: none; }
+@media (max-width: 760px) { .pasek-akcji { flex-wrap: wrap; } }
 .folder { display: flex; align-items: center; gap: var(--odstep-2); min-width: 0; flex: 1; font-size: var(--rozmiar-s); color: var(--tekst-2); }
 .folder .ikona { color: var(--tekst-3); }
 .folder-etykieta { color: var(--tekst-3); white-space: nowrap; }
 .folder-sciezka { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--tekst); }
 /* ostrzeżenie się zawija zamiast wychodzić za prawą krawędź okna (P1: przy 860 px było ucięte) */
 .szacunek { display: flex; align-items: baseline; gap: var(--odstep-2); flex-wrap: wrap; min-width: 0; }
+.szacunek-glowny { display: inline-flex; align-items: baseline; gap: var(--odstep-2); white-space: nowrap; }
 .szacunek-etykieta { font-size: var(--rozmiar-s); color: var(--tekst-3); white-space: nowrap; }
 .szacunek-wartosc { font-size: var(--rozmiar-l); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .szacunek-ostrzezenie { display: inline-flex; align-items: center; gap: 4px; color: var(--uwaga); font-size: var(--rozmiar-s); white-space: normal; min-width: 0; max-width: 100%; }
@@ -553,8 +564,20 @@ h1, h2, h3, p { margin: 0; }
 .folder-nazwa { font-weight: 700; font-size: var(--rozmiar-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .folder-pelna { font-size: var(--rozmiar-xs); color: var(--tekst-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .folder-ostatnie { width: auto; max-width: 220px; height: 32px; font-size: var(--rozmiar-s); }
-.pasek-akcji .folder-blok { flex: 1 1 440px; min-width: min(440px, 100%); }
-.pasek-akcji .szacunek { margin-left: auto; flex: 0 1 auto; }
+.pasek-akcji .folder-blok { flex: 0 1 auto; min-width: auto; }
+.pasek-akcji .szacunek { margin-left: auto; flex: 1 1 0; justify-content: flex-end; }
+.pasek-akcji .szacunek-ostrzezenie { line-height: 1.25; text-align: right; }
+.folder-kompaktowy .folder-wiersz { flex-wrap: nowrap; }
+.folder-kompaktowy .segmenty { flex-wrap: nowrap; min-width: 0; }
+.folder-kompaktowy .segment { white-space: nowrap; }
+.segment-folder { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 180px; }
+.segment-folder .ikona { width: 14px; height: 14px; flex: none; }
+.segment-tekst { overflow: hidden; text-overflow: ellipsis; }
+/* wąsko (okno do 1000 px, treść ok. 580–720 px): bez napisu „Zapisz do:” (grupa ma go w aria-label) */
+@media (max-width: 1000px) {
+  .pasek-akcji .folder-etykieta { display: none; }
+  .segment-folder { max-width: 120px; }
+}
 .folder-wybrany { min-width: 180px; }
 
 /* ---------- v1.2: dymek z akcją, gotowe z ostrzeżeniem ---------- */

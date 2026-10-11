@@ -9,7 +9,7 @@ import { t, tekstBledu } from "../i18n";
 import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
-import { blokBledu, folderWyjscia } from "../komponenty/wspolne";
+import { blokBledu, folderWyjscia, obserwujPasek } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { NoweZadanie, OpcjePobrania, Profil, Wybor } from "../typy";
 import { doPobrania, POCZATEK, sprawdzanie, type WynikSprawdzenia as Wynik, type ZdarzenieSprawdzania } from "../sprawdzanie";
@@ -373,7 +373,7 @@ export function stworzWidokPobierania(): WidokPobierania {
       h(
         "footer",
         { class: "pasek-akcji" },
-        folderWyjscia("katalog_pobierania"),
+        folderWyjscia("katalog_pobierania", { kompaktowy: true }),
         przycisk(
           [t("pobierz.start"), gotowe > 1 ? h("span", { class: "plakietka plakietka-akcent" }, String(gotowe)) : ""],
           () => void pobierz(),
@@ -384,7 +384,10 @@ export function stworzWidokPobierania(): WidokPobierania {
     ];
     el.replaceChildren(...czesci.filter((x): x is HTMLElement => x !== null));
     panelPotem.odswiez();
+    obserwator?.disconnect();
+    obserwator = obserwujPasek(el.querySelector<HTMLElement>(".pasek-akcji")!);
   }
+  let obserwator: ResizeObserver | null = null;
 
   // Link w schowku przy powrocie do okna (można wyłączyć w Ustawieniach).
   api.naPowrotOkna(async () => {

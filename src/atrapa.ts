@@ -45,6 +45,12 @@ if (motyw === "light" || motyw === "dark") konfig.motyw = motyw;
 // ?wyglad=jp-b: motyw wyglądu (zrzuty v1.2, każdy z 6 motywów)
 const wygladParam = parametry.get("wyglad");
 if (wygladParam) konfig.motyw_wyglad = wygladParam;
+// ?folder=1: wybrany folder wyników i pobrań (układ paska akcji z długą nazwą folderu, P10)
+if (parametry.get("folder") === "1") {
+  konfig.katalog_wyjscia = "C:/Users/sora/Videos/Gotowe do wysłania z wakacji 2026";
+  konfig.katalog_pobierania = "C:/Users/sora/Downloads/Pobrane filmy";
+  konfig.ostatnie_foldery = ["C:/Users/sora/Videos/Gotowe do wysłania z wakacji 2026", "D:/Archiwum"];
+}
 const jezykParam = parametry.get("jezyk");
 if (jezykParam === "pl" || jezykParam === "en") konfig.jezyk = jezykParam;
 // Zmyślone nazwy w języku zrzutu (EN zrzuty bez polskich tytułów i ścieżek).

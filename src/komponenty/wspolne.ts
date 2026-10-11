@@ -266,9 +266,60 @@ export function dopiszOstatni(lista: string[], sciezka: string): string[] {
   return [sciezka, ...lista.filter((x) => x !== sciezka)].slice(0, 6);
 }
 
+/**
+ * Wersja do paska akcji (P10 z testu 1.4.0: przy 860×600 pasek miał 144 px, 24% okna, i zasłaniał treść):
+ * jeden wiersz, krótkie etykiety, wybrany folder jako nazwa w przycisku (pełna ścieżka w podpowiedzi),
+ * „Pokaż” jako ikona. Pełny wybór (ostatnie foldery, pełna ścieżka) zostaje w Ustawieniach.
+ */
+function folderKompaktowy(
+  klucz: "katalog_wyjscia" | "katalog_pobierania",
+  sciezka: string | null,
+  ustaw: (v: string | null) => Promise<void>,
+  wybierz: () => Promise<void>,
+): HTMLElement {
+  const domyslny = t(klucz === "katalog_wyjscia" ? "folder.obok_krotko" : "folder.pobrane_krotko");
+  return h(
+    "div",
+    { class: "folder-blok folder-kompaktowy" },
+    h(
+      "div",
+      { class: "folder-wiersz" },
+      h("span", { class: "folder-etykieta" }, t("folder.zapisz_do")),
+      h(
+        "div",
+        { class: "segmenty", role: "group", "aria-label": t("folder.zapisz_do") },
+        h("button", { type: "button", class: `segment${sciezka ? "" : " aktywny"}`, "aria-pressed": String(!sciezka), onclick: () => sciezka && void ustaw(null) }, domyslny),
+        h(
+          "button",
+          {
+            type: "button", class: `segment segment-folder${sciezka ? " aktywny" : ""}`, "aria-pressed": String(!!sciezka), onclick: () => void wybierz(),
+            title: sciezka ? `${sciezkaDoPokazania(sciezka)}\n${t("folder.zmien_pomoc")}` : undefined,
+          },
+          sciezka ? [ikona(IKONY.folder), h("span", { class: "segment-tekst" }, nazwaFolderu(sciezka))] : t("folder.inny"),
+        ),
+      ),
+      sciezka
+        ? h("button", { type: "button", class: "ikona-przycisk", "aria-label": t("folder.pokaz"), title: t("folder.pokaz"), onclick: () => void api.pokazWFolderze(sciezka) }, ikona(IKONY.folder))
+        : null,
+    ),
+  );
+}
+
+/** Pasek akcji: jego wysokość w `--wys-paska` (zakładki) → `scroll-padding-bottom` w `.tresc`, żeby fokus
+ *  i przewijanie do elementu nie kończyły pod paskiem (P10). */
+export function obserwujPasek(pasek: HTMLElement): ResizeObserver | null {
+  if (typeof ResizeObserver === "undefined") return null;
+  const o = new ResizeObserver(() => {
+    if (!pasek.isConnected) return;
+    document.documentElement.style.setProperty("--wys-paska", `${Math.ceil(pasek.getBoundingClientRect().height)}px`);
+  });
+  o.observe(pasek);
+  return o;
+}
+
 /** Wybór folderu wyniku: tryb (obok źródła / Pobrane albo wybrany folder), duży przycisk zmiany,
  *  podgląd w Eksploratorze i lista ostatnio używanych (w konfigu). Zapis w konfigu od razu. */
-export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = "katalog_wyjscia"): HTMLElement {
+export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = "katalog_wyjscia", o: { kompaktowy?: boolean } = {}): HTMLElement {
   const k = sklep.stan.konfig;
   const sciezka = k?.[klucz] ?? null;
   const domyslny = klucz === "katalog_wyjscia" ? t("folder.obok") : t("folder.pobrane");
@@ -285,6 +336,7 @@ export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = 
     if (w) await ustaw(w);
   };
   const ostatnie = (k?.ostatnie_foldery ?? []).filter((x) => x !== sciezka);
+  if (o.kompaktowy) return folderKompaktowy(klucz, sciezka, ustaw, wybierz);
 
   const tryb = h(
     "div",

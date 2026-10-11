@@ -11,7 +11,7 @@ import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola"
 import { kartaInformacji } from "../komponenty/info";
 import { podgladPrzedPo } from "../komponenty/podglad";
 import {
-  dymekPominietych, folderWyjscia, listaPlikow, opisSzacunku, podpisyStrefy, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
+  dymekPominietych, folderWyjscia, listaPlikow, obserwujPasek, opisSzacunku, podpisyStrefy, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
 } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { NoweZadanie, Preset, Profil } from "../typy";
@@ -70,6 +70,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
   const uwagiMiejsce = h("div", { class: "uwagi-miejsce" });
   const komendaMiejsce = h("div");
   const stopka = h("footer", { class: "pasek-akcji" });
+  obserwujPasek(stopka);
 
   const zMedia = () => pliki.filter((p) => p.media);
   // Szacunek animacji z próbki (wolny, ~1–2 s na plik): przychodzi po szybkim szacunku i go zastępuje.
@@ -274,12 +275,11 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
     const iZablokowanego = pliki.findIndex((p) => p.media && !p.blad && uwagaPliku(p)?.blokuje);
     const powod = zablokowane && iZablokowanego >= 0 ? uwagaPliku(pliki[iZablokowanego])!.tekst : undefined;
     stopka.replaceChildren(
-      folderWyjscia("katalog_wyjscia"),
+      folderWyjscia("katalog_wyjscia", { kompaktowy: true }),
       h(
         "div",
         { class: "szacunek" + (szacunek.ostrzezenie ? " szacunek-uwaga" : ""), "aria-live": "polite" },
-        h("span", { class: "szacunek-etykieta" }, t("szacunek.etykieta")),
-        h("strong", { class: "szacunek-wartosc" }, szacunek.tekst || "—"),
+        h("span", { class: "szacunek-glowny" }, h("span", { class: "szacunek-etykieta" }, t("szacunek.etykieta")), h("strong", { class: "szacunek-wartosc" }, szacunek.tekst || "—")),
         szacunek.ostrzezenie ? h("span", { class: "szacunek-ostrzezenie" }, ikona(IKONY.uwaga), szacunek.ostrzezenie) : null,
       ),
       przycisk(
