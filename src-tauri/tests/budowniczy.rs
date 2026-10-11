@@ -780,3 +780,37 @@ fn p4_lancuch_podgladu_ten_sam_co_konwersja() {
             && t[0].contains(&"-vn".to_string())
     );
 }
+
+/// P4 (test na żywo 1.4.0): film bez dźwięku + MP3 dawał „ani obrazu, ani dźwięku”, choć plik ma obraz.
+/// Ta sama tabela co `blokadaFormatu` w src/logika.test.ts: {obraz+dźwięk, sam obraz, sam dźwięk} × formaty.
+#[test]
+fn p4_regula_blokady_formatu() {
+    let pelny = film(10.0);
+    let bez_dzwieku = Media { audio: None, sciezki_audio: vec![], ..film(10.0) };
+    let sam_dzwiek = Media { wideo: None, ..film(10.0) };
+    let animacja = |k: Kontener| Profil { gif: Some(ProfilGif::default()), ..Profil::dla(k) };
+    let przypadki: [(&str, Profil); 5] = [
+        ("mp4", Profil::dla(Kontener::Mp4)),
+        ("mkv", Profil::dla(Kontener::Mkv)),
+        ("mp3", Profil::dla(Kontener::Mp3)),
+        ("wav", Profil::dla(Kontener::Wav)),
+        ("gif", animacja(Kontener::Gif)),
+    ];
+    let webp = ("webp", animacja(Kontener::Webp));
+    let wynik = |m: &Media, p: &Profil| budowniczy::plan(m, p, Path::new("we.mp4"), Path::new("wy")).err();
+    for (nazwa, p) in przypadki.iter().chain(std::iter::once(&webp)) {
+        assert_eq!(wynik(&pelny, p), None, "obraz+dźwięk → {nazwa}");
+        let oczekiwany = match *nazwa {
+            "mp3" | "wav" => Some(BladProfilu::BrakDzwieku),
+            _ => None,
+        };
+        assert_eq!(wynik(&bez_dzwieku, p), oczekiwany, "sam obraz → {nazwa}");
+        let oczekiwany = match *nazwa {
+            "gif" | "webp" => Some(BladProfilu::BrakWideo),
+            _ => None,
+        };
+        assert_eq!(wynik(&sam_dzwiek, p), oczekiwany, "sam dźwięk → {nazwa}");
+    }
+    let nic = Media { wideo: None, audio: None, sciezki_audio: vec![], ..film(10.0) };
+    assert_eq!(wynik(&nic, &Profil::dla(Kontener::Mp3)), Some(BladProfilu::PustyWynik));
+}

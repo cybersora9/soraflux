@@ -30,6 +30,9 @@ pub enum BladProfilu {
     BrakWideo,
     #[error("plik nie ma ani obrazu, ani dźwięku do zapisania")]
     PustyWynik,
+    /// Format audio, a plik ma tylko obraz (P4: wcześniej mylące „ani obrazu, ani dźwięku”).
+    #[error("plik nie ma dźwięku: wybierz format wideo albo GIF")]
+    BrakDzwieku,
     #[error("prędkość poza zakresem 0,25–4")]
     ZlaPredkosc,
     #[error("złe cięcie: koniec musi być po początku")]
@@ -738,6 +741,10 @@ fn plan_av(media: &Media, profil: &Profil, wejscie: &Path, wyjscie: &Path, kt: &
         _ => None,
     };
     if wideo.is_none() && audio.is_none() {
+        // ta sama reguła co `blokadaFormatu` w logika.ts
+        if k.tylko_audio() && media.wideo.is_some() && media.audio.is_none() {
+            return Err(BladProfilu::BrakDzwieku);
+        }
         return Err(BladProfilu::PustyWynik);
     }
 

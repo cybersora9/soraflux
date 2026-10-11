@@ -312,6 +312,27 @@ export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?
   }
 }
 
+// ---------- czy z tego pliku da się zrobić ten format (P4 z testu 1.4.0) ----------
+
+/** Powód, dla którego plik nie da się zapisać w wybranym formacie (klucz `plik.blokada.*`). */
+export type BlokadaFormatu = "brak_dzwieku" | "brak_obrazu" | "pusty";
+
+/**
+ * JEDNA reguła blokady, liczona tak samo przy upuszczeniu i przy zmianie formatu (lustro `plan_z` w budowniczym:
+ * animacja i obrazy potrzebują obrazu; format audio potrzebuje dźwięku; reszta potrzebuje czegokolwiek z dwóch).
+ * Film bez dźwięku + MP3 to „brak_dzwieku”, a nie „ani obrazu, ani dźwięku” jak w 1.4.0.
+ */
+export function blokadaFormatu(m: Pick<import("./typy").Media, "wideo" | "audio" | "obraz">, p: Profil): BlokadaFormatu | null {
+  const k = p.kontener;
+  const animacja = KONTENERY_ANIMACJI.includes(k) && !!p.gif && !m.obraz;
+  if (animacja || (obrazowy(k) && !tylkoAudio(k))) return m.wideo ? null : "brak_obrazu";
+  const wideo = !!p.wideo && !tylkoAudio(k) && !!m.wideo;
+  const audio = !!p.audio && !!m.audio;
+  if (wideo || audio) return null;
+  if (tylkoAudio(k) && m.wideo && !m.audio) return "brak_dzwieku";
+  return "pusty";
+}
+
 // ---------- fragment od–do: stan formularza (P2 z testu 1.4.0) ----------
 // Ukryte „Fragment od–do” (zwinięte Zaawansowane) przycinało kolejne konwersje: 00:06–00:20 z poprzedniego
 // pliku i „Zmniejsz do 10 MB” na nowym 8-sekundowym dały 2 s. Fragment należy do plików, nie do ustawień.

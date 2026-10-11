@@ -5,7 +5,7 @@ import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t, tekstBledu } from "../i18n";
-import { formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
+import { blokadaFormatu, formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
 import { kartaInformacji } from "../komponenty/info";
@@ -56,6 +56,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
   let przebiegi: string[][] = [];
   /** „Zmniejsz do X MB”: pliki, które już są mniejsze (P1). Nie trafiają do kolejki, wiersz mówi dlaczego. */
   let mieszczace = new Set<string>();
+  let ostatnieUwagi = "";
   let uwagiEl: HTMLElement | null = null;
   let foldery: string[] = [];
   const opcjeFolderu: OpcjeFolderu = { struktura: true, rozszerzenia: "", pomin: true };
@@ -86,6 +87,13 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
     enkodery: () => sklep.stan.narzedzia?.enkodery ?? [],
     onZmiana: (p) => {
       profil = p;
+      // blokada formatu (P4) od razu: wiersze i przycisk nie czekają na przeliczenie szacunku
+      const uwagi = pliki.map((x) => uwagaPliku(x)?.tekst ?? "").join("\n");
+      if (uwagi !== ostatnieUwagi) {
+        ostatnieUwagi = uwagi;
+        rysujLewa();
+      }
+      rysujStopke();
       if (aktywnyPreset || aktywnaAkcja) {
         aktywnyPreset = null;
         aktywnaAkcja = null;
@@ -235,6 +243,9 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
   }
 
   function uwagaPliku(p: PlikWejscia): { tekst: string; blokuje: boolean } | null {
+    // P4: ta sama reguła przy upuszczeniu i przy zmianie formatu, liczona od razu (bez czekania na szacunek)
+    const blokada = p.media ? blokadaFormatu(p.media, profil) : null;
+    if (blokada) return { tekst: t(`plik.blokada.${blokada}`), blokuje: true };
     if (mieszczace.has(p.sciezka)) return { tekst: t("plik.miesci", { r: formatujRozmiar(p.media?.rozmiar_b, jezyk()) }), blokuje: true };
     return null;
   }
@@ -245,6 +256,9 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
   function rysujStopke() {
     const gotowe = doKonwersji().length;
     const zablokowane = gotowe === 0 || !!uwagiEl?.querySelector(".uwaga-blad");
+    // powód blokady przy przycisku (tooltip + aria-describedby → uwaga przy wierszu pliku)
+    const iZablokowanego = pliki.findIndex((p) => p.media && !p.blad && uwagaPliku(p)?.blokuje);
+    const powod = zablokowane && iZablokowanego >= 0 ? uwagaPliku(pliki[iZablokowanego])!.tekst : undefined;
     stopka.replaceChildren(
       folderWyjscia("katalog_wyjscia"),
       h(
@@ -258,7 +272,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
         [t(obrazy ? "obrazy.start" : "konwertuj.start"), gotowe > 1 ? h("span", { class: "plakietka plakietka-akcent" }, String(gotowe)) : ""],
         () => void start(),
         "przycisk-glowny",
-        { disabled: zablokowane },
+        { disabled: zablokowane, title: powod, "aria-describedby": powod ? `plik-uwaga-${iZablokowanego}` : undefined },
       ),
     );
   }
@@ -274,8 +288,8 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
     } else {
       const wszystkie = await Promise.all(lista.slice(0, 200).map((p) => api.szacuj(p.media!, profil)));
       mieszczace = new Set(lista.slice(0, 200).filter((_, i) => wszystkie[i].ostrzezenie === "juz_sie_miesci").map((p) => p.sciezka));
-      // do sumy tylko to, co naprawdę zostanie zakodowane
-      const wyniki = wszystkie.filter((w) => w.ostrzezenie !== "juz_sie_miesci");
+      // do sumy tylko to, co naprawdę zostanie zakodowane (bez „już się mieści” i plików, których ten format nie przyjmie)
+      const wyniki = wszystkie.filter((w, i) => w.ostrzezenie !== "juz_sie_miesci" && !blokadaFormatu(lista[i].media!, profil));
       const znane = wyniki.filter((w) => w.bajty !== null);
       const suma = znane.reduce((s, w) => s + (w.bajty ?? 0), 0);
       const dokladny = wyniki.every((w) => w.dokladny);
@@ -304,8 +318,9 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
       const b = biezacy() ?? { sciezka: lista[0].sciezka, media: lista[0].media! };
       const plan = await api.planKomendy(b.sciezka, b.media, profil);
       przebiegi = plan.przebiegi;
-      // „już się mieści” blokuje tylko ten plik (wiersz na liście), chyba że dotyczy wszystkich
-      const blokujeWszystko = plan.blad?.typ !== "juz_sie_miesci" || wyniki.length === 0;
+      // błędy jednego pliku („już się mieści”, brak dźwięku/obrazu) blokują tylko jego wiersz, chyba że dotyczą wszystkich
+      const bladPliku = ["juz_sie_miesci", "brak_dzwieku", "brak_wideo", "pusty_wynik"].includes(plan.blad?.typ ?? "");
+      const blokujeWszystko = !bladPliku || doKonwersji().length === 0;
       uwagiEl = uwagi(plan.podpowiedzi, blokujeWszystko ? plan.blad : null, blokujeWszystko ? null : plan.blad);
     }
     if ([...mieszczace].join("\n") !== mieszczaceBylo) rysujLewa();
@@ -323,6 +338,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
       }
       if (!pliki.includes(wpis)) continue;
       rysujLewa();
+      rysujStopke(); // reguła blokady (P4) i liczba plików od razu po sondzie, nie dopiero po szacunku
       if (bylyPuste && wpis === pliki[0]) {
         panel.odswiez();
         podglad.odswiez();

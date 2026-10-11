@@ -6,7 +6,7 @@ import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t, tlumaczBlad } from "../i18n";
-import { formatujCzas, formatujEta, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
+import { blokadaFormatu, formatujCzas, formatujEta, formatujRozmiar, nazwaPliku, parsujCzas, wyciagnijUrl, zmianaRozmiaru } from "../logika";
 import {
   akcjeDla, CELE, DLUGOSC_GIF, dopisekAkcji, formaLiczby, fragmentGif, gotoweZUwaga, kluczBledu, miesciSie, napisPrzycisku, naprawaBledu,
   opcjeLinku, opisPliku, opisWyniku, postepPaczki, profilAkcji, rodzajMediow, rozpoznaj, tytulGotowe, wyborLinku, type Cel, type Rodzaj,
@@ -79,8 +79,13 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
   const pasujace = () => pliki.filter((p) => p.media && rodzaj && rodzaj !== "link" && rodzajMediow(p.media) === rodzaj);
   /** „Do wysłania”: pliki, które już mieszczą się w celu, pomijamy (kodowanie by je tylko powiększyło). */
   const juzMieszczace = (c: Cel = cel) => (rodzaj === "film" && akcja === "wyslij" ? pasujace().filter((p) => miesciSie(p.media?.rozmiar_b, c)) : []);
+  /** P4: pliki, których wybrana akcja nie zapisze (np. MP3 z filmu bez dźwięku) — ta sama reguła co w Pełnym. */
+  const zablokowane = () =>
+    rodzaj && rodzaj !== "link" && akcjeDla(rodzaj).includes(akcja)
+      ? pasujace().filter((p) => blokadaFormatu(p.media!, profilAkcji(rodzaj as Exclude<Rodzaj, "link">, akcja, opcjeAkcji(p))))
+      : [];
   const doZrobienia = () => {
-    const pomin = new Set(juzMieszczace());
+    const pomin = new Set([...juzMieszczace(), ...zablokowane()]);
     return pasujace().filter((p) => !pomin.has(p));
   };
   const czasPierwszego = () => pasujace()[0]?.media?.czas_s ?? null;
@@ -295,6 +300,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const folder = doLinku ? k?.katalog_pobierania : k?.katalog_wyjscia;
     const gotowe = !sondowanie && !!rodzaj && (doLinku ? !!link?.info : doZrobienia().length > 0);
     const mieszczace = sondowanie || doLinku ? [] : juzMieszczace();
+    const blokady = sondowanie || doLinku ? [] : zablokowane();
     const n = doLinku ? 1 : pasujace().length;
     const [klucz, par] = rodzaj ? napisPrzycisku(rodzaj, akcja, { cel, n }) : ["prosty.link.sprawdz", {}];
     const naprawaLinku = link?.blad && naprawaBledu(link.blad) === "aktualizuj";
@@ -305,6 +311,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
       naprawaLinku ? uwaga("uwaga", ikona(IKONY.uwaga), h("span", null, t("prosty.blad.aktualizuj.opis")), przycisk(t("prosty.blad.aktualizuj"), () => void aktualizujISprawdz(), "przycisk-maly")) : null,
       pozostale > 0 ? uwaga("info", ikona(IKONY.info), h("span", null, t("prosty.mieszane", { n: pozostale }))) : null,
       mieszczace.length ? uwagaMieszczace(mieszczace) : null,
+      blokady.length ? uwaga("uwaga", ikona(IKONY.uwaga), h("span", { id: "prosty-blokada" }, t(`plik.blokada.${blokadaFormatu(blokady[0].media!, profilAkcji(rodzaj as Exclude<Rodzaj, "link">, akcja, opcjeAkcji(blokady[0])))}`))) : null,
       // link nie działa: kafle nic by nie dały, zostaje opis błędu i „Zmień”
       rodzaj && !(doLinku && link?.blad) ? kafle() : null,
       doLinku ? h("p", { class: "notka" }, t("prosty.prawa")) : null,
@@ -325,7 +332,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
           rodzaj && gotowe ? przycisk([ikona(IKONY.strzalka), t("prosty.wiecej")], doPelnego, "przycisk-tekstowy prosty-wiecej", { "data-fokus": "wiecej" }) : null,
         ),
         przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", {
-          disabled: !gotowe, "data-fokus": "start", "aria-describedby": mieszczace.length ? "prosty-miesci" : undefined,
+          disabled: !gotowe, "data-fokus": "start", "aria-describedby": blokady.length ? "prosty-blokada" : mieszczace.length ? "prosty-miesci" : undefined,
         }),
       ),
     ].filter((x): x is HTMLElement => !!x);

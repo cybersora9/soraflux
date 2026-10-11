@@ -172,6 +172,7 @@ export type BladProfilu =
   | { typ: "kopia_z_filtrami" }
   | { typ: "brak_wideo" }
   | { typ: "pusty_wynik" }
+  | { typ: "brak_dzwieku" }
   | { typ: "zla_predkosc" }
   | { typ: "zle_ciecie" }
   | { typ: "zly_bitrate_audio" }

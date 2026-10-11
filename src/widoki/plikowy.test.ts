@@ -48,3 +48,53 @@ describe("P2: fragment od–do nie przechodzi na kolejne pliki", () => {
     expect(w.el.querySelector(".plakietka-ciecie")).toBeNull();
   });
 });
+
+describe("P4: film bez dźwięku + format audio", () => {
+  const chip = (el: HTMLElement, nazwa: string) => [...el.querySelectorAll<HTMLButtonElement>(".formaty .chip")].find((b) => b.textContent === nazwa)!;
+  const stan = (el: HTMLElement) => {
+    const przycisk = el.querySelector<HTMLButtonElement>(".pasek-akcji .przycisk-glowny")!;
+    const id = przycisk.getAttribute("aria-describedby");
+    return {
+      uwaga: el.querySelector(".plik .plik-uwaga")?.textContent ?? null,
+      wylaczony: przycisk.disabled,
+      opis: id ? el.querySelector(`#${id}`)?.textContent ?? null : null,
+      title: przycisk.title,
+    };
+  };
+  const OCZEKIWANY = {
+    uwaga: "Ten plik nie ma dźwięku. Wybierz format wideo albo GIF",
+    wylaczony: true,
+    opis: "Ten plik nie ma dźwięku. Wybierz format wideo albo GIF",
+    title: "Ten plik nie ma dźwięku. Wybierz format wideo albo GIF",
+  };
+
+  it("najpierw MP3, potem upuszczenie: powód przy pliku, przycisk wyłączony z opisem", async () => {
+    const w = stworzWidokPlikowy("konwertuj");
+    document.body.replaceChildren(w.el);
+    chip(w.el, "MP3").click();
+    await w.dodaj(["C:/Wideo/bez-dzwieku.mp4"]);
+    expect(stan(w.el)).toEqual(OCZEKIWANY);
+  });
+
+  it("najpierw upuszczenie, potem MP3: ten sam stan (wcześniej dało się dodać zadanie)", async () => {
+    const w = stworzWidokPlikowy("konwertuj");
+    document.body.replaceChildren(w.el);
+    await w.dodaj(["C:/Wideo/bez-dzwieku.mp4"]);
+    expect(stan(w.el).wylaczony).toBe(false);
+    chip(w.el, "MP3").click();
+    expect(stan(w.el)).toEqual(OCZEKIWANY); // od razu, bez czekania na przeliczenie
+    chip(w.el, "GIF").click();
+    expect(stan(w.el).wylaczony).toBe(false);
+    expect(stan(w.el).uwaga).toBeNull();
+  });
+
+  it("paczka: plik bez dźwięku pominięty, reszta idzie do kolejki", async () => {
+    const w = stworzWidokPlikowy("konwertuj");
+    document.body.replaceChildren(w.el);
+    await w.dodaj(["C:/Wideo/bez-dzwieku.mp4", "C:/Wideo/wakacje.mp4"]);
+    chip(w.el, "MP3").click();
+    const s = stan(w.el);
+    expect(s.wylaczony).toBe(false);
+    expect(w.el.querySelectorAll(".plik-zablokowany").length).toBe(1);
+  });
+});

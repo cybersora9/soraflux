@@ -123,6 +123,13 @@ function mediaDla(sciezka: string): Media {
       napisy: [{ indeks: 3, kodek: "mov_text", jezyk: "pol", tekstowe: true }],
     };
   }
+  // film bez ścieżki dźwięku (P4)
+  if (/bez-dzwieku|no-audio/i.test(sciezka)) {
+    return {
+      ...baza, czas_s: 8, rozmiar_b: 3_000_000, kbps: 3000, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+      wideo: wideoPrzyklad({ w: 1280, h: 720, fps: 30, kbps: 3000 }), audio: null,
+    };
+  }
   // mały klip jak w teście na żywo 1.4.0 (P1): 3,1 MB, 1280×720, 8 s, ok. 3,2 Mb/s
   if (/maly|small/i.test(sciezka)) {
     const a = audioPrzyklad({ kbps: 128 });

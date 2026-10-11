@@ -742,10 +742,11 @@ impl Kolejka {
     }
 }
 
-/// Błąd profilu jako komunikat zadania. „Już się mieści” idzie kluczem i18n (to nie usterka, tylko decyzja).
+/// Błąd profilu jako komunikat zadania. „Już się mieści” i „brak dźwięku” idą kluczem i18n (dwa języki).
 fn blad_profilu(e: budowniczy::BladProfilu) -> Przerwanie {
     match e {
         budowniczy::BladProfilu::JuzSieMiesci { .. } => Przerwanie::Blad(blad::kod("juz_sie_miesci", &[])),
+        budowniczy::BladProfilu::BrakDzwieku => Przerwanie::Blad(blad::kod("brak_dzwieku", &[])),
         e => Przerwanie::Blad(e.to_string()),
     }
 }
