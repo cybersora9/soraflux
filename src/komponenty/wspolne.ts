@@ -29,7 +29,18 @@ export function opisMediow(m: Media | null): string {
   return cz.join(" · ");
 }
 
+/**
+ * Podpisy pod strefą upuszczania (klucze i18n) dla zakładki. P7 z testu 1.4.0: Obrazy miały skopiowane
+ * z Konwertuj „Wideo, audio, obrazy, także całe foldery.”, a pod spodem „PNG, JPG, WebP…”: zostaje tylko drugi.
+ */
+export function podpisyStrefy(obrazy: boolean): { tytul: string; pomoc: string | null; pusto: string } {
+  return obrazy
+    ? { tytul: "strefa.obrazy", pomoc: null, pusto: "obrazy.pusto" }
+    : { tytul: "strefa.pliki", pomoc: "strefa.pomoc", pusto: "konwertuj.pusto" };
+}
+
 export function strefaUpuszczania(opcje: { obrazy: boolean; dodaj: (s: string[]) => void; kompaktowa: boolean }): HTMLElement {
+  const podpisy = podpisyStrefy(opcje.obrazy);
   const wybierz = async () => opcje.dodaj(await api.wybierzPliki(opcje.obrazy));
   const el = h(
     "div",
@@ -37,13 +48,13 @@ export function strefaUpuszczania(opcje: { obrazy: boolean; dodaj: (s: string[])
       class: "strefa" + (opcje.kompaktowa ? " strefa-kompaktowa" : ""),
       role: "button",
       tabindex: "0",
-      "aria-label": t(opcje.obrazy ? "strefa.obrazy" : "strefa.pliki"),
+      "aria-label": t(podpisy.tytul),
       onclick: wybierz,
       onkeydown: (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), wybierz()),
     },
     ikona(IKONY.upusc, "ikona strefa-ikona"),
-    h("div", { class: "strefa-tytul" }, t(opcje.obrazy ? "strefa.obrazy" : "strefa.pliki")),
-    opcje.kompaktowa ? null : h("div", { class: "strefa-pomoc" }, t("strefa.pomoc")),
+    h("div", { class: "strefa-tytul" }, t(podpisy.tytul)),
+    opcje.kompaktowa || !podpisy.pomoc ? null : h("div", { class: "strefa-pomoc" }, t(podpisy.pomoc)),
   );
   return el;
 }

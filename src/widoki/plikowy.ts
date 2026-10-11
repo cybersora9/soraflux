@@ -11,7 +11,7 @@ import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola"
 import { kartaInformacji } from "../komponenty/info";
 import { podgladPrzedPo } from "../komponenty/podglad";
 import {
-  dymekPominietych, folderWyjscia, listaPlikow, opisSzacunku, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
+  dymekPominietych, folderWyjscia, listaPlikow, opisSzacunku, podpisyStrefy, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
 } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { NoweZadanie, Preset, Profil } from "../typy";
@@ -237,7 +237,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
     const b = pliki[wybrany];
     lewa.replaceChildren(
       strefaUpuszczania({ obrazy, dodaj: (s) => void dodaj(s), kompaktowa: pliki.length > 0 }),
-      lista ?? h("p", { class: "lewa-pomoc" }, t(obrazy ? "obrazy.pusto" : "konwertuj.pusto")),
+      lista ?? h("p", { class: "lewa-pomoc" }, t(podpisyStrefy(obrazy).pusto)),
       ...[opcjeFolderow(), b?.media ? kartaInformacji(b.sciezka, b.media) : null].filter((x): x is HTMLElement => !!x),
     );
   }
