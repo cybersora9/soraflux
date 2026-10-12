@@ -538,6 +538,7 @@
   "prosty.gif.od": "Start at",
   "prosty.gif.dlugosc": "{s} s",
   "prosty.przycisk.film.wyslij": "Shrink to {mb} MB",
+  "prosty.przycisk.film.miesci_sie": "No need to shrink",
   "prosty.przycisk.film.telefon": "Make a phone version",
   "prosty.przycisk.film.mp3": "Save the audio as MP3",
   "prosty.przycisk.film.gif": "Make a GIF",
