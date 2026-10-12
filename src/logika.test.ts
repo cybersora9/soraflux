@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   KODEKI_AUDIO, KODEKI_WIDEO, formatujCzas, formatujRozmiar, komendaDoPokazania, parsujCzas, podpowiedzAac,
   pokazOstrzezenieWieku, profilDla, zmienKontener, audioDomyslne, wyciagnijUrl, wyborSzybki, sciezkaDoPokazania,
+  blokadaFormatu, gifDomyslny,
 } from "./logika";
+import type { Media, Profil } from "./typy";
+import pl from "./i18n/pl.json";
+import en from "./i18n/en.json";
 
 describe("podpowiedź AAC < 32 kb/s", () => {
   it("przy zejściu poniżej progu ustawia mono i 16 kHz", () => {
@@ -123,5 +127,34 @@ describe("pokazOstrzezenieWieku (test na żywo 08.10)", () => {
   });
   it("kopia z PATH ostrzega zawsze", () => {
     expect(pokazOstrzezenieWieku({ ...stara, pochodzenie: "path" }, { wersja: "2026.08.19", kiedy: 0 }, dzien)).toBe(true);
+  });
+});
+
+describe("P4: jedna reguła blokady formatu", () => {
+  // Ta sama tabela co budowniczy::p4_regula_blokady_formatu (tests/budowniczy.rs).
+  const v = { w: 1280, h: 720 } as NonNullable<Media["wideo"]>;
+  const a = { kodek: "aac" } as NonNullable<Media["audio"]>;
+  const pliki = { "obraz+dźwięk": { wideo: v, audio: a, obraz: false }, "sam obraz": { wideo: v, audio: null, obraz: false }, "sam dźwięk": { wideo: null, audio: a, obraz: false } };
+  const anim = (k: "gif" | "webp") => ({ ...profilDla(k), gif: gifDomyslny() });
+  const formaty: [string, Profil][] = [["mp4", profilDla("mp4")], ["mkv", profilDla("mkv")], ["mp3", profilDla("mp3")], ["wav", profilDla("wav")], ["gif", anim("gif")], ["webp", anim("webp")]];
+  const oczekiwane: Record<string, Record<string, string | null>> = {
+    "obraz+dźwięk": { mp4: null, mkv: null, mp3: null, wav: null, gif: null, webp: null },
+    "sam obraz": { mp4: null, mkv: null, mp3: "brak_dzwieku", wav: "brak_dzwieku", gif: null, webp: null },
+    "sam dźwięk": { mp4: null, mkv: null, mp3: null, wav: null, gif: "brak_obrazu", webp: "brak_obrazu" },
+  };
+  it("{obraz+dźwięk, sam obraz, sam dźwięk} × {wideo, audio, GIF/WEBP}", () => {
+    for (const [nazwa, m] of Object.entries(pliki)) {
+      for (const [f, p] of formaty) expect(blokadaFormatu(m, p), `${nazwa} → ${f}`).toBe(oczekiwane[nazwa][f]);
+    }
+    expect(blokadaFormatu({ wideo: null, audio: null, obraz: false }, profilDla("mp3"))).toBe("pusty");
+    // „bez dźwięku” wybrane przez użytkownika na filmie bez obrazu = nic do zapisania
+    expect(blokadaFormatu(pliki["sam dźwięk"], { ...profilDla("mp4"), audio: null })).toBe("pusty");
+  });
+  it("tekst mówi prawdę: film ma obraz, brakuje dźwięku", () => {
+    expect((pl as Record<string, string>)["plik.blokada.brak_dzwieku"]).toBe("Ten plik nie ma dźwięku. Wybierz format wideo albo GIF");
+    for (const k of ["plik.blokada.brak_dzwieku", "plik.blokada.brak_obrazu", "plik.blokada.pusty", "blad.brak_dzwieku", "rust.brak_dzwieku"]) {
+      expect(pl, k).toHaveProperty([k]);
+      expect(en, k).toHaveProperty([k]);
+    }
   });
 });

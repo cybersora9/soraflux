@@ -6,8 +6,9 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 <p align="center"><b>English</b> · <a href="README.pl.md">Polski</a></p>
 
-<h3 align="center"><a href="https://github.com/cybersora9/soraflux/releases/latest">⬇ Download SoraFlux for Windows</a></h3>
-<p align="center">Windows 10/11 (64-bit) · <a href="#installation">How to install, step by step</a></p>
+<h3 align="center"><a href="https://github.com/cybersora9/soraflux/releases/latest/download/SoraFlux-setup.exe">⬇ Download SoraFlux for Windows</a></h3>
+<p align="center">Windows 10/11 (64-bit), one file, double-click to install · <a href="#installation">Step by step</a> · <a href="https://github.com/cybersora9/soraflux/releases/latest">All files and checksums</a><br>
+<sub>SoraFlux is a Windows program, not a website: it does not open in a browser. Don't download "Source code".</sub></p>
 
 ![Demo: two videos dropped in, "For phones (480p 25 fps)", Convert, the queue shows 412 MB → 74 MB (−82%)](docs/showcase/demo.webp)
 
@@ -36,7 +37,7 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 - **Downloads** (yt-dlp): most popular video and music sites plus direct links; quick actions "Audio only MP3" and "Best quality", subtitles, thumbnail, metadata, chapters, playlists, "convert after download". The app watches yt-dlp's age: an old system copy (e.g. from pip) is replaced by the app's own current copy, and "Update yt-dlp" only ever updates that copy.
 - **Themes**: Kissaten, City Pop and MiniDisc in a cybersora or Japanese palette, each light and dark (WCAG AA contrast), plus your own themes with an editor, export and import. Bundled fonts, works offline.
-- **One-click quick actions**: "Shrink to X MB", "Extract audio (MP3)", "Make a GIF", "For phones (480p 25 fps)", "Cut a clip without re-encoding" (seconds instead of minutes, no quality loss). Fine-tune everything afterwards in the panel.
+- **One-click quick actions**: "Shrink to X MB", "Extract audio (MP3)", "Make a GIF", "For phones (480p 25 fps)", "Cut a clip" (without re-encoding: seconds instead of minutes, no quality loss; or "Accurate (re-encode)" for a frame-accurate cut). Fine-tune everything afterwards in the panel.
 - **Before/after preview**: one frame of the result with exactly your settings, at a moment picked with a slider, compared with a split slider. For audio: play 5 s of the result (hear what AAC at 8 kbps really sounds like).
 - **Full video quality control**: resolution (2160p…144p or custom W×H), frame rate (keep, 60/50/30/25/24/15/10, custom), CRF slider, bitrate in kbps or a **target size in MB** (2-pass plus automatic correction so the file really fits).
 - **Audio**: AAC, MP3, Opus, Vorbis, FLAC, WAV/PCM, copy, none; **8–320 kbps**, 8–96 kHz, mono/stereo, loudness normalization, track choice (or all tracks) when a file has several.
@@ -74,22 +75,22 @@ All screenshots are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](z
 
 SoraFlux is a normal Windows program with an installer. You don't need to know anything about GitHub or code.
 
-1. Open the **[latest release](https://github.com/cybersora9/soraflux/releases/latest)** (or on the repository page, click **Releases** in the right-hand column).
-2. Scroll down to **Assets** and click **`SoraFlux_x.y.z_x64-setup.exe`** (x.y.z is the version, e.g. 1.3.0). The browser saves it to your **Downloads** folder.
-   Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app.
-3. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux_…_x64-setup.exe`.
-4. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
-5. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
-6. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
-7. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
+1. Click **[Download SoraFlux for Windows](https://github.com/cybersora9/soraflux/releases/latest/download/SoraFlux-setup.exe)**. The browser saves `SoraFlux-setup.exe` to your **Downloads** folder.
+   (The [release page](https://github.com/cybersora9/soraflux/releases/latest) has the same file plus checksums. Don't download "Source code (zip)" or "Source code (tar.gz)": that's the program's code, not the app, and it does not open in a browser.)
+2. Open the **Downloads** folder (or click the file in your browser's download list) and **double-click** `SoraFlux-setup.exe`.
+3. Windows may show a blue window **"Windows protected your PC"**. This is because the installer isn't code-signed yet (signing is in progress, [docs/SIGNING.md](docs/SIGNING.md)). Click **More info**, then **Run anyway**.
+4. Choose the installer language and click **Next** / **Install**. No administrator rights are needed: it installs for your Windows user only.
+5. Start **SoraFlux** from the Start menu (or the desktop shortcut, if you ticked it at the end of the installation).
+6. On first run the **Welcome to SoraFlux** window checks for ffmpeg (and yt-dlp for downloads). Click **Get missing tools**: they come from their official releases, with SHA256 verification. Done.
 
 You can also right-click a video, audio or image file in Explorer and pick **Convert with SoraFlux**.
 
 - **Requirements:** Windows 10 or 11, 64-bit. The installer is small because ffmpeg and yt-dlp are not inside: the app downloads them from their official releases on first start (one click, SHA256 verified).
 - **Portable mode:** create a folder named `portable` next to `SoraFlux.exe` (e.g. on a USB stick). Settings, presets, the log and the downloaded tools then live in that folder, nothing in your user profile.
+- **Current version:** 1.4.1, a bug-fix release ([what was fixed](RELEASE_NOTES_1.4.1.md)).
 - **Updating:** from 1.3.0 on, Settings → "Check for updates" downloads and installs a new version (signed, verified by the app). From 1.2.x, install 1.3.0 once by hand: download the new installer and run it over the old version; settings and presets are kept.
 - **Uninstalling:** Windows Settings → Apps → Installed apps → SoraFlux → Uninstall.
-- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux_1.3.0_x64-setup.exe` and compare the result with the number in that file.
+- **Checking the file (optional):** each release has `SHA256SUMS.txt`. In PowerShell run `Get-FileHash $HOME\Downloads\SoraFlux-setup.exe` and compare the result with the number in that file.
 
 ## How to use
 
@@ -132,7 +133,7 @@ The code builds on Linux (CI tests run there), but releases are Windows-only for
 | Video won't play on a phone / in WhatsApp | Use "For phones (480p 25 fps)" or MP4 + H.264 + AAC. Don't enable 10-bit and don't put Opus in MP4. |
 | "Target size too small" | At this length the video gets < 50 kbps. Trim it, lower the resolution or raise the MB limit. |
 | Output is bigger than the original | The source was already heavily compressed. Use bitrate or target MB instead of CRF, or a lower resolution. |
-| A cut without re-encoding starts a bit early | That's how stream copy works: it starts on the nearest keyframe. For frame accuracy, use a normal conversion with trimming. |
+| A cut without re-encoding starts early or is longer than asked | That's how stream copy works: it starts on the nearest earlier keyframe, which in some files is seconds away. The queue then shows "Done with a warning" with the real length. For a frame-accurate cut, turn on "Accurate (re-encode)". |
 | NVENC/QSV/AMF doesn't work | Only encoders that passed a test encode are shown; if one fails mid-job, the app finishes on the CPU (noted in the queue). Update your GPU driver. |
 | The computer stutters while converting | Settings → Work: "Videos at once" = 1 and "Keep the computer responsive". |
 | Reporting a bug | Settings → "Copy report" (versions, system, recent errors, without your folder paths) and paste it into a [bug report](https://github.com/cybersora9/soraflux/issues/new/choose). |

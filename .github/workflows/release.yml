@@ -103,6 +103,9 @@ jobs:
           New-Item -ItemType Directory -Force wydanie | Out-Null
           Copy-Item "${{ steps.plik.outputs.sciezka }}*" wydanie/
           node scripts/latest-json.mjs wydanie "${{ github.repository }}" "${{ steps.tag.outputs.tag }}"
+          # Fixed-name copy for the direct link (releases/latest/download/SoraFlux-setup.exe). Made AFTER latest-json.mjs,
+          # which picks the versioned *-setup.exe for the updater; the copy is byte-identical, so the same SHA-256.
+          Copy-Item "${{ steps.plik.outputs.sciezka }}" wydanie/SoraFlux-setup.exe
           Get-ChildItem wydanie -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
           } | Out-File -Encoding ascii wydanie/SHA256SUMS.txt
@@ -133,3 +136,6 @@ jobs:
           draft: true
           tag_name: ${{ steps.tag.outputs.tag }}
           files: wydanie/*
+          generate_release_notes: true
+          body_path: .github/RELEASE_HEADER.md
+

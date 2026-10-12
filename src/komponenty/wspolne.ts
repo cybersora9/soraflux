@@ -3,10 +3,11 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { jezyk, maKlucz, t, tlumaczBlad } from "../i18n";
+import { jezyk, maKlucz, rozdzielBlad, t, tlumaczBlad } from "../i18n";
 import { formatujCzas, formatujRozmiar, komendaDoPokazania, nazwaPliku, sciezkaDoPokazania, sklonuj } from "../logika";
 import { pokazDymek, sklep } from "../sklep";
 import type { BladProfilu, Media, Podpowiedz, Preset, Profil } from "../typy";
+import { komunikatPominietych, type Pominiety } from "../upuszczanie";
 import { przycisk, uwaga } from "./pola";
 
 export interface PlikWejscia {
@@ -28,7 +29,18 @@ export function opisMediow(m: Media | null): string {
   return cz.join(" · ");
 }
 
+/**
+ * Podpisy pod strefą upuszczania (klucze i18n) dla zakładki. P7 z testu 1.4.0: Obrazy miały skopiowane
+ * z Konwertuj „Wideo, audio, obrazy, także całe foldery.”, a pod spodem „PNG, JPG, WebP…”: zostaje tylko drugi.
+ */
+export function podpisyStrefy(obrazy: boolean): { tytul: string; pomoc: string | null; pusto: string } {
+  return obrazy
+    ? { tytul: "strefa.obrazy", pomoc: null, pusto: "obrazy.pusto" }
+    : { tytul: "strefa.pliki", pomoc: "strefa.pomoc", pusto: "konwertuj.pusto" };
+}
+
 export function strefaUpuszczania(opcje: { obrazy: boolean; dodaj: (s: string[]) => void; kompaktowa: boolean }): HTMLElement {
+  const podpisy = podpisyStrefy(opcje.obrazy);
   const wybierz = async () => opcje.dodaj(await api.wybierzPliki(opcje.obrazy));
   const el = h(
     "div",
@@ -36,13 +48,13 @@ export function strefaUpuszczania(opcje: { obrazy: boolean; dodaj: (s: string[])
       class: "strefa" + (opcje.kompaktowa ? " strefa-kompaktowa" : ""),
       role: "button",
       tabindex: "0",
-      "aria-label": t(opcje.obrazy ? "strefa.obrazy" : "strefa.pliki"),
+      "aria-label": t(podpisy.tytul),
       onclick: wybierz,
       onkeydown: (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), wybierz()),
     },
     ikona(IKONY.upusc, "ikona strefa-ikona"),
-    h("div", { class: "strefa-tytul" }, t(opcje.obrazy ? "strefa.obrazy" : "strefa.pliki")),
-    opcje.kompaktowa ? null : h("div", { class: "strefa-pomoc" }, t("strefa.pomoc")),
+    h("div", { class: "strefa-tytul" }, t(podpisy.tytul)),
+    opcje.kompaktowa || !podpisy.pomoc ? null : h("div", { class: "strefa-pomoc" }, t(podpisy.pomoc)),
   );
   return el;
 }
@@ -61,6 +73,8 @@ export function listaPlikow(
   usun: (i: number) => void,
   wyczysc: () => void,
   wybor?: { wybrany: number; wybierz: (i: number) => void },
+  /** Uwaga przy wierszu (np. „już się mieści”, „nie ma dźwięku”): widoczna od razu, nie pod panelem. */
+  uwagaPliku?: (p: PlikWejscia) => { tekst: string; blokuje: boolean } | null,
 ): HTMLElement {
   return h(
     "div",
@@ -74,11 +88,12 @@ export function listaPlikow(
     h(
       "ul",
       { class: "pliki-lista" },
-      pliki.map((p, i) =>
-        h(
+      pliki.map((p, i) => {
+        const u = p.blad ? null : uwagaPliku?.(p) ?? null;
+        return h(
           "li",
           {
-            class: "plik" + (p.blad ? " plik-blad" : "") + (wybor?.wybrany === i ? " plik-wybrany" : ""),
+            class: "plik" + (p.blad ? " plik-blad" : "") + (u?.blokuje ? " plik-zablokowany" : "") + (wybor?.wybrany === i ? " plik-wybrany" : ""),
             "aria-current": wybor?.wybrany === i ? "true" : undefined,
           },
           ikona(p.media?.obraz ? IKONY.obrazy : p.media && !p.media.wideo ? IKONY.nuta : IKONY.film, "ikona plik-ikona"),
@@ -89,10 +104,11 @@ export function listaPlikow(
               : { class: "plik-tekst" },
             h("div", { class: "plik-nazwa", title: sciezkaDoPokazania(p.sciezka) }, nazwaPliku(p.sciezka)),
             h("div", { class: "plik-opis", title: p.blad ? tlumaczBlad(p.blad) : undefined }, p.blad ? opisBleduPliku(p.blad) : opisMediow(p.media)),
+            u ? h("div", { class: "plik-uwaga" + (u.blokuje ? " plik-uwaga-blad" : ""), id: `plik-uwaga-${i}` }, u.tekst) : null,
           ),
           h("button", { type: "button", class: "ikona-przycisk", "aria-label": t("pliki.usun"), title: t("pliki.usun"), onclick: () => usun(i) }, ikona(IKONY.x)),
-        ),
-      ),
+        );
+      }),
     ),
   );
 }
@@ -200,15 +216,19 @@ export function opisBledu(b: BladProfilu): string {
       return t("blad.kodek_audio", { kodek: t(`kodek.${b.kodek}`), kontener: b.kontener.toUpperCase() });
     case "za_maly_rozmiar":
       return t("blad.za_maly_rozmiar");
+    case "juz_sie_miesci":
+      return t("blad.juz_sie_miesci", { r: formatujRozmiar(b.zrodlo_b, jezyk()) });
     default:
       return t(`blad.${b.typ}`);
   }
 }
 
 /** Uwagi pod panelem: błędy profilu i podpowiedzi (bez tej o AAC, którą pokazuje panel). */
-export function uwagi(podpowiedzi: Podpowiedz[], blad: BladProfilu | null): HTMLElement | null {
+export function uwagi(podpowiedzi: Podpowiedz[], blad: BladProfilu | null, info: BladProfilu | null = null): HTMLElement | null {
   const lista: HTMLElement[] = [];
   if (blad) lista.push(uwaga("blad", ikona(IKONY.uwaga), h("span", null, opisBledu(blad))));
+  // błąd, który dotyczy tylko wybranego pliku (np. „już się mieści”): informacja, nie blokada całej listy
+  if (info) lista.push(uwaga("info", ikona(IKONY.info), h("span", null, opisBledu(info))));
   for (const p of podpowiedzi) {
     if (p.typ === "mono_niski_hz") continue;
     lista.push(uwaga("info", ikona(IKONY.info), h("span", null, opisPodpowiedzi(p))));
@@ -246,9 +266,60 @@ export function dopiszOstatni(lista: string[], sciezka: string): string[] {
   return [sciezka, ...lista.filter((x) => x !== sciezka)].slice(0, 6);
 }
 
+/**
+ * Wersja do paska akcji (P10 z testu 1.4.0: przy 860×600 pasek miał 144 px, 24% okna, i zasłaniał treść):
+ * jeden wiersz, krótkie etykiety, wybrany folder jako nazwa w przycisku (pełna ścieżka w podpowiedzi),
+ * „Pokaż” jako ikona. Pełny wybór (ostatnie foldery, pełna ścieżka) zostaje w Ustawieniach.
+ */
+function folderKompaktowy(
+  klucz: "katalog_wyjscia" | "katalog_pobierania",
+  sciezka: string | null,
+  ustaw: (v: string | null) => Promise<void>,
+  wybierz: () => Promise<void>,
+): HTMLElement {
+  const domyslny = t(klucz === "katalog_wyjscia" ? "folder.obok_krotko" : "folder.pobrane_krotko");
+  return h(
+    "div",
+    { class: "folder-blok folder-kompaktowy" },
+    h(
+      "div",
+      { class: "folder-wiersz" },
+      h("span", { class: "folder-etykieta" }, t("folder.zapisz_do")),
+      h(
+        "div",
+        { class: "segmenty", role: "group", "aria-label": t("folder.zapisz_do") },
+        h("button", { type: "button", class: `segment${sciezka ? "" : " aktywny"}`, "aria-pressed": String(!sciezka), onclick: () => sciezka && void ustaw(null) }, domyslny),
+        h(
+          "button",
+          {
+            type: "button", class: `segment segment-folder${sciezka ? " aktywny" : ""}`, "aria-pressed": String(!!sciezka), onclick: () => void wybierz(),
+            title: sciezka ? `${sciezkaDoPokazania(sciezka)}\n${t("folder.zmien_pomoc")}` : undefined,
+          },
+          sciezka ? [ikona(IKONY.folder), h("span", { class: "segment-tekst" }, nazwaFolderu(sciezka))] : t("folder.inny"),
+        ),
+      ),
+      sciezka
+        ? h("button", { type: "button", class: "ikona-przycisk", "aria-label": t("folder.pokaz"), title: t("folder.pokaz"), onclick: () => void api.pokazWFolderze(sciezka) }, ikona(IKONY.folder))
+        : null,
+    ),
+  );
+}
+
+/** Pasek akcji: jego wysokość w `--wys-paska` (zakładki) → `scroll-padding-bottom` w `.tresc`, żeby fokus
+ *  i przewijanie do elementu nie kończyły pod paskiem (P10). */
+export function obserwujPasek(pasek: HTMLElement): ResizeObserver | null {
+  if (typeof ResizeObserver === "undefined") return null;
+  const o = new ResizeObserver(() => {
+    if (!pasek.isConnected) return;
+    document.documentElement.style.setProperty("--wys-paska", `${Math.ceil(pasek.getBoundingClientRect().height)}px`);
+  });
+  o.observe(pasek);
+  return o;
+}
+
 /** Wybór folderu wyniku: tryb (obok źródła / Pobrane albo wybrany folder), duży przycisk zmiany,
  *  podgląd w Eksploratorze i lista ostatnio używanych (w konfigu). Zapis w konfigu od razu. */
-export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = "katalog_wyjscia"): HTMLElement {
+export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = "katalog_wyjscia", o: { kompaktowy?: boolean } = {}): HTMLElement {
   const k = sklep.stan.konfig;
   const sciezka = k?.[klucz] ?? null;
   const domyslny = klucz === "katalog_wyjscia" ? t("folder.obok") : t("folder.pobrane");
@@ -265,6 +336,7 @@ export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = 
     if (w) await ustaw(w);
   };
   const ostatnie = (k?.ostatnie_foldery ?? []).filter((x) => x !== sciezka);
+  if (o.kompaktowy) return folderKompaktowy(klucz, sciezka, ustaw, wybierz);
 
   const tryb = h(
     "div",
@@ -315,4 +387,24 @@ export function folderWyjscia(klucz: "katalog_wyjscia" | "katalog_pobierania" = 
 export function opisSzacunku(bajty: number | null, dokladny: boolean): string {
   if (bajty === null) return t("szacunek.brak");
   return `${dokladny ? "" : "≈ "}${formatujRozmiar(bajty, jezyk())}`;
+}
+
+/** Dymek o pominiętych przy upuszczeniu (P3): 5 s, a na Obrazach z przyciskiem „Przejdź do Konwertuj”. */
+export function dymekPominietych(pominiete: Pominiety[], doKonwertuj?: (sciezki: string[]) => void): void {
+  const k = komunikatPominietych(pominiete);
+  if (!k) return;
+  const tekst = t(k.klucz, { ...k.parametry, ...(k.parametry.powod ? { powod: t(String(k.parametry.powod)) } : {}) });
+  const akcja = doKonwertuj && k.doKonwertuj.length ? { etykieta: t("upusc.do_konwertuj"), zrob: () => (sklep.ustaw({ dymek: null }), doKonwertuj(k.doKonwertuj)) } : undefined;
+  pokazDymek(tekst, "blad", akcja, 5000);
+}
+
+/** Błąd po ludzku + surowy tekst schowany w „Szczegóły techniczne” (P5: bez gołego „ERROR: …” na wierzchu). */
+export function blokBledu(komunikat: string, klasa = ""): HTMLElement {
+  const { tekst, szczegoly } = rozdzielBlad(komunikat);
+  return h(
+    "div",
+    { class: `blad-blok ${klasa}`.trim() },
+    h("span", { class: "blad-tekst" }, tekst),
+    szczegoly ? h("details", { class: "blad-szczegoly" }, h("summary", null, t("blad.szczegoly_techniczne")), h("pre", null, szczegoly)) : null,
+  );
 }

@@ -1,7 +1,7 @@
 //! Przewidywany rozmiar wyniku (na żywo w GUI, wołane z debounce).
 //! Bitrate i rozmiar MB są dokładne; CRF, GIF i obrazy to heurystyki.
 
-use crate::budowniczy::kbps_audio_szac;
+use crate::budowniczy::{kbps_audio_szac, plan_rozmiaru, PlanRozmiaru};
 use crate::sonda::Media;
 use crate::ustawienia::*;
 use serde::Serialize;
@@ -13,6 +13,8 @@ pub enum Ostrzezenie {
     Ogromny,
     /// Wynik wyraźnie większy niż źródło.
     WiekszyNizZrodlo,
+    /// „Zmniejsz do X MB”, a plik już jest mniejszy: nic nie kodujemy (`bajty` = rozmiar źródła).
+    JuzSieMiesci,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
@@ -171,7 +173,19 @@ pub fn szacuj(media: &Media, profil: &Profil) -> Szacunek {
     let bajty = match profil.wideo.as_ref().filter(|_| wideo_wl) {
         Some(pw) => {
             if let JakoscWideo::RozmiarMb { mb } = pw.jakosc {
-                Some(mb as f64 * 1024.0 * 1024.0 * 0.98)
+                // Ta sama decyzja co w budowniczym: szacunek = to, co naprawdę dostanie koder.
+                match plan_rozmiaru(media, profil, mb) {
+                    Ok(PlanRozmiaru::Koduj { bajty, .. }) => Some(bajty as f64),
+                    Ok(PlanRozmiaru::JuzSieMiesci { zrodlo_b }) => {
+                        return Szacunek {
+                            bajty: Some(zrodlo_b),
+                            dokladny: true,
+                            ostrzezenie: Some(Ostrzezenie::JuzSieMiesci),
+                            zrodlo_kbps: None,
+                        };
+                    }
+                    Err(_) => None,
+                }
             } else {
                 kbps_wideo(media, profil, pw).map(|(kv, d)| {
                     dokladny &= d;
@@ -240,6 +254,7 @@ pub fn wymiary_obrazu(media: &Media, profil: &Profil) -> Option<(u32, u32)> {
 mod testy {
     use super::*;
     use crate::sonda::{StrumienAudio, StrumienWideo};
+    use std::path::Path;
 
     fn film() -> Media {
         Media {
@@ -318,6 +333,102 @@ mod testy {
         let mut m2 = m.clone();
         m2.wideo.as_mut().unwrap().kbps = None;
         assert_eq!(kbps_wideo_zrodla(&m2), Some(165));
+    }
+
+    /// P1 (test na żywo 1.4.0): źródło 3,1 MB, 1280×720, 8 s, H.264 ok. 3,2 Mb/s.
+    fn zrodlo_p1() -> Media {
+        Media {
+            czas_s: Some(8.0),
+            rozmiar_b: Some(3_250_586),
+            kbps: Some(3250),
+            wideo: Some(StrumienWideo { w: 1280, h: 720, fps: Some(30.0), kbps: Some(3120), ..Default::default() }),
+            audio: Some(StrumienAudio { kodek: "aac".into(), kbps: Some(128), ..Default::default() }),
+            ..Default::default()
+        }
+    }
+
+    /// Profil szybkiej akcji „Zmniejsz do X MB” / Prosty „Do wysłania” (jak `profilSzybkiejAkcji` w logika.ts).
+    fn profil_mb(mb: f32) -> Profil {
+        let mut p = Profil::dla(Kontener::Mp4);
+        p.wideo = Some(ProfilWideo {
+            rozdzielczosc: Rozdzielczosc::Wysokosc { h: 720 },
+            nie_powiekszaj: true,
+            jakosc: JakoscWideo::RozmiarMb { mb },
+            ..Default::default()
+        });
+        p.audio = Some(ProfilAudio { kbps: 96, ..Default::default() });
+        p
+    }
+
+    /// Model kodera do testu: dwa przebiegi trafiają w zadany bitrate, ale nie dają więcej, niż treść
+    /// potrafi wypełnić (na żywo: żądane 23,8 Mb/s, wyszło 15,0 MB / 8 s = 15 Mb/s).
+    fn symulowany_wynik(kbps_wideo: u32, kbps_audio: u32, czas: f64) -> f64 {
+        const SUFIT_TRESCI_KBPS: f64 = 15_000.0;
+        ((kbps_wideo as f64).min(SUFIT_TRESCI_KBPS) + kbps_audio as f64) * 1000.0 / 8.0 * czas * 1.01
+    }
+
+    #[test]
+    fn p1_zmniejsz_nigdy_nie_powieksza() {
+        let m = zrodlo_p1();
+        let zrodlo = m.rozmiar_b.unwrap();
+        for mb in [1.0f32, 10.0, 25.0, 24.0, 15.5, 9.5, 100_000.0] {
+            let p = profil_mb(mb);
+            let s = szacuj(&m, &p);
+            match plan_rozmiaru(&m, &p, mb).unwrap() {
+                PlanRozmiaru::JuzSieMiesci { zrodlo_b } => {
+                    assert!(mb as f64 * 1_048_576.0 >= zrodlo as f64, "{mb} MB: mniejszy cel musi kodować");
+                    assert_eq!(zrodlo_b, zrodlo);
+                    assert_eq!(s.ostrzezenie, Some(Ostrzezenie::JuzSieMiesci), "{mb} MB");
+                    // budowniczy odmawia, więc do kolejki nie trafi nic, co by plik powiększyło
+                    let e = crate::budowniczy::plan(&m, &p, Path::new("a.mp4"), Path::new("b.mp4")).unwrap_err();
+                    assert_eq!(e, crate::budowniczy::BladProfilu::JuzSieMiesci { zrodlo_b: zrodlo });
+                }
+                PlanRozmiaru::Koduj { kbps_wideo, kbps_audio, bajty } => {
+                    assert!(kbps_wideo <= 3120, "{mb} MB: bitrate {kbps_wideo} ponad źródło");
+                    assert!(bajty < zrodlo, "{mb} MB: szacunek {bajty} ≥ źródło {zrodlo}");
+                    let wynik = symulowany_wynik(kbps_wideo, kbps_audio, 8.0);
+                    assert!(wynik < zrodlo as f64, "{mb} MB: wynik {wynik} > źródło");
+                    let odchylka = (bajty as f64 - wynik).abs() / wynik;
+                    assert!(odchylka <= 0.15, "{mb} MB: szacunek {bajty} vs wynik {wynik:.0} ({odchylka:.2})");
+                    assert_eq!(s.bajty, Some(bajty), "szacunek = plan budowniczego");
+                    assert_eq!(s.ostrzezenie, None);
+                }
+            }
+        }
+        // 1 MB koduje, 10/25/100000 MB już się mieszczą
+        assert!(matches!(plan_rozmiaru(&m, &profil_mb(1.0), 1.0), Ok(PlanRozmiaru::Koduj { .. })));
+        for mb in [10.0, 25.0, 100_000.0] {
+            assert!(matches!(plan_rozmiaru(&m, &profil_mb(mb), mb), Ok(PlanRozmiaru::JuzSieMiesci { .. })));
+        }
+    }
+
+    /// Stara formuła (szacunek = 0,98 × cel, bitrate z samego celu) dawała 23,5 MB przy wyniku 15,0 MB.
+    /// Po zmianie: bitrate obcięty do źródła, więc nawet bez decyzji „już się mieści” szacunek zgadza się z wynikiem.
+    #[test]
+    fn p1_bitrate_obciety_do_zrodla_i_szacunek_trafia() {
+        let mut m = zrodlo_p1();
+        m.rozmiar_b = None; // nieznany rozmiar: decyzja tylko z bitrate
+        let p = profil_mb(24.0);
+        let PlanRozmiaru::Koduj { kbps_wideo, kbps_audio, bajty } = plan_rozmiaru(&m, &p, 24.0).unwrap() else {
+            panic!("bez rozmiaru źródła koduje")
+        };
+        assert_eq!(kbps_wideo, 3120, "nie 23 840 kb/s");
+        let wynik = symulowany_wynik(kbps_wideo, kbps_audio, 8.0);
+        assert!((bajty as f64 - wynik).abs() / wynik <= 0.15);
+        let stary = 24.0 * 1_048_576.0 * 0.98;
+        let stary_wynik = symulowany_wynik(crate::budowniczy::bitrate_z_rozmiaru(24.0, 8.0, 96).unwrap(), 96, 8.0);
+        assert!((stary - stary_wynik).abs() / stary_wynik > 0.15, "regresja: stara formuła mijała się o >15%");
+    }
+
+    /// Cięcie: porównujemy z proporcjonalną częścią źródła, nie z całym plikiem.
+    #[test]
+    fn p1_fragment_porownany_z_czescia_zrodla() {
+        let m = Media { czas_s: Some(100.0), ..zrodlo_p1() }; // 3,1 MB na 100 s
+        let mut p = profil_mb(1.0);
+        p.ciecie = Some(Ciecie { od: 0.0, koniec: Some(10.0) }); // fragment ≈ 0,31 MB
+        assert!(
+            matches!(plan_rozmiaru(&m, &p, 1.0), Ok(PlanRozmiaru::JuzSieMiesci { zrodlo_b }) if zrodlo_b < 400_000)
+        );
     }
 
     #[test]

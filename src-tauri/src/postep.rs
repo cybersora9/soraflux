@@ -217,6 +217,6 @@ mod testy {
             LiniaYtdlp::Postep { pobrane: 1024, calosc: Some(8192), bajty_s: None, eta_s: None }
         );
         assert_eq!(linia_ytdlp("PLIK|C:\\Filmy\\a b.mp4"), LiniaYtdlp::Plik("C:\\Filmy\\a b.mp4".into()));
-        assert_eq!(linia_ytdlp("[youtube] abc: Downloading webpage"), LiniaYtdlp::Inna);
+        assert_eq!(linia_ytdlp("[generic] abc: Downloading webpage"), LiniaYtdlp::Inna);
     }
 }

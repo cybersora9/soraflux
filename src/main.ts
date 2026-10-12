@@ -10,6 +10,7 @@ import { formatujRozmiar, toObraz, zmianaRozmiaru } from "./logika";
 import { aktywneZadania, pokazDymek, sklep, trybApki, ZAKLADKI_TRYBU, type Zakladka } from "./sklep";
 import { rozstrzygnijTryb } from "./prosty";
 import { ustawTryb } from "./tryb";
+import { czyPokazacInformacje, pokazInformacje } from "./przegladarka";
 import { stworzWidokPlikowy, type WidokPlikowy } from "./widoki/plikowy";
 import { stworzWidokKolejki } from "./widoki/kolejka";
 import { stworzWidokUstawien } from "./widoki/ustawienia";
@@ -32,7 +33,13 @@ function stworzWidoki(): Record<Zakladka, Widok> {
     prosty: stworzWidokProsty({ doPelnego }),
     konwertuj: stworzWidokPlikowy("konwertuj"),
     pobierz: stworzWidokPobierania(),
-    obrazy: stworzWidokPlikowy("obrazy"),
+    // P3: wideo/audio upuszczone na Obrazy → przycisk w dymku przenosi je do Konwertuj
+    obrazy: stworzWidokPlikowy("obrazy", {
+      doKonwertuj: (s) => {
+        sklep.ustaw({ zakladka: "konwertuj" });
+        void (widoki?.konwertuj as WidokPlikowy | undefined)?.dodaj(s);
+      },
+    }),
     kolejka: stworzWidokKolejki(),
     ustawienia: stworzWidokUstawien(),
   };
@@ -50,7 +57,7 @@ function doPelnego(p: Przekazanie): void {
   void ustawTryb("pelny", cel);
   const w = widoki[cel] as WidokPlikowy;
   w.ustawProfil(p.profil);
-  void w.dodaj(p.sciezki);
+  void w.dodaj(p.sciezki, { zachowajCiecie: true });
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -307,4 +314,5 @@ async function start(): Promise<void> {
   }
 }
 
-void start();
+if (czyPokazacInformacje(api.wTauri, location.hostname)) pokazInformacje(app, jezykSystemu());
+else void start();

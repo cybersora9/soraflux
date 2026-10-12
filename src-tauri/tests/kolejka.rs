@@ -428,7 +428,6 @@ done
     s
 }
 
-#[cfg(unix)]
 fn pobranie(url: &str, potem: Option<Profil>, katalog: &Path) -> NoweZadanie {
     use soraconverter_lib::pobieracz::{OpcjePobrania, Wybor};
     NoweZadanie {
@@ -666,4 +665,198 @@ async fn gif_szacunek_skalibrowany() {
         let r = szac / jest;
         assert!((0.5..2.0).contains(&r), "{f:?}: szacunek {szac:.0} B, wynik {jest:.0} B (×{r:.2})");
     }
+}
+
+/// P1 (test na żywo 1.4.0): „Do wysłania” zrobiło z 3,1 MB plik 15,0 MB (+391%), a kafel obiecywał 23,5 MB.
+/// Źródło jak na żywo (1280×720, 8 s, H.264 ok. 3,2 Mb/s): cel większy niż plik → zadanie odmawia
+/// (nic nie powstaje), cel mniejszy → wynik nie większy niż źródło, szacunek ±15% od prawdziwego.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p1_zmniejsz_nie_powieksza_i_szacunek_trafia() {
+    let tmp = tempfile::tempdir().unwrap();
+    let we = tmp.path().join("p1.mp4");
+    let ok = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=1280x720:rate=30:duration=8",
+        ])
+        .args(["-f", "lavfi", "-i", "sine=frequency=300:duration=8"])
+        .args(["-c:v", "libx264", "-preset", "veryfast", "-b:v", "3000k", "-maxrate", "3200k", "-bufsize", "6400k"])
+        .args(["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest"])
+        .arg(&we)
+        .status()
+        .unwrap();
+    assert!(ok.success());
+    let zrodlo = std::fs::metadata(&we).unwrap().len();
+    let ffprobe = sciezki().ffprobe.unwrap();
+    let media = soraconverter_lib::sonda::sonduj(&ffprobe, &we).await.unwrap();
+    let profil = |mb: f32| {
+        let mut p = Profil::dla(Kontener::Mp4);
+        p.wideo = Some(ProfilWideo {
+            rozdzielczosc: Rozdzielczosc::Wysokosc { h: 720 },
+            nie_powiekszaj: true,
+            jakosc: JakoscWideo::RozmiarMb { mb },
+            ..Default::default()
+        });
+        p.audio = Some(ProfilAudio { kodek: KodekAudio::Aac, kbps: 96, ..Default::default() });
+        p
+    };
+    let k = Kolejka::nowa(2, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sciezki())));
+    let cele = [1.0f32, 2.0, 10.0, 25.0, 100_000.0];
+    let ids: Vec<u64> = cele.iter().map(|mb| k.dodaj(konwersja(&we, profil(*mb), None))).collect();
+    let w = czekaj_na(&k, &ids, Duration::from_secs(240)).await;
+    for (mb, z) in cele.iter().zip(&w) {
+        let p = profil(*mb);
+        let szac = soraconverter_lib::szacunek::szacuj(&media, &p);
+        if (*mb as f64) * 1_048_576.0 >= zrodlo as f64 {
+            let Stan::Blad { komunikat } = &z.stan else { panic!("{mb} MB: plik już się mieści, a zadanie {z:?}") };
+            assert_eq!(blad::klucz(komunikat).as_deref(), Some("juz_sie_miesci"), "{komunikat}");
+            assert_eq!(szac.ostrzezenie, Some(soraconverter_lib::szacunek::Ostrzezenie::JuzSieMiesci));
+            continue;
+        }
+        let Stan::Gotowe { wyjscie } = &z.stan else { panic!("{mb} MB: {z:?}") };
+        let wynik = std::fs::metadata(wyjscie).unwrap().len();
+        let s = szac.bajty.unwrap();
+        let odchylka = (s as f64 - wynik as f64).abs() / wynik as f64;
+        eprintln!("{mb} MB: źródło {zrodlo} B, wynik {wynik} B, szacunek {s} B ({:.1}%)", odchylka * 100.0);
+        assert!(wynik <= zrodlo, "{mb} MB: wynik {wynik} B > źródło {zrodlo} B");
+        assert!(odchylka <= 0.15, "{mb} MB: szacunek {s} B, wynik {wynik} B");
+    }
+}
+
+/// P5 (test na żywo 1.4.0): zamknięty port → surowe „[WinError 10061] Nie mona nawiza poczenia…”.
+/// Atrapa yt-dlp pisze komunikat w CP852 (strona konsoli polskiego Windows): zadanie kończy się kluczem
+/// „brak połączenia”, a w ogonie (Szczegóły techniczne) polskie litery są całe. Sprawdza też, że yt-dlp
+/// dostaje `--encoding utf-8` i `PYTHONUTF8=1`.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p5_brak_polaczenia_po_polsku_bez_krzakow() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let s = tmp.path().join("yt-dlp-cp852");
+    // "Nie można nawiązać połączenia" w CP852: ż=0xBE ą=0xA5 ć=0x86 ł=0x88
+    let skrypt = r#"#!/bin/sh
+case " $* " in *" --encoding utf-8 "*) ;; *) echo "brak --encoding utf-8" >&2; exit 3;; esac
+[ "$PYTHONUTF8" = "1" ] || { echo "brak PYTHONUTF8" >&2; exit 4; }
+printf "ERROR: [generic] x: Unable to download webpage: [WinError 10061] Nie mo\276na nawi\245za\206 po\210\245czenia\n" >&2
+exit 1
+"#;
+    std::fs::write(&s, skrypt).unwrap();
+    std::fs::set_permissions(&s, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut sc = sciezki();
+    sc.ytdlp = Some(s);
+    let k = Kolejka::nowa(1, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sc)));
+    let id = k.dodaj(pobranie("http://127.0.0.1:59999/x.mp4", None, tmp.path()));
+    let w = czekaj_na(&k, &[id], Duration::from_secs(30)).await;
+    let Stan::Blad { komunikat } = &w[0].stan else { panic!("{w:?}") };
+    assert_eq!(blad::klucz(komunikat).as_deref(), Some("yt.polaczenie"), "{komunikat}");
+    assert!(komunikat.contains("Nie można nawiązać połączenia"), "{komunikat}");
+}
+
+/// P5 na prawdziwym yt-dlp (jak `pobranie_prawdziwym_ytdlp_z_lokalnego_serwera`: bez yt-dlp pomijany, w CI
+/// go nie ma, w bramce u opiekuna jest). Zamknięty port na 127.0.0.1: na Windowsie to dokładnie przypadek
+/// z testu na żywo ([WinError 10061] po polsku), na Linuksie [Errno 111]. Oczekiwane: klucz „brak połączenia”,
+/// w ogonie bez znaku zastępczego.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p5_prawdziwy_ytdlp_zamkniety_port() {
+    let mut sc = sciezki();
+    if let Ok(p) = std::env::var("SORACONVERTER_YTDLP") {
+        sc.ytdlp = Some(p.into());
+    }
+    if sc.ytdlp.is_none() {
+        eprintln!("POMINIĘTE: brak yt-dlp (ustaw SORACONVERTER_YTDLP)");
+        return;
+    }
+    std::env::set_var("NO_PROXY", "127.0.0.1");
+    std::env::set_var("no_proxy", "127.0.0.1");
+    // wolny port: zajęty na chwilę i zwolniony, więc nikt na nim nie słucha
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let tmp = tempfile::tempdir().unwrap();
+    let k = Kolejka::nowa(1, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sc)));
+    let id = k.dodaj(pobranie(&format!("http://127.0.0.1:{port}/x.mp4"), None, tmp.path()));
+    let w = czekaj_na(&k, &[id], Duration::from_secs(60)).await;
+    let Stan::Blad { komunikat } = &w[0].stan else { panic!("{w:?}") };
+    eprintln!("{komunikat}");
+    assert_eq!(blad::klucz(komunikat).as_deref(), Some("yt.polaczenie"), "{komunikat}");
+    assert!(!komunikat.contains('\u{fffd}'), "{komunikat}");
+}
+
+/// P9 (test na żywo 1.4.0): źródło z jedną klatką kluczową (x264, keyint 250, 8 s). Cięcie 02–05 bez
+/// kodowania dało 5,09 s, a 06–20 cały plik 8,02 s, oba ze stanem „Gotowe”. Teraz: kopia = „Gotowe
+/// z ostrzeżeniem” z prawdziwą długością; „Dokładnie” (ponowne kodowanie) = 3,0 s ±0,1 bez ostrzeżenia.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn p9_ciecie_bez_kodowania_ostrzega_a_dokladne_trafia() {
+    use soraconverter_lib::kolejka::OstrzezenieWyniku;
+    let tmp = tempfile::tempdir().unwrap();
+    let we = tmp.path().join("jedna-klatka.mp4");
+    let ok = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=640x360:rate=30:duration=8",
+        ])
+        .args(["-f", "lavfi", "-i", "sine=frequency=300:duration=8"])
+        .args([
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "250",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+        ])
+        .arg(&we)
+        .status()
+        .unwrap();
+    assert!(ok.success());
+    let kopia = |od: f64, koniec: f64| {
+        let mut p = Profil::dla(Kontener::Mp4);
+        p.wideo = Some(ProfilWideo { kodek: KodekWideo::Kopiuj, ..Default::default() });
+        p.audio = Some(ProfilAudio { kodek: KodekAudio::Kopiuj, ..Default::default() });
+        p.ciecie = Some(Ciecie { od, koniec: Some(koniec) });
+        p
+    };
+    let mut dokladnie = Profil::dla(Kontener::Mp4);
+    dokladnie.wideo = Some(ProfilWideo { jakosc: JakoscWideo::Crf { crf: 18 }, ..Default::default() });
+    dokladnie.ciecie = Some(Ciecie { od: 2.0, koniec: Some(5.0) });
+    let k = Kolejka::nowa(2, Arc::new(Zbieracz::default()), Arc::new(RwLock::new(sciezki())));
+    let ids = vec![
+        k.dodaj(konwersja(&we, kopia(2.0, 5.0), None)),
+        k.dodaj(konwersja(&we, kopia(6.0, 20.0), None)),
+        k.dodaj(konwersja(&we, dokladnie, None)),
+    ];
+    let w = czekaj_na(&k, &ids, Duration::from_secs(120)).await;
+    let ffprobe = sciezki().ffprobe.unwrap();
+    let mut dlugosci = Vec::new();
+    for z in &w {
+        let Stan::Gotowe { wyjscie } = &z.stan else { panic!("{z:?}") };
+        dlugosci.push(soraconverter_lib::sonda::sonduj(&ffprobe, wyjscie).await.unwrap().czas_s.unwrap());
+    }
+    eprintln!(
+        "02–05 kopia: {:.2} s, 06–20 kopia: {:.2} s, 02–05 dokładnie: {:.2} s",
+        dlugosci[0], dlugosci[1], dlugosci[2]
+    );
+    for (i, oczekiwane) in [(0, 3.0), (1, 2.0)] {
+        let Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s, oczekiwane_s }) = w[i].ostrzezenie.clone() else {
+            panic!("kopia {i}: brak ostrzeżenia, wynik {:.2} s: {:?}", dlugosci[i], w[i])
+        };
+        assert!((oczekiwane_s - oczekiwane).abs() < 0.01, "{oczekiwane_s}");
+        assert!((wynik_s - dlugosci[i]).abs() < 0.05);
+    }
+    assert!((dlugosci[2] - 3.0).abs() <= 0.1, "dokładnie: {:.3} s", dlugosci[2]);
+    assert_eq!(w[2].ostrzezenie, None);
 }

@@ -3,7 +3,7 @@ import pl from "./i18n/pl.json";
 import en from "./i18n/en.json";
 import {
   AKCJE, CELE, dopisekAkcji, fragmentGif, kluczBledu, kontenerZdjecia, napisPrzycisku, naprawaBledu, opisPliku, opisWyniku,
-  pionowy, postepPaczki, profilAkcji, rozpoznaj, rozstrzygnijTryb, tytulGotowe, wyborLinku, zTelefonu, type Rodzaj,
+  gotoweZUwaga, miesciSie, pionowy, postepPaczki, profilAkcji, rozpoznaj, rozstrzygnijTryb, tytulGotowe, wyborLinku, zTelefonu, type Rodzaj,
 } from "./prosty";
 import type { Media, StrumienWideo } from "./typy";
 
@@ -177,5 +177,41 @@ describe("błędy i postęp", () => {
     const p = postepPaczki([{ procent: 40, stan: { typ: "trwa" } }, { procent: 0, stan: { typ: "gotowe" } }], [30, null]);
     expect(p).toEqual({ procent: 70, eta: 30, koniec: false });
     expect(postepPaczki([{ procent: 13, stan: { typ: "blad" } }], [null]).koniec).toBe(true);
+  });
+});
+
+describe("P1: „Do wysłania” nigdy nie powiększa pliku", () => {
+  const MB = 1024 * 1024;
+  // test na żywo 1.4.0: 3,1 MB → „Gotowe, zmieści się w mailu · 3,1 MB → 15,0 MB · +391%”
+  it("plik mniejszy niż cel już się mieści (ta sama zasada co plan_rozmiaru w Rust: cel ≥ źródło)", () => {
+    const zrodlo = 3.1 * MB;
+    expect(miesciSie(zrodlo, "mail")).toBe(true);
+    expect(miesciSie(zrodlo, "whatsapp")).toBe(true);
+    expect(miesciSie(zrodlo, "discord")).toBe(true);
+    expect(miesciSie(12 * MB, "discord")).toBe(false);
+    expect(miesciSie(12 * MB, "whatsapp")).toBe(true);
+    // granica: cel z zapasem (9,5 MB dla Discorda), nie sam limit 10 MB
+    expect(miesciSie(9.5 * MB, "discord")).toBe(true);
+    expect(miesciSie(9.6 * MB, "discord")).toBe(false);
+    expect(miesciSie(null, "mail")).toBe(false);
+    expect(miesciSie(0, "mail")).toBe(false);
+  });
+  it("„zmieści się w…” tylko gdy wynik naprawdę jest mniejszy i w limicie", () => {
+    const ok = tytulGotowe("film", "wyslij", "mail", [{ przed: 412 * MB, po: 23.6 * MB }]);
+    expect(ok).toBe("prosty.gotowe.mail");
+    expect(gotoweZUwaga(ok)).toBe(false);
+    const wiekszy = tytulGotowe("film", "wyslij", "mail", [{ przed: 3.1 * MB, po: 15 * MB }]);
+    expect(wiekszy).toBe("prosty.gotowe.wiekszy");
+    expect(gotoweZUwaga(wiekszy)).toBe(true);
+    const ponad = tytulGotowe("film", "wyslij", "discord", [{ przed: 400 * MB, po: 10.5 * MB }]);
+    expect(ponad).toBe("prosty.gotowe.ponad_limit");
+    // jeden z kilku plików większy → ostrzeżenie dla całej paczki
+    expect(tytulGotowe("film", "wyslij", "mail", [{ przed: 100 * MB, po: 20 * MB }, { przed: 2 * MB, po: 3 * MB }])).toBe("prosty.gotowe.wiekszy");
+    expect(tytulGotowe("film", "mp3", "mail", [{ przed: 3 * MB, po: 5 * MB }])).toBe("prosty.gotowe");
+    for (const k of ["prosty.gotowe.wiekszy", "prosty.gotowe.ponad_limit", "prosty.juz_miesci", "prosty.cel.miesci", "prosty.wynik.miesci", "szacunek.juz_sie_miesci", "blad.juz_sie_miesci", "rust.juz_sie_miesci", "plik.miesci"]) {
+      expect(pl, k).toHaveProperty([k]);
+      expect(en, k).toHaveProperty([k]);
+    }
+    expect((pl as Record<string, string>)["prosty.gotowe.wiekszy"]).not.toMatch(/zmieści/);
   });
 });

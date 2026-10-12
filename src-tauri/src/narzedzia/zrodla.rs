@@ -13,7 +13,7 @@ pub enum Pakiet {
     FfmpegFull,
     /// yt-dlp: oficjalne wydanie z GitHuba, suma w `SHA2-256SUMS` tego samego wydania.
     Ytdlp,
-    /// Deno: środowisko JS, którego yt-dlp potrzebuje do wyzwań YouTube.
+    /// Deno: środowisko JS, którego yt-dlp potrzebuje do wyzwań JS niektórych serwisów.
     Deno,
 }
 

@@ -3,7 +3,8 @@
 // Motyw zmienia się TYLKO kliknięciem kafla (pointer) albo Enterem/spacją na kaflu, który
 // użytkownik sam wybrał klawiaturą; patrz `aktywujKafel` (usterka 5 z testów 07.10).
 import { api } from "../api";
-import { h } from "../dom";
+import { h, ikona } from "../dom";
+import { IKONY } from "../ikony";
 import { t, tekstBledu } from "../i18n";
 import {
   EDYTOWALNE,
@@ -80,30 +81,38 @@ export function sekcjaMotywow(): HTMLElement {
   function kafel(m: Motyw, wlasny: boolean) {
     const k = ciemno() ? m.ciemny : m.jasny;
     const aktywny = stan.motyw === m.id;
+    // P8 (test 1.4.0): przyciski przełączające z aria-pressed, nie radio. Radio obiecuje wybór strzałkami,
+    // a tu strzałki celowo tylko przesuwają fokus (usterka 5: przypadkowe klawisze nie zmieniają wyglądu).
     return h(
       "button",
       {
         type: "button",
-        role: "radio",
         class: `motyw-kafel${aktywny ? " aktywny" : ""}`,
-        "aria-checked": String(aktywny),
+        "aria-pressed": String(aktywny),
         // jeden kafel w kolejności Tab (roving tabindex), reszta strzałkami
         tabindex: aktywny ? "0" : "-1",
         "data-motyw": m.id,
         onclick: () => wybierz(m.id),
       },
+
       h(
         "span",
         { class: "motyw-probki", "aria-hidden": "true" },
         [k.tlo, k.karta, k.akcent, k.pom1, k.tekst].map((c) => h("span", { style: { background: c } })),
       ),
-      h("span", { class: "motyw-nazwa" }, m.nazwa),
+      h(
+        "span",
+        { class: "motyw-nazwa" },
+        m.nazwa,
+        // wybrany widać nie tylko po kolorze ramki: znacznik ✓ „Wybrany” (czytnik ma to z aria-pressed)
+        aktywny ? h("span", { class: "motyw-wybrany", "aria-hidden": "true" }, ikona(IKONY.ok), t("motyw.wybrany")) : null,
+      ),
       h("span", { class: "motyw-opis" }, wlasny ? t("motyw.wlasny") : t(OPISY_WARIANTOW[m.wariant])),
     );
   }
 
   /** Strzałki w siatce kafli TYLKO przesuwają fokus; motyw zmienia klik albo Enter/spacja.
-   *  (W zwykłym radiogroup strzałka od razu wybiera: tu przypadkowe klawisze nie mogą zmienić wyglądu.) */
+   *  (Dlatego to grupa przycisków z aria-pressed, a nie radiogroup, w którym strzałka od razu wybiera.) */
   function klawiszeKafli(e: KeyboardEvent) {
     const kafle = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(".motyw-kafel")];
     const i = kafle.indexOf(document.activeElement as HTMLButtonElement);
@@ -207,7 +216,7 @@ export function sekcjaMotywow(): HTMLElement {
       h("span", { class: "pole-etykieta" }, t("motyw.tytul")),
       h(
         "div",
-        { class: "motywy", role: "radiogroup", "aria-label": t("motyw.tytul"), onkeydown: klawiszeKafli },
+        { class: "motywy", role: "group", "aria-label": t("motyw.tytul"), onkeydown: klawiszeKafli },
         WBUDOWANE.map((m) => kafel(m, false)),
         stan.wlasne.map((w) => kafel(znajdz(w.id, stan), true)),
       ),
