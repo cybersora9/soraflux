@@ -75,34 +75,35 @@ impl ModelNapisow {
         [ModelNapisow::Base, ModelNapisow::Small, ModelNapisow::Medium, ModelNapisow::LargeV3Turbo];
 
     pub fn opis(self) -> OpisModelu {
-        // Sumy SHA-256 do uzupełnienia przed wydaniem (patrz `OpisModelu::sha256`): w tej sesji nie było
-        // dostępu do Hugging Face, a wpisanie sumy z pamięci byłoby zgadywaniem.
+        // Sumy SHA-256 z API Hugging Face (`lfs.oid`, `node scripts/sumy-modeli.mjs`, 12.10.2026). `base` dodatkowo
+        // sprawdzona na pobranym ręcznie pliku (sha256sum = wartość poniżej); pozostałe trzy z API, do porównania
+        // z plikiem przed wydaniem.
         match self {
             ModelNapisow::Base => OpisModelu {
                 plik: "ggml-base.bin",
                 url: url_modelu!("ggml-base.bin"),
-                sha256: "",
+                sha256: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
                 rozmiar_mb: 142,
                 ram_mb: 500,
             },
             ModelNapisow::Small => OpisModelu {
                 plik: "ggml-small.bin",
                 url: url_modelu!("ggml-small.bin"),
-                sha256: "",
+                sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
                 rozmiar_mb: 466,
                 ram_mb: 1000,
             },
             ModelNapisow::Medium => OpisModelu {
                 plik: "ggml-medium.bin",
                 url: url_modelu!("ggml-medium.bin"),
-                sha256: "",
+                sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
                 rozmiar_mb: 1463,
                 ram_mb: 2300,
             },
             ModelNapisow::LargeV3Turbo => OpisModelu {
                 plik: "ggml-large-v3-turbo.bin",
                 url: url_modelu!("ggml-large-v3-turbo.bin"),
-                sha256: "",
+                sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
                 rozmiar_mb: 1549,
                 ram_mb: 2600,
             },
