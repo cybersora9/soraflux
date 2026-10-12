@@ -8,7 +8,8 @@ use std::path::Path;
 fn film(czas: f64) -> Media {
     Media {
         czas_s: Some(czas),
-        rozmiar_b: Some(50_000_000),
+        // rozmiar zgodny z bitrate (5000 kb/s), bo „zmniejsz do X MB” porównuje cel z rozmiarem źródła
+        rozmiar_b: Some((czas * 5000.0 * 125.0) as u64),
         kbps: Some(5000),
         format: Some("mov,mp4,m4a,3gp,3g2,mj2".into()),
         wideo: Some(StrumienWideo {
@@ -365,7 +366,7 @@ fn h265_w_mp4_ma_tag_hvc1_i_dwa_przebiegi_x265() {
     let mut p = Profil::dla(Kontener::Mp4);
     p.wideo = Some(ProfilWideo {
         kodek: KodekWideo::H265,
-        jakosc: JakoscWideo::RozmiarMb { mb: 50.0 },
+        jakosc: JakoscWideo::RozmiarMb { mb: 20.0 },
         ..Default::default()
     });
     let pl = plan(&film(60.0), &p, r"C:\Filmy\wy.mp4");
@@ -778,4 +779,72 @@ fn p4_lancuch_podgladu_ten_sam_co_konwersja() {
             && ma(&t[0], &["-c:a", "aac", "-b:a", "8k"])
             && t[0].contains(&"-vn".to_string())
     );
+}
+
+/// P4 (test na żywo 1.4.0): film bez dźwięku + MP3 dawał „ani obrazu, ani dźwięku”, choć plik ma obraz.
+/// Ta sama tabela co `blokadaFormatu` w src/logika.test.ts: {obraz+dźwięk, sam obraz, sam dźwięk} × formaty.
+#[test]
+fn p4_regula_blokady_formatu() {
+    let pelny = film(10.0);
+    let bez_dzwieku = Media { audio: None, sciezki_audio: vec![], ..film(10.0) };
+    let sam_dzwiek = Media { wideo: None, ..film(10.0) };
+    let animacja = |k: Kontener| Profil { gif: Some(ProfilGif::default()), ..Profil::dla(k) };
+    let przypadki: [(&str, Profil); 5] = [
+        ("mp4", Profil::dla(Kontener::Mp4)),
+        ("mkv", Profil::dla(Kontener::Mkv)),
+        ("mp3", Profil::dla(Kontener::Mp3)),
+        ("wav", Profil::dla(Kontener::Wav)),
+        ("gif", animacja(Kontener::Gif)),
+    ];
+    let webp = ("webp", animacja(Kontener::Webp));
+    let wynik = |m: &Media, p: &Profil| budowniczy::plan(m, p, Path::new("we.mp4"), Path::new("wy")).err();
+    for (nazwa, p) in przypadki.iter().chain(std::iter::once(&webp)) {
+        assert_eq!(wynik(&pelny, p), None, "obraz+dźwięk → {nazwa}");
+        let oczekiwany = match *nazwa {
+            "mp3" | "wav" => Some(BladProfilu::BrakDzwieku),
+            _ => None,
+        };
+        assert_eq!(wynik(&bez_dzwieku, p), oczekiwany, "sam obraz → {nazwa}");
+        let oczekiwany = match *nazwa {
+            "gif" | "webp" => Some(BladProfilu::BrakWideo),
+            _ => None,
+        };
+        assert_eq!(wynik(&sam_dzwiek, p), oczekiwany, "sam dźwięk → {nazwa}");
+    }
+    let nic = Media { wideo: None, audio: None, sciezki_audio: vec![], ..film(10.0) };
+    assert_eq!(wynik(&nic, &Profil::dla(Kontener::Mp3)), Some(BladProfilu::PustyWynik));
+}
+
+/// P9: dwa tryby cięcia 02–05 tym samym budowniczym. Bez kodowania: kopia strumieni od klatki kluczowej
+/// (kolejka potem sprawdza długość); „Dokładnie”: ponowne kodowanie, `-ss` przed `-i` jest co do klatki.
+#[test]
+fn p9_ciecie_kopia_i_dokladne() {
+    let ciecie = Some(Ciecie { od: 2.0, koniec: Some(5.0) });
+    let mut kopia = Profil::dla(Kontener::Mkv);
+    kopia.wideo = Some(ProfilWideo { kodek: KodekWideo::Kopiuj, ..Default::default() });
+    kopia.audio = Some(ProfilAudio { kodek: KodekAudio::Kopiuj, ..Default::default() });
+    kopia.ciecie = ciecie.clone();
+    let mut dokladnie = Profil::dla(Kontener::Mkv);
+    dokladnie.wideo =
+        Some(ProfilWideo { kodek: KodekWideo::H264, jakosc: JakoscWideo::Crf { crf: 18 }, ..Default::default() });
+    dokladnie.ciecie = ciecie;
+
+    let pk = plan(&film(8.0), &kopia, "wy.mkv");
+    let a = &pk.przebiegi[0];
+    assert!(ma(a, &["-ss", "2", "-t", "3", "-i", "we.mp4"]));
+    assert!(ma(a, &["-c:v", "copy"]) && ma(a, &["-c:a", "copy"]));
+    assert!(ma(a, &["-avoid_negative_ts", "make_zero"]));
+    assert!(pk.podpowiedzi.contains(&Podpowiedz::CiecieKlatkaKluczowa));
+    assert!(budowniczy::ciecie_bez_kodowania(&kopia));
+
+    let pd = plan(&film(8.0), &dokladnie, "wy.mkv");
+    let a = &pd.przebiegi[0];
+    assert!(ma(a, &["-ss", "2", "-t", "3", "-i", "we.mp4"]));
+    assert!(ma(a, &["-c:v", "libx264"]) && ma(a, &["-crf", "18"]));
+    assert!(ma(a, &["-c:a", "aac"]));
+    assert!(!a.contains(&"-avoid_negative_ts".to_string()), "przy kodowaniu znaczniki od zera i tak");
+    assert!(!pd.podpowiedzi.contains(&Podpowiedz::CiecieKlatkaKluczowa));
+    assert!(!budowniczy::ciecie_bez_kodowania(&dokladnie));
+    // bez fragmentu to nie jest cięcie
+    assert!(!budowniczy::ciecie_bez_kodowania(&Profil { ciecie: None, ..kopia }));
 }

@@ -1,6 +1,6 @@
 //! Zewnętrzne narzędzia: ffmpeg, ffprobe, yt-dlp, deno.
 //! Kolejność wyszukiwania: ścieżka z konfigu → katalog narzędzi apki → PATH.
-//! yt-dlp z PATH (np. pip) bywa stary i YouTube odpowiada 403: gdy ma więcej niż
+//! yt-dlp z PATH (np. pip) bywa stary i serwisy odpowiadają 403: gdy ma więcej niż
 //! [`MAKS_WIEK_YTDLP`] dni, a apka nie ma własnej kopii, pobieramy własną (patrz `ytdlp_decyzja`).
 
 pub mod pobieranie;
@@ -15,7 +15,7 @@ pub struct Sciezki {
     pub ffprobe: Option<PathBuf>,
     #[serde(default)]
     pub ytdlp: Option<PathBuf>,
-    /// Deno: środowisko JS dla yt-dlp (wyzwania YouTube).
+    /// Deno: środowisko JS dla yt-dlp (wyzwania JS niektórych serwisów).
     #[serde(default)]
     pub deno: Option<PathBuf>,
 }

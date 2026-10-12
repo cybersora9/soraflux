@@ -30,6 +30,9 @@ pub enum BladProfilu {
     BrakWideo,
     #[error("plik nie ma ani obrazu, ani dźwięku do zapisania")]
     PustyWynik,
+    /// Format audio, a plik ma tylko obraz (P4: wcześniej mylące „ani obrazu, ani dźwięku”).
+    #[error("plik nie ma dźwięku: wybierz format wideo albo GIF")]
+    BrakDzwieku,
     #[error("prędkość poza zakresem 0,25–4")]
     ZlaPredkosc,
     #[error("złe cięcie: koniec musi być po początku")]
@@ -38,6 +41,9 @@ pub enum BladProfilu {
     ZlyBitrateAudio,
     #[error("wymiary muszą być większe od zera")]
     ZleWymiary,
+    /// „Zmniejsz do X MB”, a plik (albo wybrany fragment) już jest mniejszy: kodowanie tylko by go powiększyło.
+    #[error("plik już się mieści w docelowym rozmiarze ({zrodlo_b} B)")]
+    JuzSieMiesci { zrodlo_b: u64 },
 }
 
 /// Podpowiedzi dla frontu: nie blokują, tylko informują (albo proponują zmianę).
@@ -341,6 +347,65 @@ pub fn bitrate_z_rozmiaru(mb: f32, czas_s: f64, kbps_audio: u32) -> Result<u32, 
     Ok(wideo as u32)
 }
 
+/// Cięcie bez ponownego kodowania: fragment od–do i same kopie strumieni (obraz i dźwięk albo ich brak).
+/// Taki wynik zaczyna się na klatce kluczowej, więc kolejka sprawdza jego długość (P9).
+pub fn ciecie_bez_kodowania(profil: &Profil) -> bool {
+    profil.ciecie.is_some()
+        && !profil.kontener.obraz()
+        && profil.wideo.as_ref().is_none_or(|w| w.kodek == KodekWideo::Kopiuj)
+        && profil.audio.as_ref().is_none_or(|a| a.kodek == KodekAudio::Kopiuj)
+        && (profil.wideo.is_some() || profil.audio.is_some())
+}
+
+/// Plan „zmniejsz do X MB” (usterka P1 z testu 1.4.0: 3,1 MB → 15,0 MB, szacunek 23,5 MB).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "typ", rename_all = "snake_case")]
+pub enum PlanRozmiaru {
+    /// Źródło (albo jego fragment) nie jest większe od celu: nie kodujemy, bo wynik byłby co najwyżej większy.
+    JuzSieMiesci { zrodlo_b: u64 },
+    /// Kodujemy: bitrate obrazu nie wyższy niż w źródle, `bajty` = przewidywany wynik.
+    Koduj { kbps_wideo: u32, kbps_audio: u32, bajty: u64 },
+}
+
+/// Narzut kontenera MP4/MKV na bitrate strumieni (szacunek wyniku).
+const NARZUT_KONTENERA: f64 = 1.01;
+
+/// Ile bajtów źródła przypada na wynik: cały plik albo proporcjonalna część przy cięciu / prędkości.
+fn bajty_zrodla_wyniku(media: &Media, czas_wyniku: f64, predkosc: f32) -> Option<u64> {
+    let calosc = media.rozmiar_b.filter(|b| *b > 0)?;
+    let ulamek = match media.czas_s.filter(|c| *c > 0.0) {
+        Some(c) => (czas_wyniku * predkosc.max(0.01) as f64 / c).clamp(0.0, 1.0),
+        None => 1.0,
+    };
+    Some((calosc as f64 * ulamek) as u64)
+}
+
+/// Decyzja i bitrate dla „zmniejsz do `mb` MB”. Zasady:
+/// 1. cel ≥ źródło (albo jego fragment) → [`PlanRozmiaru::JuzSieMiesci`], bez kodowania;
+/// 2. bitrate obrazu = `min(z rozmiaru, bitrate obrazu źródła)`: koder i tak nie doda szczegółów,
+///    a 2 przebiegi z bitrate kilka razy wyższym od źródła tylko puchną (23,8 Mb/s dla źródła 3,2 Mb/s);
+/// 3. przewidywany wynik liczony z bitrate, który naprawdę dostanie koder (nie z samego celu);
+/// 4. przewidywany wynik ≥ źródło → też [`PlanRozmiaru::JuzSieMiesci`].
+pub fn plan_rozmiaru(media: &Media, profil: &Profil, mb: f32) -> Result<PlanRozmiaru, BladProfilu> {
+    let czas = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc).ok_or(BladProfilu::BrakCzasu)?;
+    let zrodlo = bajty_zrodla_wyniku(media, czas, profil.predkosc);
+    let cel = mb as f64 * 1024.0 * 1024.0;
+    if let Some(z) = zrodlo.filter(|z| cel >= *z as f64) {
+        return Ok(PlanRozmiaru::JuzSieMiesci { zrodlo_b: z });
+    }
+    let audio = if profil.kontener.tylko_audio() { None } else { profil.audio.as_ref() };
+    let kbps_audio = kbps_audio_szac(audio, media);
+    let mut kbps_wideo = bitrate_z_rozmiaru(mb, czas, kbps_audio)?;
+    if let Some(src) = crate::szacunek::kbps_wideo_zrodla(media) {
+        kbps_wideo = kbps_wideo.min(src.max(50));
+    }
+    let bajty = ((kbps_wideo + kbps_audio) as f64 * 1000.0 / 8.0 * czas * NARZUT_KONTENERA) as u64;
+    if let Some(z) = zrodlo.filter(|z| bajty >= *z) {
+        return Ok(PlanRozmiaru::JuzSieMiesci { zrodlo_b: z });
+    }
+    Ok(PlanRozmiaru::Koduj { kbps_wideo, kbps_audio, bajty })
+}
+
 struct Wideo {
     filtry: String,
     koder: Args,
@@ -460,9 +525,10 @@ fn plan_wideo(
         }
         JakoscWideo::Bitrate { kbps } => Some(*kbps),
         JakoscWideo::RozmiarMb { mb } => {
-            let czas = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc).ok_or(BladProfilu::BrakCzasu)?;
-            let audio = if kontener.tylko_audio() { None } else { profil.audio.as_ref() };
-            let kbps = bitrate_z_rozmiaru(*mb, czas, kbps_audio_szac(audio, media))?;
+            let kbps = match plan_rozmiaru(media, profil, *mb)? {
+                PlanRozmiaru::JuzSieMiesci { zrodlo_b } => return Err(BladProfilu::JuzSieMiesci { zrodlo_b }),
+                PlanRozmiaru::Koduj { kbps_wideo, .. } => kbps_wideo,
+            };
             if dwa_przebiegi(koder) {
                 dwa = Some(koder);
             } else {
@@ -685,6 +751,10 @@ fn plan_av(media: &Media, profil: &Profil, wejscie: &Path, wyjscie: &Path, kt: &
         _ => None,
     };
     if wideo.is_none() && audio.is_none() {
+        // ta sama reguła co `blokadaFormatu` w logika.ts
+        if k.tylko_audio() && media.wideo.is_some() && media.audio.is_none() {
+            return Err(BladProfilu::BrakDzwieku);
+        }
         return Err(BladProfilu::PustyWynik);
     }
 

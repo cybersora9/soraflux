@@ -37,7 +37,7 @@ Za darmo i otwarty kod (MIT). Bez limitów, reklam i telemetrii.</p>
 
 - **Pobieranie** (yt-dlp): większość popularnych serwisów z wideo i muzyką oraz bezpośrednie linki; szybkie akcje „Tylko dźwięk MP3” i „Najlepsza jakość”, napisy, miniatura, metadane, rozdziały, playlisty, „po pobraniu przekonwertuj”. Apka pilnuje wieku yt-dlp: stary z systemu (np. z pipa) zastępuje własną, aktualną kopią, a przycisk „Aktualizuj yt-dlp” odświeża tylko tę kopię.
 - **Motywy**: Kissaten, City Pop i MiniDisc w palecie cybersora albo japońskiej, każdy jasny i ciemny (kontrast WCAG AA), plus własne motywy z edytorem, eksportem i importem. Fonty wbudowane, działa offline.
-- **Szybkie akcje jednym kliknięciem**: „Zmniejsz do X MB”, „Wyciągnij dźwięk (MP3)”, „Zrób GIF”, „Na telefon (480p 25 fps)”, „Wytnij fragment bez ponownego kodowania” (sekundy zamiast minut, bez straty jakości). Potem można wszystko dopracować w panelu.
+- **Szybkie akcje jednym kliknięciem**: „Zmniejsz do X MB”, „Wyciągnij dźwięk (MP3)”, „Zrób GIF”, „Na telefon (480p 25 fps)”, „Wytnij fragment” (bez ponownego kodowania: sekundy zamiast minut, bez straty jakości; albo „Dokładnie (ponowne kodowanie)” co do klatki). Potem można wszystko dopracować w panelu.
 - **Podgląd przed/po**: jedna klatka wyniku z dokładnie tymi ustawieniami, z wybranego suwakiem momentu, porównanie suwakiem dzielącym obraz. Przy dźwięku: odsłuch 5 s wyniku (np. jak naprawdę brzmi AAC 8 kb/s).
 - **Pełna kontrola jakości wideo**: rozdzielczość (2160p…144p albo własne W×H), FPS (zachowaj, 60/50/30/25/24/15/10, własne), suwak CRF, bitrate w kb/s albo **docelowy rozmiar w MB** (2 przebiegi + automatyczna korekta, żeby plik naprawdę się zmieścił).
 - **Dźwięk**: AAC, MP3, Opus, Vorbis, FLAC, WAV/PCM, kopiuj, bez dźwięku; **8–320 kb/s**, 8–96 kHz, mono/stereo, normalizacja głośności, wybór ścieżki (albo wszystkie), gdy plik ma kilka.
@@ -87,6 +87,7 @@ Możesz też kliknąć prawym przyciskiem plik wideo, audio albo obraz w Eksplor
 
 - **Wymagania:** Windows 10 albo 11, 64-bit. Instalator jest mały, bo nie ma w nim ffmpeg ani yt-dlp: apka pobiera je z oficjalnych wydań przy pierwszym starcie (jedno kliknięcie, sprawdzenie SHA256).
 - **Wersja przenośna:** utwórz folder `portable` obok `SoraFlux.exe` (np. na pendrivie). Ustawienia, presety, dziennik i pobrane narzędzia lądują wtedy w nim, nic w profilu użytkownika.
+- **Aktualna wersja:** 1.4.1, wydanie z poprawkami ([co naprawiono](RELEASE_NOTES_1.4.1.md)).
 - **Aktualizacja:** od 1.3.0 Ustawienia → „Sprawdź aktualizacje” pobiera i instaluje nową wersję (podpisaną, apka sprawdza podpis). Z 1.2.x zainstaluj 1.3.0 raz ręcznie: pobierz nowy instalator i uruchom go na starej wersji; ustawienia i presety zostają.
 - **Odinstalowanie:** Ustawienia Windows → Aplikacje → Zainstalowane aplikacje → SoraFlux → Odinstaluj.
 - **Sprawdzenie pliku (opcjonalnie):** każde wydanie ma `SHA256SUMS.txt`. W PowerShellu wpisz `Get-FileHash $HOME\Downloads\SoraFlux-setup.exe` i porównaj wynik z liczbą w tym pliku.
@@ -132,7 +133,7 @@ Kod buduje się na Linuksie (tam też idą testy CI), ale wydania są na razie t
 | Film nie gra na telefonie / w WhatsAppie | Użyj „Na telefon (480p 25 fps)” albo MP4 + H.264 + AAC. Nie włączaj 10 bitów i nie wybieraj Opus w MP4. |
 | „Docelowy rozmiar za mały” | Przy tej długości filmu na obraz zostaje < 50 kb/s. Wytnij fragment, obniż rozdzielczość albo zwiększ limit MB. |
 | Plik wyszedł większy niż oryginał | Źródło było już mocno skompresowane. Wybierz bitrate albo rozmiar MB zamiast CRF, albo niższą rozdzielczość. |
-| Cięcie bez kodowania zaczyna się chwilę wcześniej | Tak działa kopia strumienia: start na najbliższej klatce kluczowej. Dla co do klatki użyj zwykłej konwersji z cięciem. |
+| Cięcie bez kodowania zaczyna się wcześniej albo trwa dłużej, niż ustawiono | Tak działa kopia strumienia: start na najbliższej wcześniejszej klatce kluczowej, która w niektórych plikach jest kilka sekund dalej. Kolejka pokazuje wtedy „Gotowe z ostrzeżeniem” z prawdziwą długością. Co do klatki: włącz „Dokładnie (ponowne kodowanie)”. |
 | Enkoder NVENC/QSV/AMF nie działa | Apka pokazuje tylko enkodery, które przeszły próbę; jeśli padnie w trakcie, sama dokończy na procesorze (informacja w kolejce). Zaktualizuj sterownik karty. |
 | Komputer przycina w trakcie | Ustawienia → Praca: „Ile filmów naraz” = 1 i „Nie zamulaj komputera”. |
 | Coś nie działa i chcesz zgłosić błąd | Ustawienia → „Kopiuj raport” (wersje, system, ostatnie błędy, bez ścieżek Twoich folderów) i wklej go w zgłoszeniu. |

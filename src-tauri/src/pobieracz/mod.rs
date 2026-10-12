@@ -83,6 +83,8 @@ fn s(x: &str) -> OsString {
 }
 
 fn wspolne_narzedzia(a: &mut Vec<OsString>, sc: &Sciezki) {
+    // P5: wyjście i komunikaty w UTF-8 niezależnie od strony kodowej konsoli Windows
+    a.extend([s("--encoding"), s("utf-8")]);
     if let Some(f) = &sc.ffmpeg {
         a.extend([s("--ffmpeg-location"), f.as_os_str().to_os_string()]);
     }
@@ -332,18 +334,19 @@ pub async fn info(ytdlp: &Path, url: &str, playlista: bool, sc: &Sciezki) -> Res
         .await
         .map_err(|e| blad::kod("uruchomienie", &[("program", &"yt-dlp"), ("blad", &e)]))?;
     if !w.status.success() {
-        return Err(komunikat_bledu(&String::from_utf8_lossy(&w.stderr)));
+        return Err(komunikat_bledu(&crate::procesy::dekoduj(&w.stderr)));
     }
-    info_z_json(&String::from_utf8_lossy(&w.stdout))
+    info_z_json(&crate::procesy::dekoduj(&w.stdout))
 }
 
-/// Komunikat, gdy serwis odmawia (stary yt-dlp, zmiany po stronie YouTube).
+/// Komunikat, gdy serwis odmawia (stary yt-dlp, zmiany po stronie serwisu).
 /// Klucz komunikatu „serwis zablokował pobieranie, zaktualizuj yt-dlp” (`rust.yt.blokada`).
 pub const BLOKADA: &str = "yt.blokada";
 
 /// Błąd yt-dlp po ludzku (klucz i18n, patrz [`crate::blad`]). 403 / „Sign in to confirm” / nsig /
-/// „Requested format is not available” przy YouTube to prawie zawsze za stary yt-dlp → [`BLOKADA`].
-/// Surowy ogon zostaje pod spodem (do raportu), żeby dało się zgłosić błąd.
+/// „Requested format is not available” przy dużych serwisach to prawie zawsze za stary yt-dlp → [`BLOKADA`].
+/// Surowy ogon zostaje pod spodem (front pokazuje go tylko w „Szczegółach technicznych”), także dla błędów
+/// bez rozpoznanej klasy (`yt.inny`): użytkownik nie dostaje już gołego „ERROR: …” (P5 z testu 1.4.0).
 pub fn komunikat_bledu(stderr: &str) -> String {
     let surowy = stderr.trim();
     let m = surowy.to_lowercase();
@@ -354,7 +357,7 @@ pub fn komunikat_bledu(stderr: &str) -> String {
         || m.contains("n challenge")
         || m.contains("unable to extract")
         || m.contains("precondition check failed");
-    // Najpierw przypadki, których aktualizacja nie naprawi (YouTube pisze też „Sign in to confirm your age”).
+    // Najpierw przypadki, których aktualizacja nie naprawi (serwisy piszą też „Sign in to confirm your age”).
     let klucz = if m.contains("private video") {
         "yt.prywatny"
     } else if m.contains("confirm your age")
@@ -368,16 +371,13 @@ pub fn komunikat_bledu(stderr: &str) -> String {
         "yt.kraj"
     } else if m.contains("live event will begin") || m.contains("premieres in") {
         "yt.transmisja"
-    } else if m.contains("http error 404")
-        || m.contains("http error 410")
-        || m.contains("video unavailable")
-        || m.contains("getaddrinfo failed")
-        || m.contains("name or service not known")
-        || m.contains("failed to resolve")
-        || m.contains("connection refused")
-        || m.contains("timed out")
-    {
-        // zły adres, usunięty film albo strona nie odpowiada: aktualizacja yt-dlp tu nie pomoże
+    } else if brak_polaczenia(&m) {
+        // serwer nie odpowiada, odmawia połączenia albo nazwa się nie rozwiązuje (też komunikaty Windows)
+        "yt.polaczenie"
+    } else if m.contains("http error 404") || m.contains("http error 410") || m.contains("404: not found") {
+        "yt.nie_znaleziono"
+    } else if m.contains("video unavailable") {
+        // usunięty albo ukryty film: aktualizacja yt-dlp tu nie pomoże
         "yt.niedostepny"
     } else if blokada {
         BLOKADA
@@ -390,9 +390,37 @@ pub fn komunikat_bledu(stderr: &str) -> String {
     } else if surowy.is_empty() {
         "yt.bez_opisu"
     } else {
-        return surowy.to_string();
+        "yt.inny"
     };
     blad::z_ogonem(klucz, &[], surowy)
+}
+
+/// Brak połączenia z serwerem: odmowa, przekroczony czas, DNS, sieć niedostępna. Dopasowania po kodach
+/// (WinError/Errno) działają też dla tekstu z krzakami („Nie mona nawiza poczenia”).
+fn brak_polaczenia(m: &str) -> bool {
+    const WZORCE: &[&str] = &[
+        "failed to establish a new connection",
+        "connection refused",
+        "actively refused",
+        "winerror 10061",
+        "errno 111",
+        "winerror 10060",
+        "errno 110",
+        "timed out",
+        "getaddrinfo failed",
+        "winerror 11001",
+        "errno 11001",
+        "name or service not known",
+        "nodename nor servname",
+        "temporary failure in name resolution",
+        "failed to resolve",
+        "network is unreachable",
+        "winerror 10051",
+        "no route to host",
+        "nie można nawiązać połączenia",
+        "nie mona nawiza",
+    ];
+    WZORCE.iter().any(|w| m.contains(w))
 }
 
 /// Czy tekst wygląda na link do filmu (do wykrywania w schowku).
@@ -501,16 +529,16 @@ mod testy {
         let klucz = |e: &str| blad::klucz(&komunikat_bledu(e)).unwrap_or_default();
         for e in [
             "ERROR: unable to download video data: HTTP Error 403: Forbidden",
-            "ERROR: [youtube] abc: Sign in to confirm you're not a bot",
-            "WARNING: [youtube] nsig extraction failed: Some formats may be missing",
+            "ERROR: [example] abc: Sign in to confirm you're not a bot",
+            "WARNING: [example] nsig extraction failed: Some formats may be missing",
         ] {
             let k = komunikat_bledu(e);
             assert_eq!(blad::klucz(&k).as_deref(), Some(BLOKADA), "{k}");
             assert!(k.ends_with(e), "surowy błąd zostaje do raportu");
         }
         assert_eq!(klucz("ERROR: Unsupported URL: https://example.com/"), "yt.nieobslugiwany");
-        assert_eq!(klucz("ERROR: [youtube] x: Sign in to confirm your age"), "yt.wiek");
-        assert_eq!(klucz("ERROR: [youtube] x: Private video"), "yt.prywatny");
+        assert_eq!(klucz("ERROR: [example] x: Sign in to confirm your age"), "yt.wiek");
+        assert_eq!(klucz("ERROR: [example] x: Private video"), "yt.prywatny");
         assert_eq!(klucz("ERROR: x: Join this channel to get access to members-only content"), "yt.czlonkowie");
         assert_eq!(klucz("ERROR: The uploader has not made this video available in your country"), "yt.kraj");
         assert_eq!(klucz("ERROR: This live event will begin in 2 hours"), "yt.transmisja");
@@ -518,15 +546,72 @@ mod testy {
         assert_eq!(klucz("ERROR: this is DRM protected"), "yt.drm");
         assert_eq!(
             klucz("ERROR: [generic] x: Unable to download webpage: HTTP Error 404: File not found (caused by <HTTPError 404: File not found>)"),
-            "yt.niedostepny"
+            "yt.nie_znaleziono"
         );
-        assert_eq!(klucz("ERROR: [youtube] abc: Video unavailable"), "yt.niedostepny");
-        assert_eq!(
-            klucz("ERROR: Unable to download webpage: <urlopen error [Errno 11001] getaddrinfo failed>"),
-            "yt.niedostepny"
-        );
+        assert_eq!(klucz("ERROR: [example] abc: Video unavailable"), "yt.niedostepny");
         assert_eq!(klucz("  "), "yt.bez_opisu");
-        assert_eq!(komunikat_bledu("ERROR: coś innego"), "ERROR: coś innego");
+        // nierozpoznany błąd: klucz „yt.inny”, surowy tekst tylko w ogonie (Szczegóły techniczne)
+        let k = komunikat_bledu("ERROR: coś innego");
+        assert_eq!(blad::klucz(&k).as_deref(), Some("yt.inny"));
+        assert!(k.ends_with("\n\nERROR: coś innego"));
+    }
+
+    /// P5 (test na żywo 1.4.0): link do zamkniętego portu dawał surowe „ERROR: [generic] … [WinError 10061]
+    /// Nie mona nawiza poczenia…” (polskie litery zgubione), a 404 miało dopisany surowy ERROR.
+    /// Tabela: wycinek stderr (angielski, polski, z krzakami) → klasa → zwięzły komunikat PL.
+    #[test]
+    fn p5_klasy_bledow_pobierania() {
+        let pl: serde_json::Value = serde_json::from_str(include_str!("../../../src/i18n/pl.json")).unwrap();
+        let tabela: &[(&str, &str, &str)] = &[
+            (
+                "ERROR: [generic] x: Unable to download webpage: HTTPConnection(host='127.0.0.1', port=59999): Failed to establish a new connection: [WinError 10061] Nie mona nawiza poczenia, poniewa komputer docelowy aktywnie go odmawia",
+                "yt.polaczenie",
+                "Nie mogę połączyć się z serwerem. Sprawdź adres i internet.",
+            ),
+            (
+                "ERROR: [generic] x: Unable to download webpage: [WinError 10061] Nie można nawiązać połączenia, ponieważ komputer docelowy aktywnie go odmawia",
+                "yt.polaczenie",
+                "Nie mogę połączyć się z serwerem. Sprawdź adres i internet.",
+            ),
+            ("ERROR: Unable to download webpage: <urlopen error [Errno 111] Connection refused>", "yt.polaczenie", ""),
+            ("ERROR: Unable to download webpage: The read operation timed out", "yt.polaczenie", ""),
+            ("ERROR: Unable to download webpage: <urlopen error [Errno 11001] getaddrinfo failed>", "yt.polaczenie", ""),
+            ("ERROR: [Errno -2] Name or service not known", "yt.polaczenie", ""),
+            ("ERROR: [Errno -3] Temporary failure in name resolution", "yt.polaczenie", ""),
+            (
+                "ERROR: [generic] x: Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)",
+                "yt.nie_znaleziono",
+                "Pod tym adresem nic nie ma (błąd 404). Sprawdź link.",
+            ),
+            ("ERROR: unable to download video data: HTTP Error 410: Gone", "yt.nie_znaleziono", ""),
+            ("ERROR: unable to download video data: HTTP Error 403: Forbidden", BLOKADA, ""),
+            ("ERROR: Unsupported URL: https://example.com/strona", "yt.nieobslugiwany", ""),
+        ];
+        for (stderr, klasa, tekst) in tabela {
+            let k = komunikat_bledu(stderr);
+            assert_eq!(blad::klucz(&k).as_deref(), Some(*klasa), "{stderr}");
+            assert!(k.ends_with(stderr), "surowy tekst zostaje tylko w ogonie: {k}");
+            let tlumaczenie = pl[format!("rust.{klasa}")].as_str().unwrap();
+            if !tekst.is_empty() {
+                assert_eq!(tlumaczenie, *tekst);
+            }
+            assert!(!tlumaczenie.contains("ERROR"), "bez surowego tekstu w komunikacie: {tlumaczenie}");
+        }
+    }
+
+    #[test]
+    fn p5_ytdlp_w_utf8() {
+        for a in [
+            argumenty_info("https://example.com/x", false, &Sciezki::default()),
+            argumenty_pobrania(
+                "https://example.com/x",
+                &OpcjePobrania::default(),
+                Path::new("/tmp"),
+                &Sciezki::default(),
+            ),
+        ] {
+            assert!(jako_tekst(&a).contains("--encoding utf-8"), "{}", jako_tekst(&a));
+        }
     }
 
     #[cfg(unix)]

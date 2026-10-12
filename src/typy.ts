@@ -172,10 +172,12 @@ export type BladProfilu =
   | { typ: "kopia_z_filtrami" }
   | { typ: "brak_wideo" }
   | { typ: "pusty_wynik" }
+  | { typ: "brak_dzwieku" }
   | { typ: "zla_predkosc" }
   | { typ: "zle_ciecie" }
   | { typ: "zly_bitrate_audio" }
-  | { typ: "zle_wymiary" };
+  | { typ: "zle_wymiary" }
+  | { typ: "juz_sie_miesci"; zrodlo_b: number };
 
 export interface PodgladPlanu {
   przebiegi: string[][];
@@ -186,7 +188,7 @@ export interface PodgladPlanu {
 export interface Szacunek {
   bajty: number | null;
   dokladny: boolean;
-  ostrzezenie: "ogromny" | "wiekszy_niz_zrodlo" | null;
+  ostrzezenie: "ogromny" | "wiekszy_niz_zrodlo" | "juz_sie_miesci" | null;
   /** Docelowy bitrate wyższy niż źródło: tyle kb/s ma źródło. */
   zrodlo_kbps: number | null;
 }
@@ -257,7 +259,10 @@ export interface InfoZadania {
   ostrzezenie: OstrzezenieWyniku | null;
 }
 
-export type OstrzezenieWyniku = { typ: "uciete"; zrodlo_konczy_s: number; wynik_s: number; oczekiwane_s: number };
+export type OstrzezenieWyniku =
+  | { typ: "uciete"; zrodlo_konczy_s: number; wynik_s: number; oczekiwane_s: number }
+  /** P9: cięcie bez ponownego kodowania trwa wyraźnie inaczej niż zamówione (klatka kluczowa). */
+  | { typ: "niedokladne_ciecie"; wynik_s: number; oczekiwane_s: number };
 
 export interface Postep {
   id: number;
@@ -289,7 +294,7 @@ export interface InfoYtdlp {
   wersja: string | null;
   wiek_dni: number | null;
   pochodzenie: Pochodzenie;
-  /** Starszy niż 30 dni: YouTube może odmawiać. */
+  /** Starszy niż 30 dni: serwisy mogą odmawiać. */
   stary: boolean;
 }
 

@@ -6,6 +6,7 @@ import type {
   Info, StrumienAudio, StrumienWideo, InfoZadania, Konfig, PlikZFolderu, Media, NoweZadanie, PodgladPlanu, Postep, PostepNarzedzia, Preset, Profil, Szacunek,
 } from "./typy";
 import { profilDla, rozszerzenie, nazwaPliku, toObraz, komendaDoPokazania, obrazDomyslny, gifDomyslny } from "./logika";
+import { ROZSZERZENIA_MEDIOW } from "./upuszczanie";
 
 type Sluchacz<T> = (x: T) => void;
 const sluchacze = {
@@ -44,6 +45,12 @@ if (motyw === "light" || motyw === "dark") konfig.motyw = motyw;
 // ?wyglad=jp-b: motyw wyglądu (zrzuty v1.2, każdy z 6 motywów)
 const wygladParam = parametry.get("wyglad");
 if (wygladParam) konfig.motyw_wyglad = wygladParam;
+// ?folder=1: wybrany folder wyników i pobrań (układ paska akcji z długą nazwą folderu, P10)
+if (parametry.get("folder") === "1") {
+  konfig.katalog_wyjscia = "C:/Users/sora/Videos/Gotowe do wysłania z wakacji 2026";
+  konfig.katalog_pobierania = "C:/Users/sora/Downloads/Pobrane filmy";
+  konfig.ostatnie_foldery = ["C:/Users/sora/Videos/Gotowe do wysłania z wakacji 2026", "D:/Archiwum"];
+}
 const jezykParam = parametry.get("jezyk");
 if (jezykParam === "pl" || jezykParam === "en") konfig.jezyk = jezykParam;
 // Zmyślone nazwy w języku zrzutu (EN zrzuty bez polskich tytułów i ścieżek).
@@ -122,6 +129,21 @@ function mediaDla(sciezka: string): Media {
       napisy: [{ indeks: 3, kodek: "mov_text", jezyk: "pol", tekstowe: true }],
     };
   }
+  // film bez ścieżki dźwięku (P4)
+  if (/bez-dzwieku|no-audio/i.test(sciezka)) {
+    return {
+      ...baza, czas_s: 8, rozmiar_b: 3_000_000, kbps: 3000, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+      wideo: wideoPrzyklad({ w: 1280, h: 720, fps: 30, kbps: 3000 }), audio: null,
+    };
+  }
+  // mały klip jak w teście na żywo 1.4.0 (P1): 3,1 MB, 1280×720, 8 s, ok. 3,2 Mb/s
+  if (/maly|small/i.test(sciezka)) {
+    const a = audioPrzyklad({ kbps: 128 });
+    return {
+      ...baza, czas_s: 8, rozmiar_b: 3_250_586, kbps: 3250, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
+      wideo: wideoPrzyklad({ w: 1280, h: 720, fps: 30, kbps: 3120 }), audio: a, sciezki_audio: [a],
+    };
+  }
   const a = audioPrzyklad({});
   return {
     ...baza, czas_s: 187.4, rozmiar_b: 432_013_312, kbps: 17_600, format: "mov,mp4,m4a,3gp,3g2,mj2", obraz: false,
@@ -159,7 +181,12 @@ function szacuj(m: Media, p: Profil): Szacunek {
   let zrodloKbps: number | null = null;
   if (p.wideo && m.wideo && !["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"].includes(p.kontener)) {
     const j = p.wideo.jakosc;
-    if (j.typ === "rozmiar_mb") return { bajty: j.mb * 1024 * 1024 * 0.98, dokladny: true, ostrzezenie: null, zrodlo_kbps: null };
+    if (j.typ === "rozmiar_mb") {
+      // jak plan_rozmiaru w Rust: cel ≥ źródło → nie kodujemy; bitrate obrazu nie wyższy niż w źródle
+      if (m.rozmiar_b && j.mb * 1024 * 1024 >= m.rozmiar_b) return { bajty: m.rozmiar_b, dokladny: true, ostrzezenie: "juz_sie_miesci", zrodlo_kbps: null };
+      const kv = Math.min((j.mb * 8192 * 0.97) / Math.max(czas, 0.1) - a, m.wideo.kbps ?? Infinity);
+      return { bajty: ((kv + a) * 1000 / 8) * czas * 1.01, dokladny: true, ostrzezenie: null, zrodlo_kbps: null };
+    }
     if (j.typ === "bitrate") {
       // jak szacunek.rs: min(docelowy, źródłowy)
       const sufit = m.wideo.kbps ?? Infinity;
@@ -340,7 +367,7 @@ export const atrapa: Api = {
     opoznij(
       s.flatMap((p): PlikZFolderu[] =>
         /\.[a-z0-9]+$/i.test(p)
-          ? [{ sciezka: p, podkatalog: null }]
+          ? ROZSZERZENIA_MEDIOW.includes(rozszerzenie(p)) ? [{ sciezka: p, podkatalog: null }] : [] // jak `zbierz` w komendy.rs
           : (konfig.jezyk === "en"
               ? ["day-1/beach.mp4", "day-1/sunset.mov", "day-2/boat-trip.mp4", "drone-footage.mkv"]
               : ["dzien-1/plaza.mp4", "dzien-1/zachod-slonca.mov", "dzien-2/rejs.mp4", "film-z-drona.mkv"])
@@ -400,7 +427,18 @@ export const atrapa: Api = {
     }
     return konfig.sciezki;
   },
-  ytdlpInfo: (url) => opoznij({ ...INFO_PRZYKLAD, url } as Info, 500),
+  async ytdlpInfo(url) {
+    // błędy jak z komunikat_bledu w Rust (P5/P6): zamknięty port i 404
+    if (/:59999\//.test(url)) {
+      await opoznij(null, 300);
+      throw '@i18n {"k":"yt.polaczenie","a":{}}\n\nERROR: [generic] x: Unable to download webpage: HTTPConnection(host=\'127.0.0.1\', port=59999): Failed to establish a new connection: [WinError 10061] Nie można nawiązać połączenia, ponieważ komputer docelowy aktywnie go odmawia';
+    }
+    if (/nie-ma|404/.test(url)) {
+      await opoznij(null, 300);
+      throw '@i18n {"k":"yt.nie_znaleziono","a":{}}\n\nERROR: [generic] x: Unable to download webpage: HTTP Error 404: Not Found';
+    }
+    return opoznij({ ...INFO_PRZYKLAD, url } as Info, 500);
+  },
   async ytdlpAktualizuj() {
     await opoznij(null, 600);
     ytdlpStary = false;

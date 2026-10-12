@@ -5,20 +5,14 @@
 import { api } from "../api";
 import { h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t, tekstBledu, tlumaczBlad } from "../i18n";
+import { t, tekstBledu } from "../i18n";
 import { etykietaWysokosci, formatujCzas, pokazOstrzezenieWieku, profilDla, sklonuj, wyborSzybki, wyciagnijUrl, type NajnowszyYtdlp } from "../logika";
 import { panelUstawien } from "../komponenty/PanelUstawien";
 import { przelacznik, przycisk, tekst, uwaga, wybor, type Opcja } from "../komponenty/pola";
-import { folderWyjscia } from "../komponenty/wspolne";
+import { blokBledu, folderWyjscia, obserwujPasek } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
-import type { Info, NoweZadanie, OpcjePobrania, Profil, Wybor } from "../typy";
-
-interface Wynik {
-  url: string;
-  info: Info | null;
-  blad: string | null;
-  wybor: Wybor;
-}
+import type { NoweZadanie, OpcjePobrania, Profil, Wybor } from "../typy";
+import { doPobrania, POCZATEK, sprawdzanie, type WynikSprawdzenia as Wynik, type ZdarzenieSprawdzania } from "../sprawdzanie";
 
 const AUDIO = ["mp3", "m4a", "opus", "flac"];
 
@@ -32,8 +26,10 @@ export interface WidokPobierania {
 export function stworzWidokPobierania(): WidokPobierania {
   let tekstUrl = "";
   let playlista = false;
-  let wyniki: Wynik[] = [];
-  let sprawdzanie = false;
+  /** Wyniki „Sprawdź” (P6): tylko przez reduktor `sprawdzanie`, żeby stare karty nie zostawały. */
+  let stan = POCZATEK;
+  const zdarzenie = (z: ZdarzenieSprawdzania) => (stan = sprawdzanie(stan, z));
+  let sprawdzam = false;
   let potem = false;
   let profilPotem: Profil = profilDla("mp4");
   let opcje: Omit<OpcjePobrania, "wybor" | "tytul" | "playlista"> = {
@@ -176,7 +172,7 @@ export function stworzWidokPobierania(): WidokPobierania {
   function szybkieAkcje(): HTMLElement {
     const zastosuj = (a: "mp3" | "najlepsza") => {
       szybka = a;
-      for (const w of wyniki) w.wybor = wyborSzybki(a);
+      zdarzenie({ typ: "wszystkie_wybor", wybor: wyborSzybki(a) });
       rysuj();
     };
     const akcja = (a: "mp3" | "najlepsza", ik: string) =>
@@ -196,7 +192,19 @@ export function stworzWidokPobierania(): WidokPobierania {
   function wejscie(): HTMLElement {
     const pole = h("textarea", { class: "pole-url", placeholder: t("pobierz.placeholder"), "aria-label": t("pobierz.placeholder"), spellcheck: "false" });
     pole.value = tekstUrl;
-    pole.addEventListener("input", () => (tekstUrl = pole.value));
+    pole.addEventListener("input", () => {
+      tekstUrl = pole.value;
+      // P6: edycja pola oznacza karty linków, których już w nim nie ma, jako nieaktualne
+      const przed = stan;
+      zdarzenie({ typ: "edycja", tekst: tekstUrl });
+      if (stan !== przed) {
+        const [a, b] = [pole.selectionStart, pole.selectionEnd];
+        rysuj();
+        const nowe = el.querySelector<HTMLTextAreaElement>(".pole-url");
+        nowe?.focus();
+        nowe?.setSelectionRange(a, b);
+      }
+    });
     pole.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void sprawdz();
     });
@@ -208,33 +216,37 @@ export function stworzWidokPobierania(): WidokPobierania {
         "div",
         { class: "wiersz wiersz-rozsuniety" },
         przelacznik(t("pobierz.playlista"), playlista, (v) => (playlista = v)),
-        przycisk(t(sprawdzanie ? "pobierz.sprawdzam" : "pobierz.sprawdz"), () => void sprawdz(), "przycisk-sprawdz", { disabled: sprawdzanie }),
+        przycisk(t(sprawdzam ? "pobierz.sprawdzam" : "pobierz.sprawdz"), () => void sprawdz(), "przycisk-sprawdz", { disabled: sprawdzam }),
       ),
     );
   }
 
   async function sprawdz() {
-    const urle = wyciagnijUrl(tekstUrl);
-    if (urle.length === 0) {
+    const wyborNowych = wyborStartowy ?? wyborSzybki(szybka ?? "najlepsza");
+    wyborStartowy = null;
+    // każde „Sprawdź” zastępuje poprzednie wyniki, także gdy w polu nie ma linku (P6)
+    zdarzenie({ typ: "sprawdz", tekst: tekstUrl, wybor: wyborNowych });
+    const pokolenie = stan.pokolenie;
+    if (stan.wyniki.length === 0) {
+      sprawdzam = false;
+      rysuj();
       pokazDymek(t("pobierz.brak_linku"), "blad");
       return;
     }
-    sprawdzanie = true;
-    const wyborNowych = wyborStartowy ?? wyborSzybki(szybka ?? "najlepsza");
-    wyborStartowy = null;
-    wyniki = urle.map((url) => ({ url, info: null, blad: null, wybor: wyborNowych }));
+    sprawdzam = true;
     rysuj();
     await Promise.all(
-      wyniki.map(async (w) => {
+      stan.wyniki.map(async ({ url }) => {
         try {
-          w.info = await api.ytdlpInfo(w.url, playlista);
+          zdarzenie({ typ: "wynik", pokolenie, url, info: await api.ytdlpInfo(url, playlista) });
         } catch (e) {
-          w.blad = String(e);
+          zdarzenie({ typ: "wynik", pokolenie, url, blad: String(e) });
         }
-        rysuj();
+        if (pokolenie === stan.pokolenie) rysuj();
       }),
     );
-    sprawdzanie = false;
+    if (pokolenie !== stan.pokolenie) return;
+    sprawdzam = false;
     rysuj();
   }
 
@@ -267,14 +279,15 @@ export function stworzWidokPobierania(): WidokPobierania {
       : ikona(i?.typ === "playlista" ? IKONY.kolejka : IKONY.film);
     return h(
       "article",
-      { class: "karta film" },
+      { class: "karta film" + (w.nieaktualny ? " film-nieaktualny" : ""), "aria-disabled": w.nieaktualny ? "true" : undefined },
       h("div", { class: "film-miniatura" }, obrazek),
       h(
         "div",
         { class: "film-tresc" },
         h("div", { class: "film-tytul" }, tytul),
+        w.nieaktualny ? h("div", { class: "film-nieaktualny-opis" }, t("pobierz.nieaktualny")) : null,
         w.blad
-          ? uwaga("blad", ikona(IKONY.uwaga), h("span", null, tlumaczBlad(w.blad)))
+          ? uwaga("blad", ikona(IKONY.uwaga), blokBledu(w.blad))
           : !i
             ? h("div", { class: "film-opis" }, t("pobierz.sprawdzam"))
             : h("div", { class: "film-opis" }, opis),
@@ -282,9 +295,9 @@ export function stworzWidokPobierania(): WidokPobierania {
           ? h(
               "div",
               { class: "film-wybor" },
-              wybor(opcjeWyboru(w), w.wybor, (v) => ((w.wybor = v), (szybka = null)), { "aria-label": t("pobierz.jakosc") }),
+              wybor(opcjeWyboru(w), w.wybor, (v) => (zdarzenie({ typ: "wybor", url: w.url, wybor: v }), (szybka = null)), { "aria-label": t("pobierz.jakosc") }),
               przycisk(t("pobierz.usun"), () => {
-                wyniki = wyniki.filter((x) => x !== w);
+                zdarzenie({ typ: "usun", url: w.url });
                 rysuj();
               }, "przycisk-tekstowy"),
             )
@@ -321,7 +334,7 @@ export function stworzWidokPobierania(): WidokPobierania {
 
   async function pobierz() {
     const zadania: NoweZadanie[] = [];
-    for (const w of wyniki) {
+    for (const w of doPobrania(stan)) {
       if (!w.info) continue;
       const wspolne: Omit<OpcjePobrania, "tytul"> = { ...opcje, wybor: w.wybor, playlista: false };
       const zrodla = w.info.typ === "playlista" ? w.info.wpisy.map((e) => ({ url: e.url, tytul: e.tytul })) : [{ url: w.url, tytul: w.info.tytul }];
@@ -336,7 +349,7 @@ export function stworzWidokPobierania(): WidokPobierania {
     try {
       await api.dodajZadania(zadania);
       dymekDodano(zadania.length, t);
-      wyniki = [];
+      zdarzenie({ typ: "wyczysc" });
       tekstUrl = "";
       rysuj();
     } catch (e) {
@@ -345,7 +358,8 @@ export function stworzWidokPobierania(): WidokPobierania {
   }
 
   function rysuj() {
-    const gotowe = wyniki.filter((w) => w.info).reduce((s, w) => s + (w.info?.typ === "playlista" ? w.info.wpisy.length : 1), 0);
+    const wyniki = stan.wyniki;
+    const gotowe = doPobrania(stan).reduce((s, w) => s + (w.info?.typ === "playlista" ? w.info.wpisy.length : 1), 0);
     const czesci: (HTMLElement | null)[] = [
       naglowek(),
       ...ostrzezenia(),
@@ -359,7 +373,7 @@ export function stworzWidokPobierania(): WidokPobierania {
       h(
         "footer",
         { class: "pasek-akcji" },
-        folderWyjscia("katalog_pobierania"),
+        folderWyjscia("katalog_pobierania", { kompaktowy: true }),
         przycisk(
           [t("pobierz.start"), gotowe > 1 ? h("span", { class: "plakietka plakietka-akcent" }, String(gotowe)) : ""],
           () => void pobierz(),
@@ -370,7 +384,10 @@ export function stworzWidokPobierania(): WidokPobierania {
     ];
     el.replaceChildren(...czesci.filter((x): x is HTMLElement => x !== null));
     panelPotem.odswiez();
+    obserwator?.disconnect();
+    obserwator = obserwujPasek(el.querySelector<HTMLElement>(".pasek-akcji")!);
   }
+  let obserwator: ResizeObserver | null = null;
 
   // Link w schowku przy powrocie do okna (można wyłączyć w Ustawieniach).
   api.naPowrotOkna(async () => {
@@ -379,7 +396,7 @@ export function stworzWidokPobierania(): WidokPobierania {
     if (!t0 || t0 === ostatniSchowek) return;
     ostatniSchowek = t0;
     const link = wyciagnijUrl(t0)[0];
-    if (!link || tekstUrl.includes(link) || wyniki.some((w) => w.url === link)) return;
+    if (!link || tekstUrl.includes(link) || stan.wyniki.some((w) => w.url === link)) return;
     linkZeSchowka = link;
     rysuj();
     if (sklep.stan.zakladka !== "pobierz") pokazDymek(t("pobierz.schowek_dymek"));

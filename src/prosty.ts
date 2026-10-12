@@ -69,6 +69,16 @@ export const CELE: Record<Cel, { limit: number; cel: number }> = {
   discord: { limit: 10, cel: 9.5 },
 };
 
+const MIB = 1024 * 1024;
+
+/**
+ * Czy plik już mieści się w celu „Do wysłania” (P1 z testu 1.4.0: 3,1 MB → 15,0 MB). Ta sama zasada co
+ * `plan_rozmiaru` w Rust: cel (MB z zapasem) ≥ rozmiar źródła → nie kodujemy, bo wynik byłby co najwyżej większy.
+ */
+export function miesciSie(rozmiarB: number | null | undefined, cel: Cel): boolean {
+  return !!rozmiarB && rozmiarB > 0 && rozmiarB <= CELE[cel].cel * MIB;
+}
+
 /** Długość GIF-a z fragmentu (sekundy). */
 export const DLUGOSC_GIF = 5;
 
@@ -193,10 +203,23 @@ export function dopisekAkcji(r: Rodzaj, akcja: string, cel?: Cel): string | null
   return null;
 }
 
-/** Nagłówek stanu „gotowe” (klucz): przy wysyłce mówi wprost, że zmieści się w limicie. */
-export function tytulGotowe(r: Rodzaj, akcja: string, cel?: Cel): string {
-  if (r === "film" && akcja === "wyslij") return `prosty.gotowe.${cel ?? "mail"}`;
+/**
+ * Nagłówek stanu „gotowe” (klucz): przy wysyłce mówi wprost, że zmieści się w limicie, ale tylko wtedy,
+ * gdy to prawda. Wynik większy od oryginału albo ponad limit → ostrzeżenie zamiast „zmieści się w…”.
+ */
+export function tytulGotowe(r: Rodzaj, akcja: string, cel?: Cel, pliki: { przed: number | null; po: number | null }[] = []): string {
+  if (r === "film" && akcja === "wyslij") {
+    const c = cel ?? "mail";
+    if (pliki.some(({ przed, po }) => !!po && !!przed && po > przed)) return "prosty.gotowe.wiekszy";
+    if (pliki.some(({ po }) => !!po && po > CELE[c].limit * MIB)) return "prosty.gotowe.ponad_limit";
+    return `prosty.gotowe.${c}`;
+  }
   return "prosty.gotowe";
+}
+
+/** Nagłówek „gotowe” to ostrzeżenie (żółta karta), a nie sukces. */
+export function gotoweZUwaga(klucz: string): boolean {
+  return klucz === "prosty.gotowe.wiekszy" || klucz === "prosty.gotowe.ponad_limit";
 }
 
 /** Pionowy. `sonda.rs` podaje wymiary już po obrocie z metadanych (tak, jak widać film), więc bez ponownego obracania. */

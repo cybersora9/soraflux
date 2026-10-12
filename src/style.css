@@ -62,7 +62,7 @@ h1, h2, h3, p { margin: 0; }
 .nawigacja-stopka { margin-top: auto; padding: 0 var(--odstep-2); font-size: var(--rozmiar-xs); color: var(--tekst-3); }
 
 /* ---------- treść ---------- */
-.tresc { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
+.tresc { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; scroll-padding-bottom: var(--wys-paska, 0px); }
 .widok {
   max-width: 1120px;
   margin: 0 auto;
@@ -113,7 +113,13 @@ h1, h2, h3, p { margin: 0; }
 .strefa:hover, .strefa:focus-visible { border-color: var(--akcent); background: var(--akcent-slaby); color: var(--tekst); }
 .strefa-ikona { width: 36px; height: 36px; color: var(--akcent); }
 .strefa-tytul { font-weight: 600; color: var(--tekst); font-size: var(--rozmiar-l); }
-.strefa-pomoc { font-size: var(--rozmiar-s); color: var(--tekst-3); max-width: 240px; }
+.strefa-pomoc { font-size: var(--rozmiar-s); color: var(--tekst-3); max-width: 320px; }
+/* P10: niskie okno (minimum 860×600): niższa pusta strefa i mniejszy odstęp u góry, żeby strefa
+   z podpisami mieściła się nad paskiem akcji bez przewijania */
+@media (max-height: 720px) {
+  .widok { padding-top: var(--odstep-5); }
+  .strefa:not(.strefa-kompaktowa) { min-height: 140px; padding: var(--odstep-4); }
+}
 .strefa-kompaktowa { min-height: 0; flex-direction: row; padding: var(--odstep-3) var(--odstep-4); border-radius: var(--promien-l); }
 .strefa-kompaktowa .strefa-ikona { width: 20px; height: 20px; }
 .strefa-kompaktowa .strefa-tytul { font-size: var(--rozmiar-m); }
@@ -142,6 +148,10 @@ h1, h2, h3, p { margin: 0; }
 .plik-nazwa { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plik-opis { font-size: var(--rozmiar-xs); color: var(--tekst-3); font-variant-numeric: tabular-nums; }
 .plik-blad .plik-opis { color: var(--blad); }
+.plik-uwaga { font-size: var(--rozmiar-xs); color: var(--uwaga); line-height: 1.3; margin-top: 2px; }
+.plik-uwaga-blad { color: var(--blad); }
+.plik-zablokowany .plik-nazwa { opacity: 0.75; }
+.wizualnie-ukryte { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- przyciski ---------- */
 .przycisk {
@@ -266,7 +276,7 @@ h1, h2, h3, p { margin: 0; }
 .bok { display: flex; flex-direction: column; gap: 4px; font-size: var(--rozmiar-xs); color: var(--tekst-3); }
 
 .zaawansowane { border-top: 1px solid var(--obramowanie); padding-top: var(--odstep-4); }
-.zaawansowane > summary, .komenda > summary, .zadanie-blad-szczegoly > summary {
+.zaawansowane > summary, .komenda > summary, .blad-szczegoly > summary {
   display: flex;
   align-items: center;
   gap: var(--odstep-2);
@@ -276,8 +286,8 @@ h1, h2, h3, p { margin: 0; }
   color: var(--tekst-2);
   user-select: none;
 }
-.zaawansowane > summary::-webkit-details-marker, .komenda > summary::-webkit-details-marker, .zadanie-blad-szczegoly > summary::-webkit-details-marker { display: none; }
-.zaawansowane > summary::before, .komenda > summary::before, .zadanie-blad-szczegoly > summary::before {
+.zaawansowane > summary::-webkit-details-marker, .komenda > summary::-webkit-details-marker, .blad-szczegoly > summary::-webkit-details-marker { display: none; }
+.zaawansowane > summary::before, .komenda > summary::before, .blad-szczegoly > summary::before {
   content: "";
   width: 7px;
   height: 7px;
@@ -287,7 +297,7 @@ h1, h2, h3, p { margin: 0; }
   transition: transform var(--przejscie);
   margin-right: 4px;
 }
-.zaawansowane[open] > summary::before, .komenda[open] > summary::before, .zadanie-blad-szczegoly[open] > summary::before { transform: rotate(45deg); }
+.zaawansowane[open] > summary::before, .komenda[open] > summary::before, .blad-szczegoly[open] > summary::before { transform: rotate(45deg); }
 .zaawansowane > summary:hover, .komenda > summary:hover { color: var(--tekst); }
 .zaawansowane-tresc { display: flex; flex-direction: column; gap: var(--odstep-5); padding-top: var(--odstep-4); }
 
@@ -306,30 +316,39 @@ h1, h2, h3, p { margin: 0; }
 /* ---------- komenda ---------- */
 .komenda { border-top: 1px solid var(--obramowanie); padding-top: var(--odstep-3); font-size: var(--rozmiar-s); }
 .komenda .plakietka { margin-left: var(--odstep-1); }
+.plakietka-ciecie { margin-left: var(--odstep-2); font-variant-numeric: tabular-nums; }
+.tekst-poprawione { border-color: var(--uwaga); }
+.pole-poprawione { font-size: var(--rozmiar-xs); color: var(--uwaga); }
 .komenda-tresc { display: flex; flex-direction: column; align-items: flex-start; gap: var(--odstep-2); padding-top: var(--odstep-3); }
 .komenda-pre { width: 100%; margin: 0; padding: var(--odstep-3); max-height: 220px; overflow: auto; border-radius: var(--promien-m); background: var(--tlo); border: 1px solid var(--obramowanie); font-family: var(--czcionka-mono); font-size: var(--rozmiar-xs); line-height: 1.6; white-space: pre-wrap; word-break: break-all; color: var(--tekst-2); }
 
 /* ---------- pasek akcji ---------- */
+/* P10: jeden wiersz od 860 px (krótkie etykiety, mniejsze odstępy, ostrzeżenie się zawija); wysokość
+   paska idzie do --wys-paska → scroll-padding-bottom w .tresc, więc fokus nie ląduje pod paskiem */
 .pasek-akcji {
   position: sticky;
   bottom: 0;
   margin-top: auto;
   display: flex;
   align-items: center;
-  gap: var(--odstep-5);
-  padding: var(--odstep-4) 0 var(--odstep-5);
+  gap: var(--odstep-3);
+  padding: var(--odstep-3) 0 var(--odstep-3);
   /* przejście tylko w górnym odstępie: przy 30% prześwitywały podpisy pod suwakiem (test na żywo 1.2.1, okno 800 px) */
   background: linear-gradient(to bottom, transparent, var(--tlo) var(--odstep-3));
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
+.pasek-akcji > .przycisk-glowny { flex: none; }
+@media (max-width: 760px) { .pasek-akcji { flex-wrap: wrap; } }
 .folder { display: flex; align-items: center; gap: var(--odstep-2); min-width: 0; flex: 1; font-size: var(--rozmiar-s); color: var(--tekst-2); }
 .folder .ikona { color: var(--tekst-3); }
 .folder-etykieta { color: var(--tekst-3); white-space: nowrap; }
 .folder-sciezka { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--tekst); }
-.szacunek { display: flex; align-items: baseline; gap: var(--odstep-2); white-space: nowrap; }
-.szacunek-etykieta { font-size: var(--rozmiar-s); color: var(--tekst-3); }
-.szacunek-wartosc { font-size: var(--rozmiar-l); font-variant-numeric: tabular-nums; }
-.szacunek-ostrzezenie { display: inline-flex; align-items: center; gap: 4px; color: var(--uwaga); font-size: var(--rozmiar-s); }
+/* ostrzeżenie się zawija zamiast wychodzić za prawą krawędź okna (P1: przy 860 px było ucięte) */
+.szacunek { display: flex; align-items: baseline; gap: var(--odstep-2); flex-wrap: wrap; min-width: 0; }
+.szacunek-glowny { display: inline-flex; align-items: baseline; gap: var(--odstep-2); white-space: nowrap; }
+.szacunek-etykieta { font-size: var(--rozmiar-s); color: var(--tekst-3); white-space: nowrap; }
+.szacunek-wartosc { font-size: var(--rozmiar-l); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.szacunek-ostrzezenie { display: inline-flex; align-items: center; gap: 4px; color: var(--uwaga); font-size: var(--rozmiar-s); white-space: normal; min-width: 0; max-width: 100%; }
 .szacunek-ostrzezenie .ikona { width: 14px; height: 14px; }
 
 /* ---------- kolejka ---------- */
@@ -345,9 +364,11 @@ h1, h2, h3, p { margin: 0; }
 .zadanie-nazwa { flex: 1; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .zadanie-szczegoly { font-size: var(--rozmiar-xs); color: var(--tekst-3); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .zadanie-akcje { display: flex; gap: var(--odstep-2); }
-.zadanie-blad-szczegoly { font-size: var(--rozmiar-xs); color: var(--blad); }
-.zadanie-blad-szczegoly > summary { font-weight: 550; color: var(--blad); }
-.zadanie-blad-szczegoly pre { margin: var(--odstep-2) 0 0; padding: var(--odstep-3); max-height: 160px; overflow: auto; border-radius: var(--promien-s); background: var(--tlo); color: var(--tekst-2); font-family: var(--czcionka-mono); white-space: pre-wrap; }
+.blad-blok { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.zadanie-blad .blad-tekst { font-size: var(--rozmiar-xs); color: var(--blad); }
+.blad-szczegoly { font-size: var(--rozmiar-xs); color: var(--tekst-3); }
+.blad-szczegoly > summary { font-weight: 550; color: var(--tekst-2); }
+.blad-szczegoly pre { margin: var(--odstep-2) 0 0; padding: var(--odstep-3); max-height: 160px; overflow: auto; border-radius: var(--promien-s); background: var(--tlo); color: var(--tekst-2); font-family: var(--czcionka-mono); white-space: pre-wrap; }
 .stan { font-size: var(--rozmiar-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--promien-pelny); background: var(--powierzchnia-3); color: var(--tekst-2); white-space: nowrap; }
 .stan-trwa { background: var(--akcent-slaby); color: var(--akcent); }
 .stan-gotowe { background: var(--ok-slaby); color: var(--ok); }
@@ -471,6 +492,8 @@ h1, h2, h3, p { margin: 0; }
 .wersja { font-size: var(--rozmiar-s); color: var(--tekst-2); display: inline-flex; align-items: center; gap: var(--odstep-2); }
 .wersja code { font-family: var(--czcionka-mono); font-size: var(--rozmiar-xs); padding: 2px 6px; border-radius: var(--promien-s); background: var(--powierzchnia-3); }
 .widok-pobierz .uwaga small { display: block; color: var(--tekst-2); font-weight: 400; }
+.film-nieaktualny { opacity: 0.55; }
+.film-nieaktualny-opis { font-size: var(--rozmiar-xs); color: var(--uwaga); }
 @media (max-width: 760px) {
   .film { grid-template-columns: 1fr; }
 }
@@ -516,7 +539,10 @@ h1, h2, h3, p { margin: 0; }
 .motywy { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--odstep-3); }
 .motyw-kafel { display: flex; flex-direction: column; gap: var(--odstep-2); padding: var(--odstep-3); border: 1px solid var(--obramowanie); border-radius: var(--promien-l); background: var(--powierzchnia-2); color: var(--tekst); text-align: left; cursor: pointer; transition: border-color var(--przejscie), transform var(--przejscie); }
 .motyw-kafel:hover { border-color: var(--obramowanie-mocne); transform: translateY(-1px); }
-.motyw-kafel.aktywny { border-color: var(--akcent); box-shadow: 0 0 0 2px var(--akcent-slaby); }
+.motyw-kafel.aktywny { border-color: var(--akcent); border-width: 2px; box-shadow: 0 0 0 2px var(--akcent-slaby); }
+/* P8: stan wybrany nie tylko kolorem: znacznik ✓ + „Wybrany” */
+.motyw-wybrany { margin-left: 6px; vertical-align: 1px; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px 1px 5px; border-radius: var(--promien-pelny); background: var(--akcent); color: var(--akcent-tekst); font-size: var(--rozmiar-xs); font-weight: 700; }
+.motyw-wybrany .ikona { width: 12px; height: 12px; }
 .motyw-probki { display: flex; height: 34px; border-radius: var(--promien-m); overflow: hidden; }
 .motyw-probki span { flex: 1; }
 .motyw-nazwa { font-weight: 700; font-size: var(--rozmiar-s); }
@@ -538,8 +564,20 @@ h1, h2, h3, p { margin: 0; }
 .folder-nazwa { font-weight: 700; font-size: var(--rozmiar-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .folder-pelna { font-size: var(--rozmiar-xs); color: var(--tekst-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .folder-ostatnie { width: auto; max-width: 220px; height: 32px; font-size: var(--rozmiar-s); }
-.pasek-akcji .folder-blok { flex: 1 1 440px; min-width: min(440px, 100%); }
-.pasek-akcji .szacunek { margin-left: auto; }
+.pasek-akcji .folder-blok { flex: 0 1 auto; min-width: auto; }
+.pasek-akcji .szacunek { margin-left: auto; flex: 1 1 0; justify-content: flex-end; }
+.pasek-akcji .szacunek-ostrzezenie { line-height: 1.25; text-align: right; }
+.folder-kompaktowy .folder-wiersz { flex-wrap: nowrap; }
+.folder-kompaktowy .segmenty { flex-wrap: nowrap; min-width: 0; }
+.folder-kompaktowy .segment { white-space: nowrap; }
+.segment-folder { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 180px; }
+.segment-folder .ikona { width: 14px; height: 14px; flex: none; }
+.segment-tekst { overflow: hidden; text-overflow: ellipsis; }
+/* wąsko (okno do 1000 px, treść ok. 580–720 px): bez napisu „Zapisz do:” (grupa ma go w aria-label) */
+@media (max-width: 1000px) {
+  .pasek-akcji .folder-etykieta { display: none; }
+  .segment-folder { max-width: 120px; }
+}
 .folder-wybrany { min-width: 180px; }
 
 /* ---------- v1.2: dymek z akcją, gotowe z ostrzeżeniem ---------- */
@@ -595,6 +633,9 @@ h1, h2, h3, p { margin: 0; }
 .prosty-znaczek { display: inline-flex; align-items: center; gap: 3px; min-height: 1.5em; margin-bottom: -2px; font-size: var(--rozmiar-xs); font-weight: 700; color: var(--tekst-2); }
 .prosty-znaczek .ikona { width: 12px; height: 12px; color: var(--ok); }
 .prosty-chipy { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--odstep-4) var(--odstep-4); }
+.prosty-chipy .chip { display: inline-flex; align-items: center; gap: 4px; }
+.chip-miesci .ikona { width: 14px; height: 14px; color: var(--ok); }
+.chip-miesci.aktywny .ikona { color: inherit; }
 .prosty-gif { display: flex; flex-wrap: wrap; align-items: center; gap: var(--odstep-2); padding: 0 var(--odstep-4) var(--odstep-4); font-size: var(--rozmiar-s); color: var(--tekst-2); }
 .prosty-gif .tekst { width: 5.5em; }
 .prosty-gif-dl { font-family: var(--czcionka-mono); }

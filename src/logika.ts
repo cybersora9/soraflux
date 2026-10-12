@@ -265,6 +265,13 @@ export function sklonuj<T>(x: T): T {
 export type SzybkaAkcja = "rozmiar" | "mp3" | "gif" | "telefon" | "wytnij";
 export const SZYBKIE_AKCJE: SzybkaAkcja[] = ["rozmiar", "mp3", "gif", "telefon", "wytnij"];
 
+/** Sekundy z jednym miejscem po przecinku, bez zbędnego „,0”: „5,1 s”, „3 s” (ostrzeżenie o cięciu). */
+export function formatujSekundy(s: number, jezyk: "pl" | "en" = "pl"): string {
+  const r = Math.round(s * 10) / 10;
+  const t = Number.isInteger(r) ? String(r) : r.toFixed(1);
+  return `${jezyk === "pl" ? t.replace(".", ",") : t} s`;
+}
+
 /** Kontener dla cięcia bez ponownego kodowania: ten sam co źródło (kopia strumieni musi pasować). */
 export function kontenerKopii(sciezkaZrodla: string | null): Kontener {
   const ext = sciezkaZrodla ? rozszerzenie(sciezkaZrodla) : "";
@@ -276,7 +283,7 @@ export function kontenerKopii(sciezkaZrodla: string | null): Kontener {
  * Profil po jednym kliknięciu szybkiej akcji. Cięcie od–do z bieżącego profilu zostaje
  * (np. „Zrób GIF” z wybranego fragmentu), resztę można potem dopracować w panelu.
  */
-export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?: number; zrodlo?: string | null } = {}): Profil {
+export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?: number; zrodlo?: string | null; dokladnie?: boolean } = {}): Profil {
   const zostaw = { ciecie: obecny.ciecie };
   switch (a) {
     case "rozmiar": {
@@ -304,12 +311,81 @@ export function profilSzybkiejAkcji(a: SzybkaAkcja, obecny: Profil, opcje: { mb?
       return { ...p, ...zostaw };
     }
     case "wytnij": {
-      const p = profilDla(kontenerKopii(opcje.zrodlo ?? null));
-      p.wideo = { ...wideoDomyslne("kopiuj") };
-      p.audio = { ...audioDomyslne("aac"), kodek: "kopiuj" };
+      const k = kontenerKopii(opcje.zrodlo ?? null);
+      const p = profilDla(k);
+      if (opcje.dokladnie) {
+        // P9 „Dokładnie (ponowne kodowanie)”: co do klatki, wolniej; CRF 18 = prawie bez straty jakości
+        p.wideo = { ...wideoDomyslne(domyslnyKodekWideo(k) ?? "h264"), jakosc: { typ: "crf", crf: 18 } };
+      } else {
+        p.wideo = { ...wideoDomyslne("kopiuj") };
+        p.audio = { ...audioDomyslne("aac"), kodek: "kopiuj" };
+      }
       return { ...p, ciecie: obecny.ciecie ?? { od: 0, koniec: null } };
     }
   }
+}
+
+// ---------- czy z tego pliku da się zrobić ten format (P4 z testu 1.4.0) ----------
+
+/** Powód, dla którego plik nie da się zapisać w wybranym formacie (klucz `plik.blokada.*`). */
+export type BlokadaFormatu = "brak_dzwieku" | "brak_obrazu" | "pusty";
+
+/**
+ * JEDNA reguła blokady, liczona tak samo przy upuszczeniu i przy zmianie formatu (lustro `plan_z` w budowniczym:
+ * animacja i obrazy potrzebują obrazu; format audio potrzebuje dźwięku; reszta potrzebuje czegokolwiek z dwóch).
+ * Film bez dźwięku + MP3 to „brak_dzwieku”, a nie „ani obrazu, ani dźwięku” jak w 1.4.0.
+ */
+export function blokadaFormatu(m: Pick<import("./typy").Media, "wideo" | "audio" | "obraz">, p: Profil): BlokadaFormatu | null {
+  const k = p.kontener;
+  const animacja = KONTENERY_ANIMACJI.includes(k) && !!p.gif && !m.obraz;
+  if (animacja || (obrazowy(k) && !tylkoAudio(k))) return m.wideo ? null : "brak_obrazu";
+  const wideo = !!p.wideo && !tylkoAudio(k) && !!m.wideo;
+  const audio = !!p.audio && !!m.audio;
+  if (wideo || audio) return null;
+  if (tylkoAudio(k) && m.wideo && !m.audio) return "brak_dzwieku";
+  return "pusty";
+}
+
+// ---------- fragment od–do: stan formularza (P2 z testu 1.4.0) ----------
+// Ukryte „Fragment od–do” (zwinięte Zaawansowane) przycinało kolejne konwersje: 00:06–00:20 z poprzedniego
+// pliku i „Zmniejsz do 10 MB” na nowym 8-sekundowym dały 2 s. Fragment należy do plików, nie do ustawień.
+
+export interface StanCiecia {
+  ciecie: import("./typy").Ciecie | null;
+  /** Koniec był za długością pliku i został przycięty (pole pokazuje to wprost). */
+  przyciete: boolean;
+}
+
+export type ZdarzenieCiecia =
+  /** Lista plików się zmieniła: nowe upuszczenie, usunięcie, „Wyczyść”. */
+  | { typ: "pliki" }
+  /** Szybka akcja: fragment zostaje tylko przy „Wytnij fragment”. */
+  | { typ: "akcja"; akcja: SzybkaAkcja }
+  /** Wpis w polach od–do; `czas` = długość wybranego pliku (null = nieznana). */
+  | { typ: "pola"; od: number | null; koniec: number | null; czas: number | null };
+
+export function stanCiecia(s: StanCiecia, z: ZdarzenieCiecia): StanCiecia {
+  switch (z.typ) {
+    case "pliki":
+      return { ciecie: null, przyciete: false };
+    case "akcja":
+      return z.akcja === "wytnij" ? s : { ciecie: null, przyciete: false };
+    case "pola": {
+      if (z.od === null && z.koniec === null) return { ciecie: null, przyciete: false };
+      const dl = z.czas && z.czas > 0 ? z.czas : null;
+      const przyciete = dl !== null && z.koniec !== null && z.koniec > dl;
+      const koniec = przyciete ? dl : z.koniec;
+      // koniec przycięty do pełnej długości i początek od zera = cały plik, czyli bez cięcia
+      if ((z.od ?? 0) === 0 && przyciete) return { ciecie: null, przyciete: true };
+      return { ciecie: { od: z.od ?? 0, koniec }, przyciete };
+    }
+  }
+}
+
+/** Plakietka na zwiniętym „Zaawansowane”, gdy fragment jest aktywny: „00:06–00:20”, „od 00:06”. */
+export function opisCiecia(c: import("./typy").Ciecie | null): string | null {
+  if (!c) return null;
+  return c.koniec !== null ? `${formatujCzas(c.od)}–${formatujCzas(c.koniec)}` : `${formatujCzas(c.od)}–`;
 }
 
 /** Opis pliku na karcie informacji (punkt 4.5). Wartości gotowe do pokazania. */

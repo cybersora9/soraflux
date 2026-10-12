@@ -471,7 +471,7 @@ pub struct InfoYtdlp {
     /// Dni od wydania (wersja to data RRRR.MM.DD).
     pub wiek_dni: Option<i64>,
     pub pochodzenie: Pochodzenie,
-    /// Starszy niż [`narzedzia::MAKS_WIEK_YTDLP`] dni: YouTube może odmawiać.
+    /// Starszy niż [`narzedzia::MAKS_WIEK_YTDLP`] dni: serwisy mogą odmawiać.
     pub stary: bool,
 }
 

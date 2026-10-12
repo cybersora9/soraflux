@@ -106,6 +106,34 @@ pub enum OstrzezenieWyniku {
         wynik_s: f64,
         oczekiwane_s: f64,
     },
+    /// P9 (test 1.4.0): cięcie bez ponownego kodowania zaczyna się na klatce kluczowej, więc przy rzadkich
+    /// klatkach kluczowych wynik trwa wyraźnie dłużej (02–05 → 5,09 s; 06–20 na 8 s → cały plik).
+    NiedokladneCiecie { wynik_s: f64, oczekiwane_s: f64 },
+}
+
+/// Tolerancja długości cięcia bez ponownego kodowania (sekundy). Mniejsze przesunięcia to normalna cena
+/// cięcia na klatce kluczowej; większe użytkownik musi zobaczyć.
+pub const TOLERANCJA_CIECIA_S: f64 = 1.0;
+
+/// Ocena długości wyniku po zadaniu (ffprobe wyniku vs oczekiwana). `kopia` = cięcie bez ponownego kodowania:
+/// różnica ponad [`TOLERANCJA_CIECIA_S`] → [`OstrzezenieWyniku::NiedokladneCiecie`]; inaczej sprawdzenie
+/// uciętego źródła ([`sprawdz_uciecie`]).
+pub fn ocen_dlugosc(
+    oczekiwane_s: Option<f64>,
+    wynik_s: Option<f64>,
+    od_s: f64,
+    predkosc: f32,
+    kopia: bool,
+) -> Option<OstrzezenieWyniku> {
+    if kopia {
+        if let (Some(o), Some(w)) = (oczekiwane_s, wynik_s) {
+            if (w - o).abs() > TOLERANCJA_CIECIA_S {
+                return Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: w, oczekiwane_s: o });
+            }
+            return None;
+        }
+    }
+    sprawdz_uciecie(oczekiwane_s, wynik_s, od_s, predkosc)
 }
 
 /// Próg „wynik krótszy niż oczekiwany”: poniżej 97% czasu z nagłówka.
@@ -502,8 +530,7 @@ impl Kolejka {
         let media = sonda::sonduj(&ffprobe, wejscie).await.map_err(Przerwanie::Blad)?;
         let kt = Kontekst { zscale: self.zscale.load(Ordering::Relaxed), katalog_tmp: Some(tmp.to_path_buf()) };
         // Szybki test profilu, zanim cokolwiek zarezerwujemy.
-        budowniczy::plan_z(&media, profil, wejscie, Path::new("x"), &kt)
-            .map_err(|e| Przerwanie::Blad(e.to_string()))?;
+        budowniczy::plan_z(&media, profil, wejscie, Path::new("x"), &kt).map_err(blad_profilu)?;
 
         sprawdz_miejsce(&media, profil, &katalog)?;
         let mut rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
@@ -529,11 +556,13 @@ impl Kolejka {
         self.w_toku(&czesc, false);
         wynik?;
         // Ucięte źródło: ffmpeg kończy „sukcesem”, a wynik jest krótszy niż nagłówek.
+        // Cięcie bez ponownego kodowania: wynik może być dłuższy o kawałek do klatki kluczowej (P9).
         if !profil.kontener.obraz() || profil.gif.is_some() {
             let oczekiwane = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc);
             let wynik_s = sonda::sonduj(&ffprobe, &wyjscie).await.ok().and_then(|m| m.czas_s);
             let od = profil.ciecie.as_ref().map(|c| c.od).unwrap_or(0.0);
-            if let Some(o) = sprawdz_uciecie(oczekiwane, wynik_s, od, profil.predkosc) {
+            let kopia = budowniczy::ciecie_bez_kodowania(profil);
+            if let Some(o) = ocen_dlugosc(oczekiwane, wynik_s, od, profil.predkosc, kopia) {
                 self.ustaw(id, |i| i.ostrzezenie = Some(o));
             }
         }
@@ -680,14 +709,14 @@ impl Kolejka {
             .map_err(|e| Przerwanie::Blad(blad::kod("uruchomienie", &[("program", &"yt-dlp"), ("blad", &e)])))?;
         let drzewo = Drzewo::przypnij(&dziecko, niski);
         let stderr = tokio::spawn(ogon(dziecko.stderr.take().unwrap()));
-        let mut linie = BufReader::new(dziecko.stdout.take().unwrap()).lines();
+        let mut linie = procesy::LinieBajtow::nowe(dziecko.stdout.take().unwrap());
         let mut plik = None;
         // Wideo + audio to dwa pliki pobierane po kolei: liczymy postęp w sumie.
         let mut skonczone_czesci: u8 = 0;
         let mut ostatni_procent = 0.0;
         let status = loop {
             tokio::select! {
-                l = linie.next_line() => match l {
+                l = linie.nastepna() => match l {
                     Ok(Some(l)) => match postep::linia_ytdlp(&l) {
                         LiniaYtdlp::Postep { pobrane, calosc, bajty_s, eta_s } => {
                             let ulamek = calosc.filter(|c| *c > 0).map(|c| (pobrane as f64 / c as f64).min(1.0)).unwrap_or(0.0);
@@ -740,6 +769,15 @@ impl Kolejka {
             w.info.procent = p.procent;
         }
         self.nadajnik.postep(&p);
+    }
+}
+
+/// Błąd profilu jako komunikat zadania. „Już się mieści” i „brak dźwięku” idą kluczem i18n (dwa języki).
+fn blad_profilu(e: budowniczy::BladProfilu) -> Przerwanie {
+    match e {
+        budowniczy::BladProfilu::JuzSieMiesci { .. } => Przerwanie::Blad(blad::kod("juz_sie_miesci", &[])),
+        budowniczy::BladProfilu::BrakDzwieku => Przerwanie::Blad(blad::kod("brak_dzwieku", &[])),
+        e => Przerwanie::Blad(e.to_string()),
     }
 }
 
@@ -842,10 +880,12 @@ fn upewnij_katalog(katalog: &Path) -> Result<(), Przerwanie> {
 }
 
 /// Ostatnie 50 linii stderr (do komunikatu błędu).
+/// Ostatnie 50 linii stderr. Linie dekodowane przez [`procesy::dekoduj`] (P5: zły bajt nie urywa ogona,
+/// komunikat systemu w stronie kodowej konsoli wraca z polskimi literami).
 async fn ogon(r: impl AsyncRead + Unpin) -> String {
-    let mut linie = BufReader::new(r).lines();
+    let mut linie = procesy::LinieBajtow::nowe(r);
     let mut bufor: VecDeque<String> = VecDeque::with_capacity(50);
-    while let Ok(Some(l)) = linie.next_line().await {
+    while let Ok(Some(l)) = linie.nastepna().await {
         if bufor.len() == 50 {
             bufor.pop_front();
         }
@@ -901,6 +941,34 @@ mod testy {
             panic!()
         };
         assert_eq!(zrodlo_konczy_s, 20.0);
+    }
+
+    /// P9: przypadki z testu na żywo (źródło z jedną klatką kluczową, 8 s).
+    #[test]
+    fn p9_ocena_dlugosci_ciecia() {
+        // 02–05 bez kodowania: 5,09 s zamiast 3 s
+        assert_eq!(
+            ocen_dlugosc(Some(3.0), Some(5.09), 2.0, 1.0, true),
+            Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: 5.09, oczekiwane_s: 3.0 })
+        );
+        // 06–20 na pliku 8 s: oczekiwane 2 s (koniec przycięty do długości), wynik cały plik 8,02 s
+        assert_eq!(
+            ocen_dlugosc(Some(2.0), Some(8.02), 6.0, 1.0, true),
+            Some(OstrzezenieWyniku::NiedokladneCiecie { wynik_s: 8.02, oczekiwane_s: 2.0 })
+        );
+        // w tolerancji (zwykłe przesunięcie o ułamek sekundy): bez ostrzeżenia
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(3.4), 2.0, 1.0, true), None);
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(2.1), 2.0, 1.0, true), None);
+        // za krótki przy kopii też jest niedokładny (granica dokładnie 1 s nie ostrzega)
+        assert!(ocen_dlugosc(Some(10.0), Some(8.5), 0.0, 1.0, true).is_some());
+        assert_eq!(ocen_dlugosc(Some(10.0), Some(9.0), 0.0, 1.0, true), None);
+        // z ponownym kodowaniem: dłuższy wynik to nie sprawa cięcia, krótszy = ucięte źródło jak dotąd
+        assert_eq!(ocen_dlugosc(Some(3.0), Some(5.09), 2.0, 1.0, false), None);
+        assert!(matches!(
+            ocen_dlugosc(Some(179.0), Some(32.0), 0.0, 1.0, false),
+            Some(OstrzezenieWyniku::Uciete { .. })
+        ));
+        assert_eq!(ocen_dlugosc(None, Some(3.0), 0.0, 1.0, true), None);
     }
 
     #[test]

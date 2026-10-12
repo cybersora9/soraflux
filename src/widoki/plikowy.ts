@@ -4,21 +4,23 @@
 import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
-import { t, tekstBledu } from "../i18n";
-import { profilDla, profilSzybkiejAkcji, sklonuj, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja } from "../logika";
+import { jezyk, t, tekstBledu } from "../i18n";
+import { blokadaFormatu, formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
 import { kartaInformacji } from "../komponenty/info";
 import { podgladPrzedPo } from "../komponenty/podglad";
 import {
-  folderWyjscia, listaPlikow, opisSzacunku, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
+  dymekPominietych, folderWyjscia, listaPlikow, obserwujPasek, opisSzacunku, podpisyStrefy, pasekPresetow, podgladKomendy, strefaUpuszczania, uwagi, type PlikWejscia,
 } from "../komponenty/wspolne";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import type { NoweZadanie, Preset, Profil } from "../typy";
+import { klasyfikujUpuszczone } from "../upuszczanie";
 
 export interface WidokPlikowy {
   el: HTMLElement;
-  dodaj(sciezki: string[]): Promise<void>;
+  /** `zachowajCiecie`: wejście z trybu Prostego niesie własny fragment (GIF), nie kasujemy go. */
+  dodaj(sciezki: string[], o?: { zachowajCiecie?: boolean }): Promise<void>;
   odswiez(): void;
   /** Wejście z trybu Prostego („Więcej ustawień”): profil akcji bez zaznaczonego presetu ani szybkiej akcji. */
   ustawProfil(p: Profil): void;
@@ -42,7 +44,7 @@ export function rozszerzeniaZTekstu(t: string): string[] {
   return [...new Set(t.toLowerCase().split(/[\s,;]+/).map((x) => x.replace(/^\*?\./, "")).filter(Boolean))];
 }
 
-export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy {
+export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKonwertuj?: (sciezki: string[]) => void } = {}): WidokPlikowy {
   const obrazy = rodzaj === "obrazy";
   let pliki: PlikWejscia[] = [];
   let wybrany = 0;
@@ -50,8 +52,13 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   let aktywnyPreset: string | null = null;
   let aktywnaAkcja: SzybkaAkcja | null = null;
   let mbAkcji = 10;
+  /** P9: „Dokładnie (ponowne kodowanie)” przy „Wytnij fragment”, domyślnie wyłączone. */
+  let dokladneCiecie = false;
   let szacunek = { tekst: "", ostrzezenie: null as string | null };
   let przebiegi: string[][] = [];
+  /** „Zmniejsz do X MB”: pliki, które już są mniejsze (P1). Nie trafiają do kolejki, wiersz mówi dlaczego. */
+  let mieszczace = new Set<string>();
+  let ostatnieUwagi = "";
   let uwagiEl: HTMLElement | null = null;
   let foldery: string[] = [];
   const opcjeFolderu: OpcjeFolderu = { struktura: true, rozszerzenia: "", pomin: true };
@@ -63,6 +70,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   const uwagiMiejsce = h("div", { class: "uwagi-miejsce" });
   const komendaMiejsce = h("div");
   const stopka = h("footer", { class: "pasek-akcji" });
+  obserwujPasek(stopka);
 
   const zMedia = () => pliki.filter((p) => p.media);
   // Szacunek animacji z próbki (wolny, ~1–2 s na plik): przychodzi po szybkim szacunku i go zastępuje.
@@ -82,6 +90,13 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     enkodery: () => sklep.stan.narzedzia?.enkodery ?? [],
     onZmiana: (p) => {
       profil = p;
+      // blokada formatu (P4) od razu: wiersze i przycisk nie czekają na przeliczenie szacunku
+      const uwagi = pliki.map((x) => uwagaPliku(x)?.tekst ?? "").join("\n");
+      if (uwagi !== ostatnieUwagi) {
+        ostatnieUwagi = uwagi;
+        rysujLewa();
+      }
+      rysujStopke();
       if (aktywnyPreset || aktywnaAkcja) {
         aktywnyPreset = null;
         aktywnaAkcja = null;
@@ -94,6 +109,14 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
   });
 
   const podglad = podgladPrzedPo({ plik: biezacy, profil: () => profil });
+
+  /** Fragment od–do po zdarzeniu (P2): zmiana listy plików i szybka akcja inna niż „Wytnij” go kasują. */
+  function zdarzenieCiecia(z: ZdarzenieCiecia) {
+    const nowe = stanCiecia({ ciecie: profil.ciecie, przyciete: false }, z).ciecie;
+    if (nowe === profil.ciecie) return;
+    profil = { ...profil, ciecie: nowe };
+    panel.ustaw(profil);
+  }
 
   function ustawProfil(p: Profil) {
     profil = sklonuj(p);
@@ -125,7 +148,8 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     const zastosuj = (a: SzybkaAkcja) => {
       aktywnaAkcja = a;
       aktywnyPreset = null;
-      ustawProfil(profilSzybkiejAkcji(a, profil, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null }));
+      const ciecie = stanCiecia({ ciecie: profil.ciecie, przyciete: false }, { typ: "akcja", akcja: a }).ciecie;
+      ustawProfil(profilSzybkiejAkcji(a, { ...profil, ciecie }, { mb: mbAkcji, zrodlo: biezacy()?.sciezka ?? null, dokladnie: dokladneCiecie }));
       rysujAkcje();
       rysujPresety();
     };
@@ -153,7 +177,19 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
           ),
         ),
       ),
-      ...(aktywnaAkcja === "wytnij" ? [uwaga("info", ikona(IKONY.info), h("span", null, t("akcje.wytnij.pomoc")))] : []),
+      ...(aktywnaAkcja === "wytnij"
+        ? [
+            h(
+              "div",
+              { class: "wytnij-opcje" },
+              przelacznik(t("akcje.wytnij.dokladnie"), dokladneCiecie, (v) => {
+                dokladneCiecie = v;
+                zastosuj("wytnij");
+              }, t("akcje.wytnij.dokladnie.opis")),
+            ),
+            uwaga("info", ikona(IKONY.info), h("span", null, t(dokladneCiecie ? "akcje.wytnij.pomoc_dokladnie" : "akcje.wytnij.pomoc"))),
+          ]
+        : []),
     );
   }
 
@@ -187,6 +223,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
             pliki.splice(i, 1);
             if (wybrany >= pliki.length) wybrany = Math.max(0, pliki.length - 1);
             if (pliki.length === 0) foldery = [];
+            zdarzenieCiecia({ typ: "pliki" });
             rysujLewa();
             przelicz();
             podglad.odswiez();
@@ -195,6 +232,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
             pliki = [];
             foldery = [];
             wybrany = 0;
+            zdarzenieCiecia({ typ: "pliki" });
             rysujLewa();
             przelicz();
             podglad.odswiez();
@@ -208,45 +246,64 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
               podglad.odswiez();
             },
           },
+          uwagaPliku,
         )
       : null;
     const b = pliki[wybrany];
     lewa.replaceChildren(
       strefaUpuszczania({ obrazy, dodaj: (s) => void dodaj(s), kompaktowa: pliki.length > 0 }),
-      lista ?? h("p", { class: "lewa-pomoc" }, t(obrazy ? "obrazy.pusto" : "konwertuj.pusto")),
+      lista ?? h("p", { class: "lewa-pomoc" }, t(podpisyStrefy(obrazy).pusto)),
       ...[opcjeFolderow(), b?.media ? kartaInformacji(b.sciezka, b.media) : null].filter((x): x is HTMLElement => !!x),
     );
   }
 
+  function uwagaPliku(p: PlikWejscia): { tekst: string; blokuje: boolean } | null {
+    // P4: ta sama reguła przy upuszczeniu i przy zmianie formatu, liczona od razu (bez czekania na szacunek)
+    const blokada = p.media ? blokadaFormatu(p.media, profil) : null;
+    if (blokada) return { tekst: t(`plik.blokada.${blokada}`), blokuje: true };
+    if (mieszczace.has(p.sciezka)) return { tekst: t("plik.miesci", { r: formatujRozmiar(p.media?.rozmiar_b, jezyk()) }), blokuje: true };
+    return null;
+  }
+
+  /** Pliki, które naprawdę pójdą do kolejki. */
+  const doKonwersji = () => pliki.filter((p) => p.media && !p.blad && !uwagaPliku(p)?.blokuje);
+
   function rysujStopke() {
-    const gotowe = pliki.filter((p) => p.media && !p.blad).length;
+    const gotowe = doKonwersji().length;
     const zablokowane = gotowe === 0 || !!uwagiEl?.querySelector(".uwaga-blad");
+    // powód blokady przy przycisku (tooltip + aria-describedby → uwaga przy wierszu pliku)
+    const iZablokowanego = pliki.findIndex((p) => p.media && !p.blad && uwagaPliku(p)?.blokuje);
+    const powod = zablokowane && iZablokowanego >= 0 ? uwagaPliku(pliki[iZablokowanego])!.tekst : undefined;
     stopka.replaceChildren(
-      folderWyjscia("katalog_wyjscia"),
+      folderWyjscia("katalog_wyjscia", { kompaktowy: true }),
       h(
         "div",
         { class: "szacunek" + (szacunek.ostrzezenie ? " szacunek-uwaga" : ""), "aria-live": "polite" },
-        h("span", { class: "szacunek-etykieta" }, t("szacunek.etykieta")),
-        h("strong", { class: "szacunek-wartosc" }, szacunek.tekst || "—"),
+        h("span", { class: "szacunek-glowny" }, h("span", { class: "szacunek-etykieta" }, t("szacunek.etykieta")), h("strong", { class: "szacunek-wartosc" }, szacunek.tekst || "—")),
         szacunek.ostrzezenie ? h("span", { class: "szacunek-ostrzezenie" }, ikona(IKONY.uwaga), szacunek.ostrzezenie) : null,
       ),
       przycisk(
         [t(obrazy ? "obrazy.start" : "konwertuj.start"), gotowe > 1 ? h("span", { class: "plakietka plakietka-akcent" }, String(gotowe)) : ""],
         () => void start(),
         "przycisk-glowny",
-        { disabled: zablokowane },
+        { disabled: zablokowane, title: powod, "aria-describedby": powod ? `plik-uwaga-${iZablokowanego}` : undefined },
       ),
     );
   }
 
   const przelicz = debounce(async () => {
     const lista = zMedia();
+    const mieszczaceBylo = [...mieszczace].join("\n");
     if (lista.length === 0) {
       szacunek = { tekst: "", ostrzezenie: null };
       przebiegi = [];
       uwagiEl = null;
+      mieszczace = new Set();
     } else {
-      const wyniki = await Promise.all(lista.slice(0, 200).map((p) => api.szacuj(p.media!, profil)));
+      const wszystkie = await Promise.all(lista.slice(0, 200).map((p) => api.szacuj(p.media!, profil)));
+      mieszczace = new Set(lista.slice(0, 200).filter((_, i) => wszystkie[i].ostrzezenie === "juz_sie_miesci").map((p) => p.sciezka));
+      // do sumy tylko to, co naprawdę zostanie zakodowane (bez „już się mieści” i plików, których ten format nie przyjmie)
+      const wyniki = wszystkie.filter((w, i) => w.ostrzezenie !== "juz_sie_miesci" && !blokadaFormatu(lista[i].media!, profil));
       const znane = wyniki.filter((w) => w.bajty !== null);
       const suma = znane.reduce((s, w) => s + (w.bajty ?? 0), 0);
       const dokladny = wyniki.every((w) => w.dokladny);
@@ -264,21 +321,27 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
           rysujStopke();
         });
       }
+      const nMiesci = mieszczace.size;
       szacunek = {
-        tekst: znane.length ? opisSzacunku(suma, dokladny) : t("szacunek.brak"),
-        ostrzezenie: ostrz === "ogromny" ? t("szacunek.ogromny") : ostrz === "wiekszy_niz_zrodlo" ? t("szacunek.wiekszy") : zrodloKbps ? t("szacunek.zrodlo_kbps", { n: zrodloKbps }) : null,
+        tekst: wyniki.length === 0 ? "" : znane.length ? opisSzacunku(suma, dokladny) : t("szacunek.brak"),
+        ostrzezenie:
+          nMiesci && wyniki.length === 0 ? t("szacunek.juz_sie_miesci")
+          : nMiesci ? t("szacunek.juz_sie_miesci_czesc", { n: nMiesci, z: wszystkie.length })
+          : ostrz === "ogromny" ? t("szacunek.ogromny") : ostrz === "wiekszy_niz_zrodlo" ? t("szacunek.wiekszy") : zrodloKbps ? t("szacunek.zrodlo_kbps", { n: zrodloKbps }) : null,
       };
       const b = biezacy() ?? { sciezka: lista[0].sciezka, media: lista[0].media! };
       const plan = await api.planKomendy(b.sciezka, b.media, profil);
       przebiegi = plan.przebiegi;
-      uwagiEl = uwagi(plan.podpowiedzi, plan.blad);
+      // błędy jednego pliku („już się mieści”, brak dźwięku/obrazu) blokują tylko jego wiersz, chyba że dotyczą wszystkich
+      const bladPliku = ["juz_sie_miesci", "brak_dzwieku", "brak_wideo", "pusty_wynik"].includes(plan.blad?.typ ?? "");
+      const blokujeWszystko = !bladPliku || doKonwersji().length === 0;
+      uwagiEl = uwagi(plan.podpowiedzi, blokujeWszystko ? plan.blad : null, blokujeWszystko ? null : plan.blad);
     }
+    if ([...mieszczace].join("\n") !== mieszczaceBylo) rysujLewa();
     uwagiMiejsce.replaceChildren(...(uwagiEl ? [uwagiEl] : []));
     komendaMiejsce.replaceChildren(...[podgladKomendy(przebiegi)].filter((x): x is HTMLElement => !!x));
     rysujStopke();
   }, 150);
-
-  const pasuje = (s: string) => !obrazy || toObraz(s) || s.toLowerCase().endsWith(".gif");
 
   async function sonduj(nowe: PlikWejscia[], bylyPuste: boolean) {
     for (const wpis of nowe) {
@@ -289,6 +352,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
       }
       if (!pliki.includes(wpis)) continue;
       rysujLewa();
+      rysujStopke(); // reguła blokady (P4) i liczba plików od razu po sondzie, nie dopiero po szacunku
       if (bylyPuste && wpis === pliki[0]) {
         panel.odswiez();
         podglad.odswiez();
@@ -297,12 +361,15 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     }
   }
 
-  async function dodaj(sciezki: string[]) {
+  async function dodaj(sciezki: string[], o: { zachowajCiecie?: boolean } = {}) {
     const rozwiniete = await api.rozwinFoldery(sciezki, rozszerzeniaZTekstu(opcjeFolderu.rozszerzenia));
     const noweFoldery = sciezki.filter((s) => rozwiniete.some((r) => r.podkatalog !== null && r.sciezka.startsWith(s)));
     foldery = [...new Set([...foldery, ...noweFoldery])];
+    // P3: nieobsługiwane pliki (i wideo na Obrazach) już nie znikają bez słowa
+    const { przyjete, pominiete } = klasyfikujUpuszczone(sciezki, rozwiniete.map((r) => r.sciezka), rodzaj);
+    dymekPominietych(pominiete, opcje.doKonwertuj);
     const nowe: PlikWejscia[] = rozwiniete
-      .filter((r) => pasuje(r.sciezka) && !pliki.some((p) => p.sciezka === r.sciezka))
+      .filter((r) => przyjete.includes(r.sciezka) && !pliki.some((p) => p.sciezka === r.sciezka))
       .map((r) => ({ sciezka: r.sciezka, media: null, podkatalog: r.podkatalog }));
     if (nowe.length === 0) {
       if (foldery.length) rysujLewa();
@@ -310,6 +377,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     }
     const bylyPuste = pliki.length === 0;
     pliki.push(...nowe);
+    if (!o.zachowajCiecie) zdarzenieCiecia({ typ: "pliki" });
     rysujLewa();
     rysujStopke();
     await sonduj(nowe, bylyPuste);
@@ -322,7 +390,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
     const rozwiniete = await api.rozwinFoldery(foldery, rozszerzeniaZTekstu(opcjeFolderu.rozszerzenia));
     const stare = new Map(pliki.map((p) => [p.sciezka, p]));
     const zFolderow: PlikWejscia[] = rozwiniete
-      .filter((r) => r.podkatalog !== null && pasuje(r.sciezka))
+      .filter((r) => r.podkatalog !== null && (!obrazy || toObraz(r.sciezka) || r.sciezka.toLowerCase().endsWith(".gif")))
       .map((r) => stare.get(r.sciezka) ?? { sciezka: r.sciezka, media: null, podkatalog: r.podkatalog });
     pliki = [...luzne, ...zFolderow];
     wybrany = Math.min(wybrany, Math.max(0, pliki.length - 1));
@@ -333,8 +401,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy"): WidokPlikowy
 
   async function start() {
     const katalog = sklep.stan.konfig?.katalog_wyjscia ?? null;
-    const doKolejki: NoweZadanie[] = pliki
-      .filter((p) => p.media && !p.blad)
+    const doKolejki: NoweZadanie[] = doKonwersji()
       .map((p) => ({
         rodzaj: { typ: "konwersja", wejscie: p.sciezka, profil: sklonuj(profil) },
         katalog: katalogDlaPliku(p, katalog, opcjeFolderu),

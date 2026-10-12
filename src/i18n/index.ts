@@ -48,6 +48,18 @@ export function tlumaczBlad(komunikat: string): string {
   }
 }
 
+/**
+ * Błąd do pokazania w dwóch częściach (P5): zwięzłe zdanie w języku interfejsu i surowy ogon (stderr
+ * yt-dlp/ffmpeg) tylko do „Szczegółów technicznych”. Zwykły tekst bez klucza: całość jest zdaniem.
+ */
+export function rozdzielBlad(komunikat: string): { tekst: string; szczegoly: string | null } {
+  if (!komunikat.startsWith(ZNACZNIK_BLEDU)) return { tekst: komunikat, szczegoly: null };
+  const koniec = komunikat.indexOf("\n");
+  const tekst = tlumaczBlad(koniec < 0 ? komunikat : komunikat.slice(0, koniec));
+  const ogon = koniec < 0 ? "" : komunikat.slice(koniec).trim();
+  return { tekst, szczegoly: ogon || null };
+}
+
 /** Błąd z `catch` (Tauri odrzuca stringiem z Rusta) do pokazania w GUI. */
 export function tekstBledu(e: unknown): string {
   return tlumaczBlad(String(e));
