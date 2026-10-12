@@ -227,7 +227,8 @@ pub fn filtry_z_tekstu(tekst: &str) -> Vec<String> {
         }
         let mut cz = l.split_whitespace();
         if let (Some(flagi), Some(nazwa)) = (cz.next(), cz.next()) {
-            if flagi.len() == 3 && flagi.chars().all(|c| matches!(c, '.' | 'T' | 'S' | 'C')) {
+            // ffmpeg ≤ 7: flagi na 3 znaki ("T.C"); ffmpeg 8/9: na 2 znaki ("TS", "..")
+            if (2..=3).contains(&flagi.len()) && flagi.chars().all(|c| matches!(c, '.' | 'T' | 'S' | 'C')) {
                 wynik.push(nazwa.to_string());
             }
         }
@@ -290,6 +291,19 @@ mod testy {
     fn e31_parsuje_filtry() {
         let t = "Filters:\n  T.. = Timeline support\n  ---\n .S. tonemap  V->V  Conversion\n .SC zscale  V->V  Apply\n TSC scale  V->V  Scale\n ... anull A->A Pass\n";
         assert_eq!(filtry_z_tekstu(t), vec!["tonemap", "zscale", "scale", "anull"]);
+    }
+
+    #[test]
+    fn filtry_z_ffmpeg_9_maja_dwuznakowe_flagi() {
+        let t = "Filters:
+  T.. = Timeline support
+  ------
+ TS aap               AA->A      Apply
+ .. abench            A->A       Benchmark
+ .. ass               V->V       Render ASS subtitles
+ .. subtitles         V->V       Render text subtitles
+";
+        assert_eq!(filtry_z_tekstu(t), vec!["aap", "abench", "ass", "subtitles"]);
     }
 
     #[test]
