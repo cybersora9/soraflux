@@ -76,6 +76,13 @@ Enumy z danymi są tagowane polem `typ` (w TS zwykłe unie). Mapa zgodności kon
 - Docelowy rozmiar MB: po zakodowaniu sprawdzenie rozmiaru, w razie przekroczenia ponowne kodowanie z poprawionym bitrate (maks. 2 razy). Enkoder sprzętowy padł → to samo zadanie programowo (`awaria_sprzetu`).
 - `RunEvent::Exit` anuluje wszystko; na Windows Job Object z `KILL_ON_JOB_CLOSE` zabija drzewo nawet przy awarii apki.
 
+## Tryb Napisy (S5, whisper.cpp)
+- `RodzajZadania::Napisy { wejscie, opcje }`: zadanie kolejki (limit wideo). ffprobe → brak dźwięku = `napisy_brak_audio` → miejsce na dysku → ffmpeg: WAV 16 kHz mono → `whisper-cli -oj -pp` → `napisy::format` (maks. 2 linie, 24 znaki dla pionowych, 42 dla poziomych, bez nakładania, maks. 7 s) → SRT/VTT przez `.part` → opcjonalnie wypalenie filtrem `ass` (style Rolki, Środek, Klasyczny). Anulowanie na każdym etapie.
+- Pliki dłuższe niż 15 min: fragmenty po 10 min (bez zakładki), czasy przesunięte o początek fragmentu.
+- Procesy pracują w katalogu tymczasowym zadania i dostają względne nazwy ASCII (bez ucieczki ścieżek Windows w filtrze, bez problemu wąskiego `argv` whispera z polskimi literami).
+- Nic nie jest nadpisywane: `nazwa (1).srt`, `InfoZadania.napisy.zmieniona_nazwa`.
+- Modele w `<dane apki>/modele/`; pobranie tylko z `zgoda: true` i z sumą SHA-256 przypiętą w kodzie (pusta = odmowa `model_bez_sumy`), wznawiane (`Range`). Plik położony ręcznie jest używany bez sprawdzania.
+
 ## Narzędzia zewnętrzne
 - ffmpeg, ffprobe, yt-dlp, Deno. Kolejność wyszukiwania: ścieżka z konfigu → katalog narzędzi apki (dane apki albo `portable/`, obok `.exe`) → PATH.
 - yt-dlp: wersja = data `RRRR.MM.DD` → wiek w dniach. yt-dlp z PATH (pip) starszy niż 30 dni i brak własnej kopii → przy wejściu na Pobierz apka pobiera własną kopię (oficjalne wydanie z GitHuba, `SHA2-256SUMS`), która ma pierwszeństwo przed PATH. „Aktualizuj yt-dlp” pobiera tylko własną kopię, pipa nie rusza. Błąd 403 / „Sign in to confirm” / nsig → „Serwis zablokował pobieranie. Kliknij Aktualizuj yt-dlp i spróbuj jeszcze raz.”

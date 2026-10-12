@@ -4,6 +4,7 @@ use crate::blad;
 use crate::budowniczy::{self, Podpowiedz};
 use crate::kolejka::{InfoZadania, Kolejka, NoweZadanie, RodzajZadania};
 use crate::konfig::{self, Konfig};
+use crate::napisy::{self, ModelNapisow, OstrzezenieRam};
 use crate::narzedzia::zrodla::{self, Pakiet};
 use crate::narzedzia::{self, pobieranie, Narzedzie, Pochodzenie, Sciezki};
 use crate::sonda::{self, Media};
@@ -12,6 +13,7 @@ use crate::{pobieracz, presety};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::Emitter;
 use tauri::State;
@@ -29,6 +31,16 @@ pub struct StanApki {
     pub katalog_danych: PathBuf,
     /// Pliki z linii poleceń przy pierwszym uruchomieniu (menu kontekstowe Eksploratora).
     pub pliki_startowe: Mutex<Vec<PathBuf>>,
+    /// Katalog modeli whisper.cpp (tryb Napisy), obok narzędzi w danych apki.
+    pub katalog_modeli: PathBuf,
+    /// Pobieranie modelu napisów: jedno naraz, anulowane z GUI.
+    pub model_napisow: PobieranieModelu,
+}
+
+#[derive(Default)]
+pub struct PobieranieModelu {
+    pub trwa: AtomicBool,
+    pub przerwij: Arc<AtomicBool>,
 }
 
 impl StanApki {
@@ -103,10 +115,11 @@ pub fn dodaj_zadania(stan: State<'_, StanApki>, zadania: Vec<NoweZadanie>) -> Ve
                 z.katalog = match z.rodzaj {
                     RodzajZadania::Konwersja { .. } => k.katalog_wyjscia.clone(),
                     RodzajZadania::Pobranie { .. } => k.katalog_pobierania.clone(),
+                    RodzajZadania::Napisy { .. } => k.katalog_wyjscia.clone(),
                 };
             }
             z.katalog = z.katalog.as_deref().map(normalizuj);
-            if let RodzajZadania::Konwersja { wejscie, .. } = &mut z.rodzaj {
+            if let RodzajZadania::Konwersja { wejscie, .. } | RodzajZadania::Napisy { wejscie, .. } = &mut z.rodzaj {
                 *wejscie = normalizuj(wejscie);
             }
             stan.kolejka.dodaj(z)
@@ -631,4 +644,143 @@ pub async fn ytdlp_zapewnij<R: tauri::Runtime>(app: tauri::AppHandle<R>, stan: S
     zainstaluj_pakiet(&app, &stan, Pakiet::Ytdlp).await?;
     narzedzia_wykryj(stan);
     Ok(true)
+}
+
+// ---------- napisy (whisper.cpp) ----------
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct InfoModelu {
+    pub model: ModelNapisow,
+    pub plik: &'static str,
+    pub rozmiar_mb: u64,
+    pub ram_mb: u64,
+    /// Plik modelu jest w katalogu modeli (pobrany i sprawdzony albo położony ręcznie).
+    pub pobrany: bool,
+    /// Bajty przerwanego pobierania (`*.pobieranie`): następne pobranie je wznowi.
+    pub czesciowy_b: Option<u64>,
+    /// Suma SHA-256 jest przypięta w kodzie: tylko wtedy apka pobiera model sama.
+    pub do_pobrania: bool,
+    pub ostrzezenie_ram: Option<OstrzezenieRam>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct StanNapisow {
+    /// `whisper-cli` (ścieżka z konfigu, katalog narzędzi albo PATH).
+    pub whisper: Option<PathBuf>,
+    pub katalog_modeli: PathBuf,
+    pub modele: Vec<InfoModelu>,
+    pub ram_mb: Option<u64>,
+    pub wolne_ram_mb: Option<u64>,
+    pub pobieranie_trwa: bool,
+}
+
+pub fn stan_napisow_z(whisper: Option<PathBuf>, katalog_modeli: &Path, ram: (Option<u64>, Option<u64>)) -> StanNapisow {
+    let modele = ModelNapisow::WSZYSTKIE
+        .iter()
+        .map(|m| {
+            let o = m.opis();
+            let cel = m.sciezka(katalog_modeli);
+            InfoModelu {
+                model: *m,
+                plik: o.plik,
+                rozmiar_mb: o.rozmiar_mb,
+                ram_mb: o.ram_mb,
+                pobrany: cel.is_file(),
+                czesciowy_b: std::fs::metadata(pobieranie::sciezka_pobierania(&cel)).ok().map(|x| x.len()),
+                do_pobrania: napisy::suma_poprawna(o.sha256),
+                ostrzezenie_ram: napisy::ostrzezenie_ram(*m, ram.0, ram.1),
+            }
+        })
+        .collect();
+    StanNapisow {
+        whisper,
+        katalog_modeli: katalog_modeli.to_path_buf(),
+        modele,
+        ram_mb: ram.0,
+        wolne_ram_mb: ram.1,
+        pobieranie_trwa: false,
+    }
+}
+
+#[tauri::command]
+pub fn napisy_stan(stan: State<'_, StanApki>) -> StanNapisow {
+    // folder modeli istnieje od początku: „Otwórz folder modeli” i ręczne położenie pliku
+    let _ = std::fs::create_dir_all(&stan.katalog_modeli);
+    let mut s = stan_napisow_z(stan.sciezki().whisper, &stan.katalog_modeli, crate::procesy::pamiec_ram());
+    s.pobieranie_trwa = stan.model_napisow.trwa.load(Ordering::Relaxed);
+    s
+}
+
+#[derive(Serialize, Clone)]
+pub struct PostepModelu {
+    pub model: ModelNapisow,
+    pub pobrane: u64,
+    pub calosc: Option<u64>,
+}
+
+/// Pobranie modelu: tylko z wyraźną zgodą (`zgoda` z okna potwierdzenia), z przypiętą sumą SHA-256,
+/// ze wznawianiem przerwanego pliku. Postęp: zdarzenie `napisy://model`.
+#[tauri::command]
+pub async fn napisy_pobierz_model<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    stan: State<'_, StanApki>,
+    model: ModelNapisow,
+    zgoda: bool,
+) -> Wynik<StanNapisow> {
+    if !zgoda {
+        return Err(blad::kod("napisy_bez_zgody", &[]));
+    }
+    let p = &stan.model_napisow;
+    if p.trwa.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return Err(blad::kod("napisy_model_w_toku", &[]));
+    }
+    p.przerwij.store(false, Ordering::SeqCst);
+    let wynik = pobierz_model(app, &stan.katalog_modeli, model, p.przerwij.clone()).await;
+    p.trwa.store(false, Ordering::SeqCst);
+    wynik?;
+    Ok(napisy_stan(stan))
+}
+
+async fn pobierz_model<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    katalog: &Path,
+    model: ModelNapisow,
+    przerwij: Arc<AtomicBool>,
+) -> Wynik<()> {
+    let o = model.opis();
+    std::fs::create_dir_all(katalog)
+        .map_err(|e| blad::kod("folder_zapisu", &[("folder", &katalog.display()), ("blad", &e)]))?;
+    let cel = model.sciezka(katalog);
+    let juz = std::fs::metadata(pobieranie::sciezka_pobierania(&cel)).map(|m| m.len()).unwrap_or(0);
+    let potrzeba = (o.rozmiar_mb * 1_048_576).saturating_sub(juz);
+    if let Some(wolne) = crate::procesy::wolne_miejsce(katalog) {
+        if !crate::procesy::miejsce_wystarczy(potrzeba, wolne) {
+            return Err(blad::kod(
+                "napisy_miejsce",
+                &[
+                    ("folder", &katalog.display()),
+                    ("potrzeba", &(potrzeba / 1_048_576 + 50)),
+                    ("wolne", &(wolne / 1_048_576)),
+                ],
+            ));
+        }
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut ostatni = 0u64;
+        pobieranie::pobierz_wznawialnie(&pobieranie::agent(), o.url, &cel, o.sha256, &przerwij, |pobrane, calosc| {
+            // co ~1 MB, żeby nie zalać okna zdarzeniami
+            if pobrane.saturating_sub(ostatni) > 1 << 20 || Some(pobrane) == calosc || ostatni == 0 {
+                ostatni = pobrane.max(1);
+                let _ = app.emit("napisy://model", PostepModelu { model, pobrane, calosc });
+            }
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Przerywa pobieranie modelu; plik częściowy zostaje do wznowienia.
+#[tauri::command]
+pub fn napisy_anuluj_model(stan: State<'_, StanApki>) {
+    stan.model_napisow.przerwij.store(true, Ordering::SeqCst);
 }

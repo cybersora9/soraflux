@@ -96,7 +96,9 @@ describe("akcje → profile (mapowanie z PROMPT_TRYB_PROSTY)", () => {
     expect(wyborLinku("telefon")).toEqual({ typ: "wysokosc", h: 480 });
   });
   it("każda akcja plikowa daje profil", () => {
-    for (const r of ["film", "dzwiek", "zdjecia"] as const) for (const a of AKCJE[r]) expect(profilAkcji(r, a).kontener).toBeTruthy();
+    // „napisy” to zadanie whisper.cpp, nie konwersja (src/napisy.ts)
+    for (const r of ["film", "dzwiek", "zdjecia"] as const) for (const a of AKCJE[r].filter((x) => x !== "napisy")) expect(profilAkcji(r, a).kontener).toBeTruthy();
+    expect(() => profilAkcji("film", "napisy")).toThrow();
     expect(() => profilAkcji("film", "nie-ma")).toThrow();
   });
 });
