@@ -303,6 +303,8 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
     const blokady = sondowanie || doLinku ? [] : zablokowane();
     const n = doLinku ? 1 : pasujace().length;
     const [klucz, par] = rodzaj ? napisPrzycisku(rodzaj, akcja, { cel, n }) : ["prosty.link.sprawdz", {}];
+    // N3: wyłączony przycisk nie obiecuje zmniejszania, gdy każdy plik już się mieści
+    const nieTrzeba = !gotowe && rodzaj === "film" && akcja === "wyslij" && mieszczace.length > 0;
     const naprawaLinku = link?.blad && naprawaBledu(link.blad) === "aktualizuj";
     return [
       naglowek(t("prosty.pytanie")),
@@ -331,7 +333,7 @@ export function stworzWidokProsty(o: { doPelnego(p: Przekazanie): void }): Widok
           ),
           rodzaj && gotowe ? przycisk([ikona(IKONY.strzalka), t("prosty.wiecej")], doPelnego, "przycisk-tekstowy prosty-wiecej", { "data-fokus": "wiecej" }) : null,
         ),
-        przycisk(t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", {
+        przycisk(nieTrzeba ? t("prosty.przycisk.film.miesci_sie") : t(klucz, par), () => void uruchom(), "przycisk-glowny prosty-start-przycisk", {
           disabled: !gotowe, "data-fokus": "start", "aria-describedby": blokady.length ? "prosty-blokada" : mieszczace.length ? "prosty-miesci" : undefined,
         }),
       ),

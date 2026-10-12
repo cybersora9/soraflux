@@ -32,6 +32,8 @@ export interface Panel {
   profil(): Profil;
   ustaw(p: Profil): void;
   odswiez(): void;
+  /** Rozwija „Zaawansowane” (np. gdy podpowiedź odsyła do pól, które tam leżą). */
+  otworzZaawansowane(): void;
 }
 
 const SKALERY: Skaler[] = ["lanczos", "bicubic", "bilinear", "neighbor"];
@@ -665,6 +667,11 @@ export function panelUstawien(o: OpcjePanelu): Panel {
       rysuj();
     },
     odswiez: rysuj,
+    otworzZaawansowane() {
+      if (zaawansowaneOtwarte) return;
+      zaawansowaneOtwarte = true;
+      rysuj();
+    },
   };
 }
 

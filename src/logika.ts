@@ -280,6 +280,17 @@ export function kontenerKopii(sciezkaZrodla: string | null): Kontener {
 }
 
 /**
+ * N4: po „Zmniejsz do X MB” wybór innego formatu odznacza akcję, więc nie może zostać po niej
+ * ukryty limit rozmiaru (plik „już się mieści” byłby pominięty). Zmiana kontenera przy jakości
+ * „rozmiar_mb” wraca do CRF; zmiany w obrębie tego samego kontenera (np. własny limit MB) zostają.
+ */
+export function zdejmijLimitAkcji(poprzedni: Profil, nowy: Profil): Profil {
+  if (nowy.kontener === poprzedni.kontener) return nowy;
+  if (nowy.wideo?.jakosc.typ !== "rozmiar_mb") return nowy;
+  return { ...nowy, wideo: { ...nowy.wideo, jakosc: { typ: "crf", crf: 23 } } };
+}
+
+/**
  * Profil po jednym kliknięciu szybkiej akcji. Cięcie od–do z bieżącego profilu zostaje
  * (np. „Zrób GIF” z wybranego fragmentu), resztę można potem dopracować w panelu.
  */

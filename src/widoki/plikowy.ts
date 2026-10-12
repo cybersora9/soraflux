@@ -5,7 +5,7 @@ import { api } from "../api";
 import { debounce, h, ikona } from "../dom";
 import { IKONY } from "../ikony";
 import { jezyk, t, tekstBledu } from "../i18n";
-import { blokadaFormatu, formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
+import { blokadaFormatu, formatujRozmiar, profilDla, profilSzybkiejAkcji, sklonuj, stanCiecia, SZYBKIE_AKCJE, toObraz, zdejmijLimitAkcji, type SzybkaAkcja, type ZdarzenieCiecia } from "../logika";
 import { panelUstawien, type Panel } from "../komponenty/PanelUstawien";
 import { liczba, przelacznik, przycisk, tekst, uwaga } from "../komponenty/pola";
 import { kartaInformacji } from "../komponenty/info";
@@ -89,7 +89,10 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
     sprzet: () => sklep.stan.narzedzia?.sprzet ?? [],
     enkodery: () => sklep.stan.narzedzia?.enkodery ?? [],
     onZmiana: (p) => {
-      profil = p;
+      // N4: format wybrany po „Zmniejsz do X MB” zdejmuje limit z profilu, nie tylko pigułkę
+      const bezLimitu = aktywnaAkcja === "rozmiar" ? zdejmijLimitAkcji(profil, p) : p;
+      profil = bezLimitu;
+      if (bezLimitu !== p) panel.ustaw(bezLimitu);
       // blokada formatu (P4) od razu: wiersze i przycisk nie czekają na przeliczenie szacunku
       const uwagi = pliki.map((x) => uwagaPliku(x)?.tekst ?? "").join("\n");
       if (uwagi !== ostatnieUwagi) {
@@ -169,7 +172,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
               h("span", null, a === "rozmiar" ? t("akcje.rozmiar", { mb: mbAkcji }) : t(`akcje.${a}`)),
             ),
             a === "rozmiar"
-              ? liczba(mbAkcji, { min: 1, max: 4000, sufiks: "MB", szerokosc: "4.2em" }, (v) => {
+              ? liczba(mbAkcji, { min: 1, max: 4000, sufiks: "MB", szerokosc: "5.6em" }, (v) => {
                   mbAkcji = v ?? 10;
                   zastosuj("rozmiar");
                 })
@@ -184,6 +187,7 @@ export function stworzWidokPlikowy(rodzaj: "konwertuj" | "obrazy", opcje: { doKo
               { class: "wytnij-opcje" },
               przelacznik(t("akcje.wytnij.dokladnie"), dokladneCiecie, (v) => {
                 dokladneCiecie = v;
+                if (v) panel.otworzZaawansowane(); // N1: pola od–do leżą w „Zaawansowane”
                 zastosuj("wytnij");
               }, t("akcje.wytnij.dokladnie.opis")),
             ),
