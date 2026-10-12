@@ -1,4 +1,4 @@
-// Lista narzędzi (ffmpeg, ffprobe, yt-dlp, deno): stan, wersja, wskaż, pobierz.
+// Lista narzędzi (ffmpeg, ffprobe, yt-dlp, deno, whisper.cpp): stan, wersja, wskaż, pobierz.
 // Używana w Ustawieniach i w kreatorze pierwszego uruchomienia.
 import { api } from "../api";
 import { h, ikona } from "../dom";
@@ -9,9 +9,10 @@ import { pokazDymek, sklep } from "../sklep";
 import type { Narzedzie, Pakiet } from "../typy";
 import { przycisk } from "./pola";
 
-const NARZEDZIA: Narzedzie[] = ["ffmpeg", "ffprobe", "ytdlp", "deno"];
-const PAKIET: Record<Narzedzie, Pakiet> = { ffmpeg: "ffmpeg", ffprobe: "ffmpeg", ytdlp: "ytdlp", deno: "deno" };
-const NAZWA: Record<Narzedzie, string> = { ffmpeg: "ffmpeg", ffprobe: "ffprobe", ytdlp: "yt-dlp", deno: "Deno" };
+const NARZEDZIA: Narzedzie[] = ["ffmpeg", "ffprobe", "ytdlp", "deno", "whisper"];
+// whisper.cpp nie ma jeszcze pakietu do pobrania (przypięta suma wydania do zrobienia): tylko „Wskaż”
+const PAKIET: Partial<Record<Narzedzie, Pakiet>> = { ffmpeg: "ffmpeg", ffprobe: "ffmpeg", ytdlp: "ytdlp", deno: "deno" };
+const NAZWA: Record<Narzedzie, string> = { ffmpeg: "ffmpeg", ffprobe: "ffprobe", ytdlp: "yt-dlp", deno: "Deno", whisper: "whisper.cpp" };
 
 const postep = new Map<Pakiet, { pobrane: number; calosc: number | null }>();
 const sluchacze = new Set<() => void>();
@@ -44,7 +45,7 @@ export function brakujacePakiety(): Pakiet[] {
   if (!n) return [];
   const brak = new Set<Pakiet>();
   // Kreator: tylko to, bez czego konwersja nie ruszy (yt-dlp i Deno doinstalowuje zakładka Pobierz).
-  for (const x of ["ffmpeg", "ffprobe"] as const) if (!n.sciezki[x]) brak.add(PAKIET[x]);
+  for (const x of ["ffmpeg", "ffprobe"] as const) if (!n.sciezki[x]) brak.add("ffmpeg");
   return [...brak].filter((p) => n.do_pobrania.includes(p));
 }
 
@@ -56,8 +57,8 @@ export function listaNarzedzi(): HTMLElement {
       ...NARZEDZIA.map((x) => {
         const sciezka = n?.sciezki[x] ?? null;
         const pakiet = PAKIET[x];
-        const p = postep.get(pakiet);
-        const moznaPobrac = n?.do_pobrania.includes(pakiet) ?? false;
+        const p = pakiet ? postep.get(pakiet) : undefined;
+        const moznaPobrac = (pakiet && n?.do_pobrania.includes(pakiet)) ?? false;
         const akcje: HTMLElement[] = [];
         if (p) {
           const procent = p.calosc ? (p.pobrane / p.calosc) * 100 : 0;
@@ -76,11 +77,11 @@ export function listaNarzedzi(): HTMLElement {
               await odswiezNarzedzia();
             }, "przycisk-maly przycisk-drugorzedny"),
           );
-          if (moznaPobrac && (!sciezka || x === "ytdlp" || x === "deno") && (x !== "ffprobe" || !!n?.sciezki.ffmpeg)) {
+          if (pakiet && moznaPobrac && (!sciezka || x === "ytdlp" || x === "deno") && (x !== "ffprobe" || !!n?.sciezki.ffmpeg)) {
             akcje.push(przycisk(t(sciezka ? "narzedzia.pobierz_ponownie" : "narzedzia.pobierz"), () => void pobierzPakiet(pakiet), "przycisk-maly"));
           }
         }
-        const opis = x === "deno" ? t("narzedzia.deno_opis") : x === "ytdlp" ? t("narzedzia.ytdlp_opis") : t("narzedzia.ffmpeg_opis");
+        const opis = x === "deno" ? t("narzedzia.deno_opis") : x === "ytdlp" ? t("narzedzia.ytdlp_opis") : x === "whisper" ? t("narzedzia.whisper_opis") : t("narzedzia.ffmpeg_opis");
         return h(
           "li",
           { class: "narzedzie" },
