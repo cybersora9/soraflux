@@ -61,6 +61,7 @@ pub fn wbudowane() -> Vec<Preset> {
                     hz: Some(16000),
                     kanaly: Some(1),
                     normalizacja: true,
+                    lufs: None,
                 }),
                 ..Profil::dla(Kontener::M4a)
             },
@@ -75,6 +76,7 @@ pub fn wbudowane() -> Vec<Preset> {
                     hz: Some(44100),
                     kanaly: Some(2),
                     normalizacja: false,
+                    lufs: None,
                 }),
                 ..Profil::dla(Kontener::Mp3)
             },

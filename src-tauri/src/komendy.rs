@@ -115,12 +115,18 @@ pub fn dodaj_zadania(stan: State<'_, StanApki>, zadania: Vec<NoweZadanie>) -> Ve
                 z.katalog = match z.rodzaj {
                     RodzajZadania::Konwersja { .. } => k.katalog_wyjscia.clone(),
                     RodzajZadania::Pobranie { .. } => k.katalog_pobierania.clone(),
-                    RodzajZadania::Napisy { .. } => k.katalog_wyjscia.clone(),
+                    RodzajZadania::Napisy { .. } | RodzajZadania::Sciezki { .. } | RodzajZadania::Polacz { .. } => {
+                        k.katalog_wyjscia.clone()
+                    }
                 };
             }
             z.katalog = z.katalog.as_deref().map(normalizuj);
-            if let RodzajZadania::Konwersja { wejscie, .. } | RodzajZadania::Napisy { wejscie, .. } = &mut z.rodzaj {
-                *wejscie = normalizuj(wejscie);
+            match &mut z.rodzaj {
+                RodzajZadania::Konwersja { wejscie, .. }
+                | RodzajZadania::Napisy { wejscie, .. }
+                | RodzajZadania::Sciezki { wejscie } => *wejscie = normalizuj(wejscie),
+                RodzajZadania::Polacz { wejscia, .. } => wejscia.iter_mut().for_each(|w| *w = normalizuj(w)),
+                RodzajZadania::Pobranie { .. } => {}
             }
             stan.kolejka.dodaj(z)
         })
@@ -264,7 +270,7 @@ async fn uruchom_ffmpeg_proste(ffmpeg: &Path, args: &[std::ffi::OsString]) -> Wy
 fn kontekst(stan: &StanApki) -> budowniczy::Kontekst {
     let zscale =
         stan.pamiec_narzedzi.lock().unwrap().as_ref().map(|s| s.filtry.iter().any(|f| f == "zscale")).unwrap_or(true);
-    budowniczy::Kontekst { zscale, katalog_tmp: None }
+    budowniczy::Kontekst { zscale, katalog_tmp: None, pomiar_glosnosci: None }
 }
 
 /// Jedna klatka przed i po (ten sam łańcuch filtrów co konwersja) z wybranego momentu.
@@ -783,4 +789,227 @@ async fn pobierz_model<R: tauri::Runtime>(
 #[tauri::command]
 pub fn napisy_anuluj_model(stan: State<'_, StanApki>) {
     stan.model_napisow.przerwij.store(true, Ordering::SeqCst);
+}
+
+// ---------- GUI 2.0: skala, pauza, plik motywu ----------
+
+/// Skala interfejsu (90–150%): zoom WebView przez Tauri (`Webview::set_zoom`), zapis w konfigu.
+/// Zwraca skalę po poprawce zakresu.
+#[tauri::command]
+pub fn ustaw_skale<R: tauri::Runtime>(webview: tauri::Webview<R>, stan: State<'_, StanApki>, skala: f64) -> Wynik<f64> {
+    let s = konfig::skala_poprawna(skala);
+    webview.set_zoom(s).map_err(|e| e.to_string())?;
+    let mut k = stan.konfig();
+    if (k.skala - s).abs() > f64::EPSILON {
+        k.skala = s;
+        konfig::zapisz(&stan.katalog_konfiguracji, &k)?;
+        *stan.konfig.lock().unwrap() = k;
+    }
+    Ok(s)
+}
+
+/// „Pauza” Taśmy: trwające zadania kończą się, kolejne czekają do wznowienia.
+#[tauri::command]
+pub fn kolejka_wstrzymaj(stan: State<'_, StanApki>, tak: bool) -> bool {
+    stan.kolejka.wstrzymaj(tak);
+    stan.kolejka.wstrzymana()
+}
+
+#[tauri::command]
+pub fn kolejka_wstrzymana(stan: State<'_, StanApki>) -> bool {
+    stan.kolejka.wstrzymana()
+}
+
+/// Największy plik motywu (.json), jaki przyjmujemy.
+pub const MAKS_MOTYW_B: u64 = 64 * 1024;
+
+fn plik_json(p: &Path) -> Wynik<()> {
+    let ok = p.extension().is_some_and(|e| e.eq_ignore_ascii_case("json"));
+    if ok {
+        Ok(())
+    } else {
+        Err(blad::kod("motyw_plik", &[]))
+    }
+}
+
+/// Eksport motywu „Własny” do pliku wybranego w oknie zapisu (tylko `.json`, mały).
+pub fn zapisz_motyw_z(sciezka: &Path, tresc: &str) -> Wynik<()> {
+    plik_json(sciezka)?;
+    if tresc.len() as u64 > MAKS_MOTYW_B || serde_json::from_str::<serde_json::Value>(tresc).is_err() {
+        return Err(blad::kod("motyw_plik", &[]));
+    }
+    std::fs::write(sciezka, tresc).map_err(|e| blad::kod("zapis_wyniku", &[("blad", &e)]))
+}
+
+/// Import motywu: tylko `.json` do 64 KB; treść sprawdza front (`zImportu`).
+pub fn wczytaj_motyw_z(sciezka: &Path) -> Wynik<String> {
+    plik_json(sciezka)?;
+    let m = std::fs::metadata(sciezka).map_err(|e| e.to_string())?;
+    if m.len() > MAKS_MOTYW_B {
+        return Err(blad::kod("motyw_plik", &[]));
+    }
+    std::fs::read_to_string(sciezka).map_err(|_| blad::kod("motyw_plik", &[]))
+}
+
+#[tauri::command]
+pub fn motyw_zapisz_plik(sciezka: PathBuf, tresc: String) -> Wynik<()> {
+    zapisz_motyw_z(&sciezka, &tresc)
+}
+
+#[tauri::command]
+pub fn motyw_wczytaj_plik(sciezka: PathBuf) -> Wynik<String> {
+    wczytaj_motyw_z(&sciezka)
+}
+
+// ---------- GUI 2.0: Porównaj (przed / po) ----------
+
+/// Ta sama klatka z oryginału i z wyniku (suwak A/B). `czas_s` liczony w wyniku; `przesuniecie_s`
+/// = początek wycinka w oryginale (wynik z „Wytnij fragment”).
+pub async fn porownaj_klatke_z(
+    ffmpeg: &Path,
+    oryginal: &Path,
+    wynik: &Path,
+    czas_s: f64,
+    przesuniecie_s: f64,
+) -> Wynik<PodgladKlatki> {
+    let k = katalog_podgladu()?;
+    let (przed, po) = (k.join("przed.jpg"), k.join("po.jpg"));
+    let w = async {
+        let t = czas_s.max(0.0);
+        uruchom_ffmpeg_proste(
+            ffmpeg,
+            &budowniczy::argumenty_klatki(oryginal, Some(t + przesuniecie_s.max(0.0)), None, &przed),
+        )
+        .await?;
+        uruchom_ffmpeg_proste(ffmpeg, &budowniczy::argumenty_klatki(wynik, Some(t), None, &po)).await?;
+        Ok(PodgladKlatki { przed: data_url("image/jpeg", &przed)?, po: data_url("image/jpeg", &po)?, czas_s: Some(t) })
+    }
+    .await;
+    let _ = std::fs::remove_dir_all(&k);
+    w
+}
+
+#[tauri::command]
+pub async fn porownaj_klatke(
+    stan: State<'_, StanApki>,
+    oryginal: PathBuf,
+    wynik: PathBuf,
+    czas_s: f64,
+    przesuniecie_s: Option<f64>,
+) -> Wynik<PodgladKlatki> {
+    let ffmpeg = wymagane(stan.sciezki().ffmpeg, "ffmpeg")?;
+    porownaj_klatke_z(&ffmpeg, &oryginal, &wynik, czas_s, przesuniecie_s.unwrap_or(0.0)).await
+}
+
+/// Liczby „przed / po”: rozmiar zawsze; SSIM, gdy oba pliki mają obraz; VMAF tylko z `libvmaf`
+/// w buildzie ffmpeg; głośność, gdy oba mają dźwięk. Analiza pierwszej minuty.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Metryki {
+    pub rozmiar_przed: Option<u64>,
+    pub rozmiar_po: Option<u64>,
+    pub ssim: Option<f64>,
+    pub vmaf: Option<f64>,
+    pub lufs_przed: Option<f64>,
+    pub lufs_po: Option<f64>,
+    pub analiza_s: f64,
+}
+
+async fn stderr_ffmpeg(ffmpeg: &Path, args: &[std::ffi::OsString]) -> Option<String> {
+    let w = crate::procesy::komenda(ffmpeg).args(args).kill_on_drop(true).output().await.ok()?;
+    w.status.success().then(|| crate::procesy::dekoduj(&w.stderr))
+}
+
+pub async fn porownaj_metryki_z(
+    ffmpeg: &Path,
+    ffprobe: &Path,
+    oryginal: &Path,
+    wynik: &Path,
+    vmaf: bool,
+) -> Wynik<Metryki> {
+    use budowniczy::obrobka;
+    let mo = sonda::sonduj(ffprobe, oryginal).await?;
+    let mw = sonda::sonduj(ffprobe, wynik).await?;
+    let obraz = |m: &Media| m.wideo.is_some() && !m.obraz;
+    let mut m = Metryki {
+        rozmiar_przed: std::fs::metadata(oryginal).ok().map(|x| x.len()),
+        rozmiar_po: std::fs::metadata(wynik).ok().map(|x| x.len()),
+        ssim: None,
+        vmaf: None,
+        lufs_przed: None,
+        lufs_po: None,
+        analiza_s: obrobka::ANALIZA_S,
+    };
+    if let (true, true, Some(w)) = (obraz(&mo), obraz(&mw), mo.wideo.as_ref()) {
+        let a = obrobka::argumenty_jakosci(oryginal, wynik, w.w, w.h, false);
+        m.ssim = stderr_ffmpeg(ffmpeg, &a).await.as_deref().and_then(obrobka::ssim_z_tekstu);
+        if vmaf {
+            let a = obrobka::argumenty_jakosci(oryginal, wynik, w.w, w.h, true);
+            m.vmaf = stderr_ffmpeg(ffmpeg, &a).await.as_deref().and_then(obrobka::vmaf_z_tekstu);
+        }
+    }
+    if mo.audio.is_some() && mw.audio.is_some() {
+        let lufs = |p: &Path| {
+            let a = obrobka::argumenty_glosnosci(p);
+            async move {
+                stderr_ffmpeg(ffmpeg, &a).await.and_then(|t| budowniczy::PomiarGlosnosci::z_tekstu(&t)).map(|p| p.i)
+            }
+        };
+        m.lufs_przed = lufs(oryginal).await;
+        m.lufs_po = lufs(wynik).await;
+    }
+    Ok(m)
+}
+
+/// ffmpeg ma filtr `libvmaf` (front pokazuje VMAF tylko wtedy).
+pub fn ma_vmaf(filtry: &[String]) -> bool {
+    filtry.iter().any(|f| f == "libvmaf")
+}
+
+#[tauri::command]
+pub async fn porownaj_metryki(stan: State<'_, StanApki>, oryginal: PathBuf, wynik: PathBuf) -> Wynik<Metryki> {
+    let s = stan.sciezki();
+    let ffmpeg = wymagane(s.ffmpeg, "ffmpeg")?;
+    let ffprobe = wymagane(s.ffprobe, "ffprobe")?;
+    let vmaf = stan.pamiec_narzedzi.lock().unwrap().as_ref().map(|n| ma_vmaf(&n.filtry)).unwrap_or(false);
+    porownaj_metryki_z(&ffmpeg, &ffprobe, &oryginal, &wynik, vmaf).await
+}
+
+// ---------- GUI 2.0: przeciągnij gotowy plik do innej apki ----------
+
+/// Czy plik jest wynikiem zadania z kolejki (przeciągać można tylko to, co apka sama zapisała).
+pub fn wynik_z_kolejki(lista: &[InfoZadania], p: &Path) -> bool {
+    lista.iter().any(|z| {
+        matches!(z.stan, crate::kolejka::Stan::Gotowe { .. })
+            && (z.wyjscie.as_deref() == Some(p) || z.wyniki.iter().any(|w| w == p))
+    })
+}
+
+/// Rozpoczyna systemowe przeciąganie pliku (OLE na Windows, GTK na Linuksie) z okna apki: plik
+/// z Gotowe można upuścić w mailu, komunikatorze albo folderze. Wołane przy wciśniętym przycisku myszy.
+#[tauri::command]
+pub async fn przeciagnij_wynik<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    okno: tauri::Window<R>,
+    stan: State<'_, StanApki>,
+    sciezka: PathBuf,
+) -> Wynik<()> {
+    if !sciezka.is_absolute() || !sciezka.is_file() || !wynik_z_kolejki(&stan.kolejka.lista(), &sciezka) {
+        return Err(blad::kod("przeciagnij_plik", &[]));
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "linux")]
+        let w = okno.gtk_window();
+        #[cfg(not(target_os = "linux"))]
+        let w = tauri::Result::Ok(okno.clone());
+        let ikona = drag::Image::Raw(include_bytes!("../icons/32x32.png").to_vec());
+        let r = match w {
+            Ok(w) => drag::start_drag(&w, drag::DragItem::Files(vec![sciezka]), ikona, |_, _| {}, Default::default())
+                .map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        };
+        let _ = tx.send(r);
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())?
 }

@@ -31,6 +31,8 @@ tauri-plugin-updater = "2.12.0"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-notification = "2.4.0"
 base64 = "0.23.1"
+# GUI 2.0: przeciąganie gotowego pliku z listy do innej apki (CrabNebula, MIT OR Apache-2.0)
+drag = "2.1.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

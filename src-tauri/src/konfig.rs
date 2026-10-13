@@ -69,6 +69,28 @@ pub struct Konfig {
     /// Jednorazowa podpowiedź „Wypróbuj tryb Prosty” dla aktualizujących z 1.x już pokazana.
     #[serde(default)]
     pub podpowiedz_prosty_pokazana: bool,
+    /// GUI 2.0: skala interfejsu 0,9–1,5 (zoom WebView, Ctrl + / − / 0).
+    #[serde(default = "skala_domyslna")]
+    pub skala: f64,
+    /// GUI 2.0: motyw „Własny” (akcent i baza; kształt z `motywy.ts`, Rust go nie interpretuje).
+    #[serde(default)]
+    pub motyw_wlasny: Option<serde_json::Value>,
+}
+
+fn skala_domyslna() -> f64 {
+    1.0
+}
+
+/// Najmniejsza i największa skala interfejsu.
+pub const SKALA_MIN: f64 = 0.9;
+pub const SKALA_MAX: f64 = 1.5;
+
+/// Skala w dozwolonym zakresie, zaokrąglona do setnych; śmieci (NaN) = 100%.
+pub fn skala_poprawna(s: f64) -> f64 {
+    if !s.is_finite() {
+        return 1.0;
+    }
+    (s.clamp(SKALA_MIN, SKALA_MAX) * 100.0).round() / 100.0
 }
 
 impl Default for Konfig {

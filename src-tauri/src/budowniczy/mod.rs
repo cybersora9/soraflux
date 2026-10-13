@@ -7,6 +7,8 @@
 //! (Prędkość przed fps, żeby wynik miał dokładnie żądane fps także przy przyspieszeniu.)
 //! Audio: prędkość → loudnorm → aresample.
 
+pub mod obrobka;
+
 use crate::sonda::{Hdr, Media};
 use crate::ustawienia::*;
 use serde::Serialize;
@@ -87,12 +89,92 @@ pub struct Kontekst {
     pub zscale: bool,
     /// Katalog tymczasowy zadania (logi 2 przebiegów, paleta GIF). `None` = obok wyniku.
     pub katalog_tmp: Option<PathBuf>,
+    /// Wynik pierwszego przebiegu `loudnorm` (pomiar): drugi przebieg normalizuje liniowo, dokładnie do celu.
+    /// `None` = jeden przebieg (podgląd, odsłuch, nieudany pomiar).
+    pub pomiar_glosnosci: Option<PomiarGlosnosci>,
 }
 
 impl Default for Kontekst {
     fn default() -> Self {
-        Kontekst { zscale: true, katalog_tmp: None }
+        Kontekst { zscale: true, katalog_tmp: None, pomiar_glosnosci: None }
     }
+}
+
+// ---------- głośność (EBU R128, loudnorm 2-przebiegowo) ----------
+
+/// Domyślny cel głośności, gdy profil go nie podaje (zgodność z 1.x).
+pub const LUFS_DOMYSLNE: f32 = -16.0;
+
+/// Pomiar z pierwszego przebiegu `loudnorm=…:print_format=json`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PomiarGlosnosci {
+    pub i: f64,
+    pub tp: f64,
+    pub lra: f64,
+    pub prog: f64,
+    pub przesuniecie: f64,
+}
+
+impl PomiarGlosnosci {
+    /// Czyta ostatni blok JSON `loudnorm` ze stderr ffmpeg. `None`, gdy pomiaru nie ma albo jest
+    /// bezużyteczny (cisza: `-inf`).
+    pub fn z_tekstu(stderr: &str) -> Option<PomiarGlosnosci> {
+        let start = stderr.rfind("\"input_i\"")?;
+        let poczatek = stderr[..start].rfind('{')?;
+        let koniec = start + stderr[start..].find('}')?;
+        let v: serde_json::Value = serde_json::from_str(&stderr[poczatek..=koniec]).ok()?;
+        let pole = |k: &str| v.get(k)?.as_str()?.trim().parse::<f64>().ok().filter(|x| x.is_finite());
+        Some(PomiarGlosnosci {
+            i: pole("input_i")?,
+            tp: pole("input_tp")?,
+            lra: pole("input_lra")?,
+            prog: pole("input_thresh")?,
+            przesuniecie: pole("target_offset").unwrap_or(0.0),
+        })
+    }
+}
+
+/// Filtr `loudnorm` do celu `lufs`; z pomiarem = drugi przebieg (liniowo, bez „pompowania”).
+pub fn filtr_loudnorm(lufs: f32, pomiar: Option<&PomiarGlosnosci>) -> String {
+    let cel = liczba(lufs.clamp(-70.0, -5.0) as f64);
+    match pomiar {
+        None => format!("loudnorm=I={cel}:TP=-1.5:LRA=11"),
+        Some(p) => format!(
+            "loudnorm=I={cel}:TP=-1.5:LRA=11:measured_I={}:measured_TP={}:measured_LRA={}:measured_thresh={}:offset={}:linear=true",
+            liczba(p.i),
+            liczba(p.tp),
+            liczba(p.lra),
+            liczba(p.prog),
+            liczba(p.przesuniecie)
+        ),
+    }
+}
+
+/// Pierwszy przebieg normalizacji: sam pomiar (`-f null`), ten sam fragment i prędkość co wynik.
+/// `None`, gdy profil nie normalizuje albo plik nie ma dźwięku.
+pub fn argumenty_pomiaru(media: &Media, profil: &Profil, wejscie: &Path) -> Option<Vec<OsString>> {
+    let pa = profil.audio.as_ref().filter(|a| a.normalizacja && a.kodek != KodekAudio::Kopiuj)?;
+    let sciezki: Vec<_> = if media.sciezki_audio.is_empty() {
+        media.audio.iter().collect()
+    } else {
+        media.sciezki_audio.iter().collect()
+    };
+    let n = match profil.sciezki_audio {
+        WyborAudio::Numer { n } => (n as usize).min(sciezki.len().saturating_sub(1)),
+        _ => 0,
+    };
+    let s = sciezki.get(n)?;
+    let mut a = poczatek();
+    // pomiar wymaga komunikatów loudnorm (poziom info), postęp i tak idzie przez -progress
+    if let Some(i) = a.iter().position(|x| x == "warning") {
+        a[i] = "info".into();
+    }
+    wejscie_z_cieciem(&mut a, profil, wejscie);
+    let mut f = atempo(profil.predkosc);
+    f.push(format!("{}:print_format=json", filtr_loudnorm(pa.lufs.unwrap_or(LUFS_DOMYSLNE), None)));
+    a.extend(os(["-map".to_string(), format!("0:{}", s.indeks), "-af".into(), f.join(",")]));
+    a.extend(os(["-vn", "-sn", "-dn", "-f", "null", "-"]));
+    Some(a)
 }
 
 /// Pełny plan: przebiegi + podpowiedzi + pliki tymczasowe do sprzątnięcia.
@@ -579,6 +661,7 @@ fn plan_audio(
     media: &Media,
     profil: &Profil,
     pa: &ProfilAudio,
+    kt: &Kontekst,
     podp: &mut Vec<Podpowiedz>,
 ) -> Result<Args, BladProfilu> {
     let kontener = profil.kontener;
@@ -610,7 +693,7 @@ fn plan_audio(
         _ => {}
     }
     if pa.normalizacja {
-        filtry.push("loudnorm=I=-16:TP=-1.5:LRA=11".into());
+        filtry.push(filtr_loudnorm(pa.lufs.unwrap_or(LUFS_DOMYSLNE), kt.pomiar_glosnosci.as_ref()));
         // loudnorm podbija próbkowanie do 192 kHz, więc wracamy do celu.
         let cel = hz.or(media.audio.as_ref().and_then(|a| a.hz)).unwrap_or(48000);
         let cel = if pa.kodek == KodekAudio::Opus && !OPUS_HZ.contains(&cel) { 48000 } else { cel };
@@ -747,7 +830,7 @@ fn plan_av(media: &Media, profil: &Profil, wejscie: &Path, wyjscie: &Path, kt: &
         _ => None,
     };
     let audio = match (&profil.audio, &media.audio) {
-        (Some(pa), Some(_)) => Some(plan_audio(media, profil, pa, &mut podp)?),
+        (Some(pa), Some(_)) => Some(plan_audio(media, profil, pa, kt, &mut podp)?),
         _ => None,
     };
     if wideo.is_none() && audio.is_none() {

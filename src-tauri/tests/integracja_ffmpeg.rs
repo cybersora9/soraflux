@@ -127,8 +127,14 @@ fn p480_25fps_aac_8k_mono() {
         jakosc: JakoscWideo::Bitrate { kbps: 800 },
         ..Default::default()
     });
-    p.audio =
-        Some(ProfilAudio { kodek: KodekAudio::Aac, kbps: 8, hz: Some(16000), kanaly: Some(1), normalizacja: false });
+    p.audio = Some(ProfilAudio {
+        kodek: KodekAudio::Aac,
+        kbps: 8,
+        hz: Some(16000),
+        kanaly: Some(1),
+        normalizacja: false,
+        lufs: None,
+    });
     konwertuj(&we, &wy, &p);
 
     assert_eq!(ffprobe_pole(&wy, "v:0", "height"), "480");

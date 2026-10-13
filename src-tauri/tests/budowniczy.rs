@@ -73,8 +73,14 @@ fn telefon_480p() -> Profil {
         jakosc: JakoscWideo::Bitrate { kbps: 800 },
         ..Default::default()
     });
-    p.audio =
-        Some(ProfilAudio { kodek: KodekAudio::Aac, kbps: 8, hz: Some(16000), kanaly: Some(1), normalizacja: false });
+    p.audio = Some(ProfilAudio {
+        kodek: KodekAudio::Aac,
+        kbps: 8,
+        hz: Some(16000),
+        kanaly: Some(1),
+        normalizacja: false,
+        lufs: None,
+    });
     p
 }
 
@@ -97,8 +103,14 @@ fn p480_25fps_800k_aac_8k_mono_16khz() {
 #[test]
 fn mp4_na_mp3_320() {
     let mut p = Profil::dla(Kontener::Mp3);
-    p.audio =
-        Some(ProfilAudio { kodek: KodekAudio::Mp3, kbps: 320, hz: Some(44100), kanaly: Some(2), normalizacja: false });
+    p.audio = Some(ProfilAudio {
+        kodek: KodekAudio::Mp3,
+        kbps: 320,
+        hz: Some(44100),
+        kanaly: Some(2),
+        normalizacja: false,
+        lufs: None,
+    });
     let a = &plan(&film(60.0), &p, "wy.mp3").przebiegi[0];
     assert!(a.contains(&"-vn".to_string()));
     assert!(!a.contains(&"-c:v".to_string()));
@@ -399,8 +411,14 @@ fn sprzetowy_bitrate_ma_limit() {
 #[test]
 fn audio_normalizacja_predkosc_i_hz() {
     let mut p = Profil::dla(Kontener::Opus);
-    p.audio =
-        Some(ProfilAudio { kodek: KodekAudio::Opus, kbps: 24, hz: Some(44100), kanaly: Some(1), normalizacja: true });
+    p.audio = Some(ProfilAudio {
+        kodek: KodekAudio::Opus,
+        kbps: 24,
+        hz: Some(44100),
+        kanaly: Some(1),
+        normalizacja: true,
+        lufs: None,
+    });
     p.predkosc = 3.0;
     let pl = plan(&film(60.0), &p, "a.opus");
     let a = &pl.przebiegi[0];
@@ -592,7 +610,7 @@ fn c14_hdr_na_sdr_tonemapping_i_bt709() {
 #[test]
 fn c14_hdr_bez_zscale_ostrzega() {
     use soraconverter_lib::sonda::Hdr;
-    let k = budowniczy::Kontekst { zscale: false, katalog_tmp: None };
+    let k = budowniczy::Kontekst { zscale: false, katalog_tmp: None, pomiar_glosnosci: None };
     let pl = plan_k(&film_hdr(Hdr::Pq), &Profil::dla(Kontener::Mp4), "wy.mp4", &k);
     assert!(!pl.przebiegi[0].iter().any(|a| a.contains("tonemap")));
     assert!(pl.podpowiedzi.contains(&Podpowiedz::HdrBezTonemapowania));
@@ -718,8 +736,8 @@ fn c19_mp3_z_okladka() {
 fn c20_unikalny_passlogfile_w_katalogu_zadania() {
     let mut p = Profil::dla(Kontener::Mp4);
     p.wideo = Some(ProfilWideo { jakosc: JakoscWideo::RozmiarMb { mb: 5.0 }, ..Default::default() });
-    let k1 = budowniczy::Kontekst { zscale: true, katalog_tmp: Some("/tmp/zadanie-1".into()) };
-    let k2 = budowniczy::Kontekst { zscale: true, katalog_tmp: Some("/tmp/zadanie-2".into()) };
+    let k1 = budowniczy::Kontekst { zscale: true, katalog_tmp: Some("/tmp/zadanie-1".into()), pomiar_glosnosci: None };
+    let k2 = budowniczy::Kontekst { zscale: true, katalog_tmp: Some("/tmp/zadanie-2".into()), pomiar_glosnosci: None };
     let a = plan_k(&film(60.0), &p, "wy.mp4", &k1);
     let b = plan_k(&film(60.0), &p, "wy.mp4", &k2);
     let la = wartosc(&a.przebiegi[0], "-passlogfile").unwrap().to_string();

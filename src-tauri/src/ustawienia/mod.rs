@@ -313,11 +313,14 @@ pub struct ProfilAudio {
     pub kanaly: Option<u8>,
     #[serde(default)]
     pub normalizacja: bool,
+    /// Cel normalizacji w LUFS (np. −14 social, −16 podcast, −23 TV); `None` = −16 jak w 1.x.
+    #[serde(default)]
+    pub lufs: Option<f32>,
 }
 
 impl Default for ProfilAudio {
     fn default() -> Self {
-        ProfilAudio { kodek: KodekAudio::Aac, kbps: 160, hz: None, kanaly: None, normalizacja: false }
+        ProfilAudio { kodek: KodekAudio::Aac, kbps: 160, hz: None, kanaly: None, normalizacja: false, lufs: None }
     }
 }
 

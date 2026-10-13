@@ -56,6 +56,40 @@ pub struct OpcjePobrania {
     /// Tylko do wyświetlenia w kolejce.
     #[serde(default)]
     pub tytul: Option<String>,
+    /// „Klip z linku”: pobierz tylko fragment od–do (sekundy), `--download-sections` z cięciem co do klatki.
+    #[serde(default)]
+    pub fragment: Option<Fragment>,
+    /// Zakres playlisty, np. `5-20` albo `1,3,7-9` (`--playlist-items`). Tylko gdy `playlista`.
+    #[serde(default)]
+    pub zakres_playlisty: Option<String>,
+    /// „Tylko nowe”: pomija pozycje zapisane w archiwum pobranych (`--download-archive`).
+    /// Plik archiwum podaje kolejka (dane apki), nie front.
+    #[serde(default)]
+    pub tylko_nowe: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Fragment {
+    pub od: f64,
+    pub do_: f64,
+}
+
+impl Fragment {
+    /// Poprawny fragment: od ≥ 0, do > od.
+    pub fn poprawny(&self) -> bool {
+        self.od.is_finite() && self.do_.is_finite() && self.od >= 0.0 && self.do_ > self.od
+    }
+}
+
+/// Zakres playlisty bez niespodzianek: tylko cyfry, `-`, `,` i `:` (składnia `--playlist-items`).
+pub fn zakres_poprawny(z: &str) -> bool {
+    let z = z.trim();
+    !z.is_empty() && z.len() <= 64 && z.chars().all(|c| c.is_ascii_digit() || matches!(c, '-' | ',' | ':'))
+}
+
+/// Czas dla `--download-sections`: sekundy z dokładnością do setnych.
+fn czas_sekcji(s: f64) -> String {
+    format!("{:.2}", s.max(0.0))
 }
 
 impl Default for OpcjePobrania {
@@ -70,6 +104,9 @@ impl Default for OpcjePobrania {
             rozdzialy: true,
             playlista: false,
             tytul: None,
+            fragment: None,
+            zakres_playlisty: None,
+            tylko_nowe: false,
         }
     }
 }
@@ -116,6 +153,17 @@ pub const SZABLON_NAZWY: &str = "%(title).150B%(sf_id|)s.%(ext)s";
 pub const SORTOWANIE_MP4: &str = "vcodec:h264,res,fps,acodec:m4a";
 
 pub fn argumenty_pobrania(url: &str, o: &OpcjePobrania, katalog: &Path, sc: &Sciezki) -> Vec<OsString> {
+    argumenty_pobrania_z(url, o, katalog, sc, None)
+}
+
+/// Jak [`argumenty_pobrania`], z plikiem archiwum pobranych (`tylko_nowe`).
+pub fn argumenty_pobrania_z(
+    url: &str,
+    o: &OpcjePobrania,
+    katalog: &Path,
+    sc: &Sciezki,
+    archiwum: Option<&Path>,
+) -> Vec<OsString> {
     let mut a = vec![
         s("--newline"),
         s("--no-colors"),
@@ -139,6 +187,22 @@ pub fn argumenty_pobrania(url: &str, o: &OpcjePobrania, katalog: &Path, sc: &Sci
         s("%(extractor_key)s:^Generic$(?P<sf_id>)"),
     ]);
     a.push(s(if o.playlista { "--yes-playlist" } else { "--no-playlist" }));
+    if o.playlista {
+        if let Some(z) = o.zakres_playlisty.as_deref().filter(|z| zakres_poprawny(z)) {
+            a.extend([s("--playlist-items"), s(z.trim())]);
+        }
+        if let (true, Some(p)) = (o.tylko_nowe, archiwum) {
+            a.extend([s("--download-archive"), p.as_os_str().to_os_string()]);
+        }
+    }
+    if let Some(f) = o.fragment.filter(|f| f.poprawny() && !o.playlista) {
+        // Fragment: yt-dlp pobiera tylko ten kawałek, a ffmpeg tnie co do klatki (przekodowanie na cięciach).
+        a.extend([
+            s("--download-sections"),
+            format!("*{}-{}", czas_sekcji(f.od), czas_sekcji(f.do_)).into(),
+            s("--force-keyframes-at-cuts"),
+        ]);
+    }
     let kontener = match o.kontener.as_str() {
         "mkv" | "webm" => o.kontener.as_str(),
         _ => "mp4",
@@ -622,6 +686,44 @@ mod testy {
         let a = argumenty_pobrania("u", &OpcjePobrania::default(), k, &Sciezki::default());
         let wy = a.iter().find(|x| x.as_bytes().starts_with(b"/tmp/pobrane-")).unwrap();
         assert!(wy.as_bytes().starts_with(b"/tmp/pobrane-\xff/"), "bez to_string_lossy");
+    }
+
+    #[test]
+    fn klip_z_linku_fragment_i_playlista() {
+        let o = OpcjePobrania { fragment: Some(Fragment { od: 80.0, do_: 125.5 }), ..Default::default() };
+        let j = jako_tekst(&argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default()));
+        assert!(j.contains("--download-sections *80.00-125.50 --force-keyframes-at-cuts"), "{j}");
+        // zły fragment albo playlista: bez sekcji
+        let o = OpcjePobrania { fragment: Some(Fragment { od: 10.0, do_: 5.0 }), ..Default::default() };
+        assert!(!jako_tekst(&argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default()))
+            .contains("--download-sections"));
+        let o = OpcjePobrania {
+            playlista: true,
+            zakres_playlisty: Some("5-20".into()),
+            tylko_nowe: true,
+            fragment: Some(Fragment { od: 0.0, do_: 5.0 }),
+            ..Default::default()
+        };
+        let j = jako_tekst(&argumenty_pobrania_z(
+            "u",
+            &o,
+            Path::new("/tmp"),
+            &Sciezki::default(),
+            Some(Path::new("/dane/arch.txt")),
+        ));
+        assert!(j.contains("--yes-playlist --playlist-items 5-20 --download-archive /dane/arch.txt"), "{j}");
+        assert!(!j.contains("--download-sections"));
+        // „tylko nowe” bez pliku archiwum (testy, brak danych apki): bez flagi
+        let j = jako_tekst(&argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default()));
+        assert!(!j.contains("--download-archive"));
+        // zakres z niedozwolonymi znakami jest pomijany
+        let o = OpcjePobrania { playlista: true, zakres_playlisty: Some("1;rm".into()), ..Default::default() };
+        assert!(!jako_tekst(&argumenty_pobrania("u", &o, Path::new("/tmp"), &Sciezki::default()))
+            .contains("--playlist-items"));
+        assert!(zakres_poprawny("1,3,7-9") && zakres_poprawny("-5:") && !zakres_poprawny("") && !zakres_poprawny("a"));
+        // stare zadania (JSON bez nowych pól) dalej się wczytują
+        let stare: OpcjePobrania = serde_json::from_str(r#"{"wybor":{"typ":"najlepsza"}}"#).unwrap();
+        assert_eq!((stare.fragment, stare.tylko_nowe), (None, false));
     }
 
     #[test]
