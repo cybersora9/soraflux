@@ -25,12 +25,16 @@ export class Sklep<T extends object> {
   }
 }
 
-export type Zakladka = "prosty" | "konwertuj" | "pobierz" | "obrazy" | "kolejka" | "ustawienia";
+export type Zakladka =
+  | "prosty" | "konwertuj" | "pobierz" | "obrazy" | "kolejka" | "ustawienia"
+  // GUI 2.0 (tryb Pełny): Taśma, Z linku, Porównaj, Narzędzia, Gotowe
+  | "tasma" | "link" | "porownaj" | "narzedzia" | "gotowe";
 
-/** Zakładki paska bocznego w danym trybie (decyzja 3: Prosty ma trzy pozycje). */
+/** Zakładki szyny w danym trybie (decyzja 3: Prosty ma trzy pozycje; 2.0: Pełny = ekrany z makiety).
+ *  Widoki 1.4 (Konwertuj, Pobierz, Obrazy, Kolejka) zostają dostępne z palety poleceń (Ctrl K). */
 export const ZAKLADKI_TRYBU: Record<"prosty" | "pelny", Zakladka[]> = {
   prosty: ["prosty", "kolejka", "ustawienia"],
-  pelny: ["konwertuj", "pobierz", "obrazy", "kolejka", "ustawienia"],
+  pelny: ["tasma", "link", "porownaj", "narzedzia", "gotowe", "ustawienia"],
 };
 
 export function trybApki(s: StanApki = sklep.stan): "prosty" | "pelny" {
@@ -56,7 +60,7 @@ export interface Dymek {
 }
 
 export const sklep = new Sklep<StanApki>({
-  zakladka: "konwertuj",
+  zakladka: "tasma",
   konfig: null,
   narzedzia: null,
   presety: [],
@@ -83,7 +87,9 @@ export function forma(n: number): "1" | "kilka" | "wiele" {
 /** Dymek po dodaniu zadań: „Dodano 2 zadania do kolejki · Pokaż” (usterka 6 z 07.10:
  *  lista plików czyści się po Konwertuj, więc trzeba jasno powiedzieć, gdzie trafiły). */
 export function dymekDodano(n: number, t: (k: string, p?: Record<string, string | number>) => string): void {
-  pokazDymek(t(`kolejka.dodano_${forma(n)}`, { n }), "info", { etykieta: t("kolejka.pokaz"), zrob: () => sklep.ustaw({ zakladka: "kolejka", dymek: null }) });
+  // GUI 2.0: w trybie Pełnym zadania widać w Gotowe (także te w toku); w Prostym w Kolejce jak w 1.4
+  const cel: Zakladka = trybApki() === "pelny" ? "gotowe" : "kolejka";
+  pokazDymek(t(`kolejka.dodano_${forma(n)}`, { n }), "info", { etykieta: t("kolejka.pokaz"), zrob: () => sklep.ustaw({ zakladka: cel, dymek: null }) });
 }
 
 /** Ile zadań jest w toku (plakietka przy zakładce Kolejka). */

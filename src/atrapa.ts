@@ -4,7 +4,7 @@
 import type { Api } from "./api";
 import type {
   Info, StrumienAudio, StrumienWideo, InfoZadania, Konfig, PlikZFolderu, Media, NoweZadanie, PodgladPlanu, Postep, PostepNarzedzia, Preset, Profil, Szacunek,
-  PostepModelu, StanNapisow,
+  PostepModelu, StanNapisow, Metryki,
 } from "./typy";
 import { profilDla, rozszerzenie, nazwaPliku, toObraz, komendaDoPokazania, obrazDomyslny, gifDomyslny } from "./logika";
 import { ROZSZERZENIA_MEDIOW } from "./upuszczanie";
@@ -26,8 +26,10 @@ let konfig: Konfig = {
   katalog_wyjscia: null,
   katalog_pobierania: null,
   schowek: true,
-  motyw_wyglad: "sora-a",
+  motyw_wyglad: "blackwall",
   wlasne_motywy: [],
+  skala: 1,
+  motyw_wlasny: null,
   ostatnie_foldery: [],
   sciezki: { ffmpeg: null, ffprobe: null, ytdlp: null, deno: null, whisper: null },
   kreator_zakonczony: true,
@@ -53,6 +55,13 @@ if (parametry.get("folder") === "1") {
   konfig.katalog_pobierania = "C:/Users/sora/Downloads/Pobrane filmy";
   konfig.ostatnie_foldery = ["C:/Users/sora/Videos/Gotowe do wysłania z wakacji 2026", "D:/Archiwum"];
 }
+// ?skala=1.25: skala GUI 2.0 (zrzuty 100% / 125%); ?akcent=%23ff7ac6&baza=neon: motyw „Własny”
+const skalaParam = Number(parametry.get("skala"));
+if (skalaParam >= 0.9 && skalaParam <= 1.5) konfig.skala = skalaParam;
+const akcentParam = parametry.get("akcent");
+if (akcentParam && /^#[0-9a-f]{6}$/i.test(akcentParam)) Object.assign(konfig, { motyw_wyglad: "wlasny", motyw_wlasny: { akcent: akcentParam, baza: parametry.get("baza") ?? "neon" } });
+// ?wstrzymana=1: Taśma w pauzie
+let wstrzymana = parametry.get("wstrzymana") === "1";
 const jezykParam = parametry.get("jezyk");
 if (jezykParam === "pl" || jezykParam === "en") konfig.jezyk = jezykParam;
 // Zmyślone nazwy w języku zrzutu (EN zrzuty bez polskich tytułów i ścieżek).
@@ -320,6 +329,23 @@ if (parametry.get("demo") === "1") {
   }
 }
 
+if (parametry.get("demo") === "1") {
+  // GUI 2.0: wyniki z oryginałem (Gotowe: % oryginału, Porównaj: suwak A/B i liczby)
+  const gotowe: [string, string, number, number, InfoZadania["rodzaj"], string[]?][] = [
+    [tx("C:/Wideo/wakacje-2026.mp4", "C:/Videos/holiday-2026.mp4"), tx("C:/Wideo/wakacje-2026 (do Discorda).mp4", "C:/Videos/holiday-2026 (for Discord).mp4"), 432_013_312, 9_856_000, "konwersja"],
+    [tx("C:/Wideo/telefon-pion-hdr.mov", "C:/Videos/phone-vertical-hdr.mov"), tx("C:/Wideo/telefon-pion-hdr (na telefon).mp4", "C:/Videos/phone-vertical-hdr (for phone).mp4"), 96_000_000, 10_276_000, "konwersja"],
+    [tx("C:/Muzyka/podcast-odc-14.wav", "C:/Music/podcast-ep-14.wav"), tx("C:/Muzyka/podcast-odc-14.mp3", "C:/Music/podcast-ep-14.mp3"), 630_194_000, 43_726_000, "konwersja"],
+    [tx("C:/Wideo/koncert.mkv", "C:/Videos/concert.mkv"), tx("C:/Wideo/koncert.a1-pol.m4a", "C:/Videos/concert.a1-pol.m4a"), 1_240_000_000, 61_000_000, "sciezki", [tx("C:/Wideo/koncert.v1.mp4", "C:/Videos/concert.v1.mp4"), tx("C:/Wideo/koncert.a1-pol.m4a", "C:/Videos/concert.a1-pol.m4a"), tx("C:/Wideo/koncert.s1-eng.srt", "C:/Videos/concert.s1-eng.srt")]],
+  ];
+  for (const [wejscie, wyjscie, przed, po, rodzaj, wyniki] of gotowe) {
+    const id = nastepneId++;
+    zadania.set(id, {
+      id, nazwa: nazwaPliku(wejscie), rodzaj, stan: { typ: "gotowe", wyjscie }, procent: 100, wyjscie, wejscie, wyniki,
+      rozmiar_wejscia: przed, rozmiar_wyniku: po, awaria_sprzetu: false, ostrzezenie: null,
+    });
+  }
+}
+
 const INFO_PRZYKLAD: Info = {
   typ: "film",
   id: "test01",
@@ -355,9 +381,10 @@ export const atrapa: Api = {
     for (const n of nowe) {
       const id = nastepneId++;
       const r = n.rodzaj;
-      const nazwa = r.typ === "pobranie" ? r.opcje.tytul ?? r.url : nazwaPliku(r.wejscie);
+      const nazwa = r.typ === "pobranie" ? r.opcje.tytul ?? r.url : r.typ === "polacz" ? `${nazwaPliku(r.wejscia[0] ?? "")} + ${r.wejscia.length - 1}` : nazwaPliku(r.wejscie);
+      const wejscie = r.typ === "pobranie" ? null : r.typ === "polacz" ? r.wejscia[0] ?? null : r.wejscie;
       const z: InfoZadania = {
-        id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null,
+        id, nazwa, rodzaj: r.typ, stan: { typ: "oczekuje" }, procent: 0, wyjscie: null, wejscie,
         rozmiar_wejscia: 432_013_312, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null,
       };
       // jak kolejka.rs: wynik obok źródła, `nazwa (dopisek).ext`; rozmiar z szacunku
@@ -376,8 +403,18 @@ export const atrapa: Api = {
         z.rozmiar_wejscia = null;
         koniec = { wyjscie, stan: { typ: "gotowe", wyjscie }, rozmiar_wyniku: 4_812, napisy: { jezyk: r.opcje.jezyk === "auto" ? (konfig.jezyk === "en" ? "en" : "pl") : r.opcje.jezyk, kwestie: 38, pliki, zmieniona_nazwa: false } };
       }
+      if (r.typ === "sciezki") {
+        const rdzen = r.wejscie.replace(/\.[^./\\]+$/, "");
+        const wyniki = [`${rdzen}.v1.mp4`, `${rdzen}.a1.m4a`];
+        koniec = { wyjscie: wyniki[0], wyniki, stan: { typ: "gotowe", wyjscie: wyniki[0] }, rozmiar_wyniku: 420_000_000 };
+      }
+      if (r.typ === "polacz") {
+        const rdzen = (r.wejscia[0] ?? "").replace(/\.[^./\\]+$/, "");
+        const wyjscie = `${rdzen} (${n.dopisek ?? "+"}).${r.kontener}`;
+        koniec = { wyjscie, stan: { typ: "gotowe", wyjscie }, rozmiar_wyniku: 860_000_000, bez_kodowania: true };
+      }
       emituj(z);
-      setTimeout(() => symuluj(z, 7, koniec), 300);
+      setTimeout(() => (wstrzymana ? undefined : symuluj(z, 7, koniec)), 300);
       ids.push(id);
     }
     return ids;
@@ -528,4 +565,37 @@ export const atrapa: Api = {
   naUpuszczenie() {
     return () => undefined;
   },
+  async ustawSkale(skala) {
+    const s = Math.round(Math.min(1.5, Math.max(0.9, Number.isFinite(skala) ? skala : 1)) * 100) / 100;
+    // przeglądarka: zoom CSS zamiast zoomu WebView (ten sam efekt dla układu)
+    document.documentElement.style.setProperty("zoom", String(s));
+    konfig = { ...konfig, skala: s };
+    return s;
+  },
+  async kolejkaWstrzymaj(tak) {
+    wstrzymana = tak;
+    if (!tak) for (const z of zadania.values()) if (z.stan.typ === "oczekuje") symuluj(z, 7);
+    return wstrzymana;
+  },
+  kolejkaWstrzymana: () => opoznij(wstrzymana, 10),
+  async motywEksportuj() {
+    return true;
+  },
+  motywImportuj: () => opoznij('{"rodzina":"sora","wersja":2,"akcent":"#5ee0c4","baza":"minidisc"}'),
+  porownajKlatke: (o) => {
+    const m = mediaDla(o);
+    const p = profilDla("mp4");
+    p.wideo!.rozdzielczosc = { typ: "wysokosc", h: 480 };
+    return opoznij({ przed: klatkaSvg(m, null), po: klatkaSvg(m, p), czas_s: 30 }, 200);
+  },
+  porownajMetryki: (o, w) => {
+    const audio = /\.(mp3|m4a|wav|flac|ogg|opus)$/i.test(w);
+    const m: Metryki = {
+      rozmiar_przed: [...zadania.values()].find((z) => z.wejscie === o)?.rozmiar_wejscia ?? 432_013_312,
+      rozmiar_po: [...zadania.values()].find((z) => z.wyjscie === w)?.rozmiar_wyniku ?? 9_856_000,
+      ssim: audio ? null : 0.981, vmaf: null, lufs_przed: -23.1, lufs_po: -14.0, analiza_s: 60,
+    };
+    return opoznij(m, 400);
+  },
+  async przeciagnijWynik() {},
 };

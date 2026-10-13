@@ -1,147 +1,98 @@
-// Motywy wyglądu: trzy warianty japońskiego retro (A Kissaten Hi-Fi, B City Pop, C Heisei MiniDisc)
-// w dwóch paletach (cybersora, japońska), każdy w wersji jasnej i ciemnej, plus własne motywy użytkownika.
-// Motyw to zestaw kolorów; reszta tokenów (tła pomocnicze, obrysy, „słabe” odcienie) liczy się z nich.
+// DNA 2.0 rodziny Sora (kopia z makiety docs/gui2/makieta.html, ADR: SoraFlux bez zależności od sora-ui).
+// Motywy: Blackwall (domyślny), Kissaten, City Pop, MiniDisc, Neon noc i Własny (akcent z <input type=color>
+// na bazie jednego z motywów). Każdy w trybie jasnym i ciemnym. Akcent SoraFluxa (#ff3a52 / #c8102e)
+// nie należy do motywu; zmienia go tylko „Własny”. Logo zawsze karmazyn.
+// Wszystkie kolory liczone tu do #rrggbb (mieszanie w OKLab jak color-mix w CSS), żeby test kontrastu
+// sprawdzał dokładnie to, co trafia na ekran.
 
 import type { Konfig } from "./typy";
 
-export type Wariant = "a" | "b" | "c";
+export type IdMotywu = "blackwall" | "kissaten" | "citypop" | "minidisc" | "neon" | "wlasny";
+export const ID_MOTYWOW: readonly IdMotywu[] = ["blackwall", "kissaten", "citypop", "minidisc", "neon", "wlasny"];
+export type Baza = Exclude<IdMotywu, "wlasny">;
+export const BAZY: readonly Baza[] = ["blackwall", "kissaten", "citypop", "minidisc", "neon"];
+export const DOMYSLNY: Baza = "blackwall";
 
-export interface Kolory {
-  tlo: string;
-  karta: string;
-  karta2: string;
+/** Paleta z makiety: wgłębienie, panel, panel2, tekst, tekst2, tekst3. */
+type Szesc = readonly [string, string, string, string, string, string];
+
+interface Zrodlo {
+  ciemny: Szesc;
+  jasny: Szesc;
+}
+
+const ZRODLA: Record<Baza, Zrodlo> = {
+  blackwall: {
+    ciemny: ["#0c0c0f", "#121216", "#18181d", "#f4eff1", "#bdb6b9", "#8f888c"],
+    jasny: ["#ebe7e9", "#fbf9fa", "#f2eff0", "#151318", "#48434b", "#6a646c"],
+  },
+  kissaten: {
+    ciemny: ["#211813", "#2c211a", "#36291f", "#f3e7d6", "#d2bfa9", "#ae9882"],
+    jasny: ["#f6f0e6", "#fffaf2", "#f1e9dc", "#33241b", "#634e3f", "#7a6455"],
+  },
+  citypop: {
+    ciemny: ["#111a40", "#1a2656", "#223064", "#f5f1e8", "#c6cbe3", "#a0a8cc"],
+    jasny: ["#eef4fc", "#ffffff", "#e9f0fa", "#14204a", "#36437a", "#4f5c8c"],
+  },
+  minidisc: {
+    ciemny: ["#191c21", "#202329", "#262a31", "#e8ebf0", "#b6bdc9", "#9098a5"],
+    jasny: ["#e9ecf0", "#f6f7f9", "#e1e5ea", "#1c2330", "#465061", "#596374"],
+  },
+  neon: {
+    ciemny: ["#0b0814", "#130f22", "#1b1630", "#f1ecff", "#c3b8e6", "#8f84b3"],
+    jasny: ["#f3f0fb", "#ffffff", "#ebe6f8", "#1a1530", "#463d66", "#5f5680"],
+  },
+};
+
+/** Akcent SoraFluxa: ciemny / jasny (makieta: --akd / --akl). */
+export const AKCENT_FLUX = { ciemny: "#ff3a52", jasny: "#c8102e" } as const;
+/** Szybkie akcenty „Własnego” (akcenty rodziny z makiety + róż). */
+export const SZYBKIE_AKCENTY = ["#ff3a52", "#4cc2ff", "#5ee0c4", "#ffb547", "#b9a3ff", "#ff7ac6"] as const;
+
+const STATUS = {
+  ciemny: { ok: "#7ad6a4", uwaga: "#e6b450", zle: "#ff5468" },
+  jasny: { ok: "#2d724e", uwaga: "#865e0f", zle: "#c02b3f" },
+} as const;
+
+/** Kolor LCD (wskaźnik „przed → po”): zawsze ciemne szkło, cyfry w akcencie trybu ciemnego. */
+export const LCD_TLO = "#070709";
+
+export interface MotywWlasny {
+  akcent: string;
+  baza: Baza;
+}
+
+/** Wszystkie tokeny jednego motywu w jednym trybie, każdy #rrggbb (poza liniami z przezroczystością). */
+export interface Tokeny {
+  wglebienie: string;
+  panel: string;
+  panel2: string;
+  panel3: string;
   tekst: string;
   tekst2: string;
   tekst3: string;
   linia: string;
-  akcent: string;
-  akcentMocny: string;
-  naAkcencie: string;
-  pom1: string;
-  pom2: string;
-  braz: string;
+  linia2: string;
+  linia3: string;
   ok: string;
+  uwaga: string;
   zle: string;
+  /** Akcent (przyciski, zaznaczenia). */
+  akcent: string;
+  /** Tekst na akcencie. */
+  naAkcencie: string;
+  /** Akcent użyty jako tekst/ikona na panelu: poprawiony do kontrastu 4,5:1, gdy akcent własny jest za słaby. */
+  akcentTekst: string;
+  /** Akcent 15% na panelu (zaznaczony kafel). */
+  akcentSlaby: string;
+  akcentLinia: string;
+  /** „Półka” pod wciskanym przyciskiem. */
+  akcentPolka: string;
   lcdTlo: string;
   lcd: string;
-  wypelnienie?: string;
 }
 
-export interface Motyw {
-  id: string;
-  nazwa: string;
-  wariant: Wariant;
-  jasny: Kolory;
-  ciemny: Kolory;
-}
-
-/** Własny motyw: baza z wbudowanych + nadpisane kolory osobno dla jasnego i ciemnego. */
-export interface MotywWlasny {
-  id: string;
-  nazwa: string;
-  baza: string;
-  jasny: Partial<Kolory>;
-  ciemny: Partial<Kolory>;
-}
-
-/** Kolory, które da się zmienić w edytorze (reszta liczy się sama). */
-export const EDYTOWALNE = ["tlo", "karta", "tekst", "akcent", "pom1", "pom2"] as const;
-export type Edytowalny = (typeof EDYTOWALNE)[number];
-
-const SORA_A: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#f7f3f4", karta: "#fffbfc", karta2: "#ede6e7", tekst: "#18161a", tekst2: "#48434a", tekst3: "#5f5960",
-    linia: "rgba(24,22,26,.12)", akcent: "#c02b3f", akcentMocny: "#9c1f30", naAkcencie: "#fff7f8",
-    pom1: "#865e0f", pom2: "#2e6f8e", braz: "#2a2730", ok: "#2d724e", zle: "#c02b3f", lcdTlo: "#121115", lcd: "#ff4a5e",
-  },
-  ciemny: {
-    tlo: "#0e0e12", karta: "#15151a", karta2: "#1b1b21", tekst: "#f6f2f3", tekst2: "#cbc4c6", tekst3: "#9d9598",
-    linia: "rgba(246,242,243,.1)", akcent: "#ff3a52", akcentMocny: "#8f1a2a", naAkcencie: "#09090c",
-    pom1: "#d9a441", pom2: "#8fb8d4", braz: "#5a5560", ok: "#7ad6a4", zle: "#ff3a52", lcdTlo: "#050507", lcd: "#ff3a52",
-  },
-};
-
-const SORA_B: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#f5f2f3", karta: "#ffffff", karta2: "#eee9ea", tekst: "#141217", tekst2: "#3e3943", tekst3: "#57515b",
-    linia: "rgba(20,18,23,.11)", akcent: "#c42c40", akcentMocny: "#9c1f30", naAkcencie: "#ffffff",
-    pom1: "#c02a52", pom2: "#2e6f8e", braz: "#141217", ok: "#2d724e", zle: "#c42c40", lcdTlo: "transparent", lcd: "#141217",
-    wypelnienie: "linear-gradient(90deg,#2a2730 0%,#8a1f2e 35%,#ff3a52 70%,#ffb36b 100%)",
-  },
-  ciemny: {
-    tlo: "#111016", karta: "#1a1820", karta2: "#221f29", tekst: "#f6f2f3", tekst2: "#cbc4c6", tekst3: "#a39b9f",
-    linia: "rgba(246,242,243,.1)", akcent: "#ff3a52", akcentMocny: "#8f1a2a", naAkcencie: "#0b0a0e",
-    pom1: "#ffb36b", pom2: "#8fc4d8", braz: "#f6f2f3", ok: "#7ad6a4", zle: "#ff3a52", lcdTlo: "transparent", lcd: "#f6f2f3",
-    wypelnienie: "linear-gradient(90deg,#3a3542 0%,#cc2e42 38%,#ff3a52 68%,#ffc27c 100%)",
-  },
-};
-
-const SORA_C: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#ebe8e9", karta: "#f8f6f7", karta2: "#e4e0e2", tekst: "#1a171c", tekst2: "#47424a", tekst3: "#5b555e",
-    linia: "rgba(26,23,28,.13)", akcent: "#b3263a", akcentMocny: "#d63d52", naAkcencie: "#ffffff",
-    pom1: "#815b0e", pom2: "#2e6f8e", braz: "#1a171c", ok: "#2c6e4b", zle: "#b3263a", lcdTlo: "#1a1418", lcd: "#ff4a5e",
-  },
-  ciemny: {
-    tlo: "#141318", karta: "#1c1b21", karta2: "#222127", tekst: "#f6f2f3", tekst2: "#c3bcbf", tekst3: "#978f93",
-    linia: "rgba(246,242,243,.1)", akcent: "#ff3f56", akcentMocny: "#ff6a7c", naAkcencie: "#0d0c10",
-    pom1: "#d9a441", pom2: "#8fb8d4", braz: "#f6f2f3", ok: "#7ad6a4", zle: "#ff3f56", lcdTlo: "#170d10", lcd: "#ff3a52",
-  },
-};
-
-const JP_A: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#f6f0e6", karta: "#fffaf2", karta2: "#f1e9dc", tekst: "#33241b", tekst2: "#634e3f", tekst3: "#7a6455",
-    linia: "rgba(51,36,27,.13)", akcent: "#b83d27", akcentMocny: "#a8341f", naAkcencie: "#fff8f0",
-    pom1: "#816014", pom2: "#23807b", braz: "#6e4529", ok: "#317348", zle: "#b3361f", lcdTlo: "#2f2119", lcd: "#f2c25b",
-  },
-  ciemny: {
-    tlo: "#211813", karta: "#2c211a", karta2: "#36291f", tekst: "#f3e7d6", tekst2: "#d2bfa9", tekst3: "#ae9882",
-    linia: "rgba(243,231,214,.11)", akcent: "#eb7056", akcentMocny: "#8f3320", naAkcencie: "#1b120d",
-    pom1: "#e6b450", pom2: "#5dbcb4", braz: "#b98058", ok: "#7fc893", zle: "#f2775a", lcdTlo: "#110b08", lcd: "#f5c35a",
-  },
-};
-
-const JP_B: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#eef4fc", karta: "#ffffff", karta2: "#e9f0fa", tekst: "#14204a", tekst2: "#36437a", tekst3: "#4f5c8c",
-    linia: "rgba(20,32,74,.11)", akcent: "#2747c9", akcentMocny: "#1b36a8", naAkcencie: "#ffffff",
-    pom1: "#ca2b51", pom2: "#0f8a83", braz: "#14204a", ok: "#137a52", zle: "#c23552", lcdTlo: "transparent", lcd: "#14204a",
-    wypelnienie: "linear-gradient(90deg,#2747c9 0%,#7d5ccf 38%,#ff7d8e 70%,#ffb46a 100%)",
-  },
-  ciemny: {
-    tlo: "#111a40", karta: "#1a2656", karta2: "#223064", tekst: "#f5f1e8", tekst2: "#c6cbe3", tekst3: "#a0a8cc",
-    linia: "rgba(245,241,232,.1)", akcent: "#ff8c9b", akcentMocny: "#b3505e", naAkcencie: "#0b1230",
-    pom1: "#ffc27c", pom2: "#4fd6cd", braz: "#f5f1e8", ok: "#6fdcaa", zle: "#ff8c9b", lcdTlo: "transparent", lcd: "#f5f1e8",
-    wypelnienie: "linear-gradient(90deg,#4766e8 0%,#9a72e0 38%,#ff8c9b 70%,#ffc27c 100%)",
-  },
-};
-
-const JP_C: Pick<Motyw, "jasny" | "ciemny"> = {
-  jasny: {
-    tlo: "#e9ecf0", karta: "#f6f7f9", karta2: "#e1e5ea", tekst: "#1c2330", tekst2: "#465061", tekst3: "#596374",
-    linia: "rgba(28,35,48,.13)", akcent: "#2456a6", akcentMocny: "#3d6fc0", naAkcencie: "#ffffff",
-    pom1: "#b13e26", pom2: "#16857f", braz: "#1c2330", ok: "#297144", zle: "#b43723", lcdTlo: "#b7c4a2", lcd: "#1d2913",
-  },
-  ciemny: {
-    tlo: "#191c21", karta: "#202329", karta2: "#262a31", tekst: "#e8ebf0", tekst2: "#b6bdc9", tekst3: "#9098a5",
-    linia: "rgba(232,235,240,.1)", akcent: "#80b2ff", akcentMocny: "#a2c6ff", naAkcencie: "#0c1320",
-    pom1: "#ff7d5e", pom2: "#5cc9c1", braz: "#e8ebf0", ok: "#7bd49b", zle: "#ff7d5e", lcdTlo: "#1e190f", lcd: "#ffb547",
-  },
-};
-
-export const WBUDOWANE: Motyw[] = [
-  { id: "sora-a", nazwa: "Kissaten · cybersora", wariant: "a", ...SORA_A },
-  { id: "sora-b", nazwa: "City Pop · cybersora", wariant: "b", ...SORA_B },
-  { id: "sora-c", nazwa: "MiniDisc · cybersora", wariant: "c", ...SORA_C },
-  { id: "jp-a", nazwa: "Kissaten · japoński", wariant: "a", ...JP_A },
-  { id: "jp-b", nazwa: "City Pop · japoński", wariant: "b", ...JP_B },
-  { id: "jp-c", nazwa: "MiniDisc · japoński", wariant: "c", ...JP_C },
-];
-
-export const DOMYSLNY = "sora-a";
-
-// ---------- kolory: kontrast ----------
+// ---------- kolory: hex, OKLab, kontrast ----------
 
 function rgb(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -150,13 +101,56 @@ function rgb(hex: string): [number, number, number] | null {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+export function poprawnyKolor(x: unknown): x is string {
+  return typeof x === "string" && /^#[0-9a-f]{6}$/i.test(x.trim());
+}
+
+const doLin = (c: number) => {
+  const s = c / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+};
+const zLin = (l: number) => {
+  const x = Math.min(1, Math.max(0, l));
+  const s = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055;
+  return Math.round(Math.min(1, Math.max(0, s)) * 255);
+};
+
+function doOklab([r, g, b]: [number, number, number]): [number, number, number] {
+  const [R, G, B] = [doLin(r), doLin(g), doLin(b)];
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+}
+
+function zOklab([L, a, b]: [number, number, number]): string {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const R = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const G = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const B = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s;
+  return "#" + [R, G, B].map((c) => zLin(c).toString(16).padStart(2, "0")).join("");
+}
+
+/** `color-mix(in oklab, a (100−p)%, b p%)` policzone do #rrggbb. */
+export function mieszaj(a: string, b: string, procentB: number): string {
+  const x = rgb(a);
+  const y = rgb(b);
+  if (!x || !y) return a;
+  const p = Math.min(100, Math.max(0, procentB)) / 100;
+  const [la, lb] = [doOklab(x), doOklab(y)];
+  return zOklab([0, 1, 2].map((i) => la[i] * (1 - p) + lb[i] * p) as [number, number, number]);
+}
+
 function luminancja(hex: string): number | null {
   const c = rgb(hex);
   if (!c) return null;
-  const [r, g, b] = c.map((v) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  });
+  const [r, g, b] = c.map(doLin);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
@@ -169,106 +163,155 @@ export function kontrast(a: string, b: string): number | null {
 }
 
 /** Tekst na akcencie: biały albo prawie czarny, co da lepszy kontrast. */
-function tekstNa(akcent: string): string {
-  const k1 = kontrast(akcent, "#ffffff") ?? 0;
-  const k2 = kontrast(akcent, "#0c0b0f") ?? 0;
-  return k1 >= k2 ? "#ffffff" : "#0c0b0f";
+export function tekstNa(akcent: string): string {
+  return (kontrast(akcent, "#ffffff") ?? 0) >= (kontrast(akcent, "#120a0d") ?? 0) ? "#ffffff" : "#120a0d";
 }
 
-const mix = (a: string, b: string, procentB: number) => `color-mix(in oklab, ${a}, ${b} ${procentB}%)`;
-
-/** Łączy kolory bazy z nadpisaniami i dolicza pochodne tego, co zmienił użytkownik. */
-export function polacz(baza: Kolory, zmiany: Partial<Kolory>): Kolory {
-  const k: Kolory = { ...baza, ...zmiany };
-  if (zmiany.karta) k.karta2 = mix(zmiany.karta, k.tekst, 6);
-  if (zmiany.tekst) {
-    k.tekst2 = mix(zmiany.tekst, k.karta, 25);
-    k.tekst3 = mix(zmiany.tekst, k.karta, 36);
-    k.linia = `color-mix(in oklab, ${zmiany.tekst} 13%, transparent)`;
-    k.braz = zmiany.tekst;
+/** Kolor przesuwany w stronę tekstu (jaśniej w ciemnym, ciemniej w jasnym), aż da `prog` na wszystkich tłach. */
+export function doKontrastu(kolor: string, tla: string[], cel: string, prog = 4.5): string {
+  let k = kolor;
+  for (let p = 0; p <= 100; p += 4) {
+    k = p === 0 ? kolor : mieszaj(kolor, cel, p);
+    if (tla.every((t) => (kontrast(k, t) ?? 0) >= prog)) return k;
   }
-  if (zmiany.akcent) {
-    k.naAkcencie = tekstNa(zmiany.akcent);
-    k.akcentMocny = mix(zmiany.akcent, "#000000", 28);
-    k.zle = zmiany.akcent;
-    if (baza.wypelnienie) k.wypelnienie = `linear-gradient(90deg, ${k.braz} 0%, ${zmiany.akcent} 55%, ${k.pom1} 100%)`;
-  }
-  return k;
+  return cel;
 }
 
-// ---------- zapis: konfig w Rust (motyw_wyglad, wlasne_motywy) ----------
-// Nie localStorage: ten psuje tryb przenośny (E30) i ginie przy zmianie identyfikatora apki.
+// ---------- tokeny ----------
+
+/** Tokeny motywu `id` w trybie (`ciemny`) z akcentem SoraFluxa albo własnym. */
+export function tokeny(id: IdMotywu, ciemny: boolean, wlasny?: MotywWlasny | null): Tokeny {
+  const baza: Baza = id === "wlasny" ? (wlasny?.baza && BAZY.includes(wlasny.baza) ? wlasny.baza : DOMYSLNY) : id;
+  const [wglebienie, panel, panel2, tekst, tx2, tx3] = ZRODLA[baza][ciemny ? "ciemny" : "jasny"];
+  const st = STATUS[ciemny ? "ciemny" : "jasny"];
+  // Blackwall ma własny panel3 w makiecie; pozostałe: panel2 z 12% tekstu (jak color-mix w makiecie)
+  const panel3 = baza === "blackwall" ? (ciemny ? "#1f1f25" : "#e8e4e6") : mieszaj(panel2, tekst, 12);
+  // tła tekstu: wgłębienie, panel, panel2 (panel3 to tło przycisków pod kursorem i wciśniętych segmentów)
+  const tla = [wglebienie, panel, panel2];
+  // tekst pomocniczy z makiety, dociągnięty do 4,5:1 tam, gdzie paleta była na granicy
+  const tekst2 = doKontrastu(tx2, [...tla, panel3], tekst);
+  const tekst3 = doKontrastu(tx3, tla, tekst);
+  let akcent: string = ciemny ? AKCENT_FLUX.ciemny : AKCENT_FLUX.jasny;
+  let akcentCiemny: string = AKCENT_FLUX.ciemny;
+  if (id === "wlasny" && wlasny && poprawnyKolor(wlasny.akcent)) {
+    akcentCiemny = wlasny.akcent.toLowerCase();
+    akcent = ciemny ? akcentCiemny : mieszaj(akcentCiemny, "#000000", 30);
+  }
+  // własny akcent w strefie „ani biały, ani czarny tekst nie daje 4,5:1”: lekko przesunięty od tekstu
+  for (let p = 4; p <= 60 && (kontrast(tekstNa(akcent), akcent) ?? 0) < 4.5; p += 4) {
+    const baz = id === "wlasny" && wlasny ? (ciemny ? akcentCiemny : mieszaj(akcentCiemny, "#000000", 30)) : akcent;
+    akcent = mieszaj(baz, tekstNa(baz) === "#ffffff" ? "#000000" : "#ffffff", p);
+  }
+  const akcentSlaby = mieszaj(panel, akcent, 15);
+  return {
+    wglebienie,
+    panel,
+    panel2,
+    panel3,
+    tekst,
+    tekst2,
+    tekst3,
+    linia: `color-mix(in oklab, ${tekst} 9%, transparent)`,
+    linia2: `color-mix(in oklab, ${tekst} 15%, transparent)`,
+    linia3: `color-mix(in oklab, ${tekst} 25%, transparent)`,
+    // statusy dopasowane do najsłabszego tła motywu (City Pop ciemny ma jaśniejsze panele)
+    ok: doKontrastu(st.ok, [...tla, akcentSlaby], tekst),
+    uwaga: doKontrastu(st.uwaga, tla, tekst),
+    zle: doKontrastu(st.zle, tla, tekst),
+    akcent,
+    naAkcencie: tekstNa(akcent),
+    akcentTekst: doKontrastu(akcent, [...tla, akcentSlaby], tekst),
+    akcentSlaby,
+    akcentLinia: `color-mix(in oklab, ${akcent} 45%, transparent)`,
+    akcentPolka: mieszaj(akcent, "#000000", 45),
+    lcdTlo: LCD_TLO,
+    lcd: doKontrastu(akcentCiemny, [LCD_TLO], "#ffffff"),
+  };
+}
+
+// ---------- migracja motywów sprzed 2.0 ----------
+
+/** Stare id (1.2–1.4) → najbliższy motyw 2.0. Palety „cybersora” (czerń + karmazyn) to Blackwall. */
+const STARE: Record<string, Baza> = {
+  "sora-a": "blackwall",
+  "sora-b": "blackwall",
+  "sora-c": "blackwall",
+  "jp-a": "kissaten",
+  "jp-b": "citypop",
+  "jp-c": "minidisc",
+};
 
 export interface StanWygladu {
-  motyw: string;
-  wlasne: MotywWlasny[];
+  motyw: IdMotywu;
+  wlasny: MotywWlasny | null;
 }
 
-function poprawnyWlasny(x: unknown): x is MotywWlasny {
-  if (!x || typeof x !== "object") return false;
+function poprawnyWlasny(x: unknown): MotywWlasny | null {
+  if (!x || typeof x !== "object") return null;
   const m = x as Partial<MotywWlasny>;
-  return typeof m.id === "string" && typeof m.nazwa === "string" && typeof m.baza === "string" && !!m.jasny && !!m.ciemny;
+  if (!poprawnyKolor(m.akcent)) return null;
+  return { akcent: m.akcent.toLowerCase(), baza: BAZY.includes(m.baza as Baza) ? (m.baza as Baza) : DOMYSLNY };
 }
 
-/** Stan wyglądu z konfigu (uszkodzone wpisy pomijane, nieznany motyw → domyślny). */
-export function zKonfigu(k: Pick<Konfig, "motyw_wyglad" | "wlasne_motywy"> | null | undefined): StanWygladu {
-  const wlasne = (k?.wlasne_motywy ?? []).filter(poprawnyWlasny);
+/**
+ * Stan wyglądu z konfigu, z migracją: stare id na najbliższy motyw, stary własny motyw (1.2–1.4:
+ * baza + nadpisane kolory) na „Własny” z jego akcentem. `zmieniony` = trzeba zapisać konfig.
+ */
+export function zKonfigu(k: Pick<Konfig, "motyw_wyglad" | "wlasne_motywy" | "motyw_wlasny"> | null | undefined): StanWygladu & { zmieniony: boolean } {
   const id = k?.motyw_wyglad ?? DOMYSLNY;
-  const znany = WBUDOWANE.some((m) => m.id === id) || wlasne.some((m) => m.id === id);
-  return { motyw: znany ? id : DOMYSLNY, wlasne };
+  const wlasny = poprawnyWlasny(k?.motyw_wlasny);
+  if ((ID_MOTYWOW as readonly string[]).includes(id)) {
+    if (id === "wlasny" && !wlasny) return { motyw: DOMYSLNY, wlasny: null, zmieniony: true };
+    return { motyw: id as IdMotywu, wlasny, zmieniony: false };
+  }
+  if (id in STARE) return { motyw: STARE[id], wlasny, zmieniony: true };
+  const stary = (k?.wlasne_motywy ?? []).find((m) => (m as { id?: unknown })?.id === id) as
+    | { baza?: string; jasny?: Record<string, unknown>; ciemny?: Record<string, unknown> }
+    | undefined;
+  if (stary) {
+    const akcent = [stary.ciemny?.akcent, stary.jasny?.akcent].find(poprawnyKolor) ?? AKCENT_FLUX.ciemny;
+    return { motyw: "wlasny", wlasny: { akcent: akcent.toLowerCase(), baza: STARE[stary.baza ?? ""] ?? DOMYSLNY }, zmieniony: true };
+  }
+  return { motyw: DOMYSLNY, wlasny, zmieniony: true };
 }
 
-/** Pola konfigu do zapisania dla danego stanu wyglądu. */
-export function doKonfigu(s: StanWygladu): Pick<Konfig, "motyw_wyglad" | "wlasne_motywy"> {
-  return { motyw_wyglad: s.motyw, wlasne_motywy: s.wlasne };
+/** Pola konfigu do zapisania. Stare `wlasne_motywy` zostają nietknięte (powrót do 1.4 nic nie gubi). */
+export function doKonfigu(s: StanWygladu): Pick<Konfig, "motyw_wyglad" | "motyw_wlasny"> {
+  return { motyw_wyglad: s.motyw, motyw_wlasny: s.wlasny };
 }
 
-let biezacy: StanWygladu = { motyw: DOMYSLNY, wlasne: [] };
+// ---------- plik .json „Własnego” ----------
 
-/** Ustawia stan wyglądu (po wczytaniu albo zapisie konfigu). */
+export function doPliku(w: MotywWlasny): string {
+  return JSON.stringify({ rodzina: "sora", wersja: 2, nazwa: "Własny", akcent: w.akcent, baza: w.baza }, null, 2);
+}
+
+/** Import pliku .json (2.0 albo stary eksport 1.x z `baza` + kolorami); `null` = nie nasz plik. */
+export function zPliku(tekst: string): MotywWlasny | null {
+  let d: unknown;
+  try {
+    d = JSON.parse(tekst);
+  } catch {
+    return null;
+  }
+  const w = poprawnyWlasny(d);
+  if (w) return w;
+  const s = d as { baza?: string; jasny?: Record<string, unknown>; ciemny?: Record<string, unknown> } | null;
+  const akcent = [s?.ciemny?.akcent, s?.jasny?.akcent].find(poprawnyKolor);
+  return akcent ? { akcent: akcent.toLowerCase(), baza: STARE[s?.baza ?? ""] ?? DOMYSLNY } : null;
+}
+
+// ---------- nakładanie na okno ----------
+
+let biezacy: StanWygladu = { motyw: DOMYSLNY, wlasny: null };
+
 export function ustawStan(s: StanWygladu): void {
-  biezacy = s;
+  biezacy = { motyw: s.motyw, wlasny: s.wlasny };
 }
 
 export function wczytaj(): StanWygladu {
   return biezacy;
 }
-
-/** Pełny motyw o danym id (wbudowany albo własny); nieznany → domyślny. */
-export function znajdz(id: string, s: StanWygladu = wczytaj()): Motyw {
-  const wbud = WBUDOWANE.find((m) => m.id === id);
-  if (wbud) return wbud;
-  const w = s.wlasne.find((m) => m.id === id);
-  if (w) {
-    const baza = WBUDOWANE.find((m) => m.id === w.baza) ?? WBUDOWANE[0];
-    return { id: w.id, nazwa: w.nazwa, wariant: baza.wariant, jasny: polacz(baza.jasny, w.jasny), ciemny: polacz(baza.ciemny, w.ciemny) };
-  }
-  return WBUDOWANE[0];
-}
-
-/** Sprawdza plik importu; zwraca motyw z nowym id albo null. */
-export function zImportu(dane: unknown): MotywWlasny | null {
-  if (!dane || typeof dane !== "object") return null;
-  const d = dane as Partial<MotywWlasny>;
-  if (typeof d.nazwa !== "string" || typeof d.baza !== "string" || !WBUDOWANE.some((m) => m.id === d.baza)) return null;
-  const czysc = (o: unknown): Partial<Kolory> => {
-    const wynik: Partial<Kolory> = {};
-    if (o && typeof o === "object") {
-      for (const k of EDYTOWALNE) {
-        const v = (o as Record<string, unknown>)[k];
-        if (typeof v === "string" && rgb(v)) wynik[k] = v;
-      }
-    }
-    return wynik;
-  };
-  return { id: nowyId(), nazwa: d.nazwa.slice(0, 40), baza: d.baza, jasny: czysc(d.jasny), ciemny: czysc(d.ciemny) };
-}
-
-export function nowyId(): string {
-  return `wlasny-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
-
-// ---------- nakładanie na okno ----------
 
 /** Tryb z ustawień (dark / light / system) → czy teraz ciemno. */
 export function czyCiemny(tryb: string | undefined): boolean {
@@ -276,41 +319,73 @@ export function czyCiemny(tryb: string | undefined): boolean {
   return t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 }
 
-/** Nakłada motyw na dokument. `podglad` pozwala pokazać kolory z edytora bez zapisu. */
-export function naloz(ciemny: boolean, podglad?: Motyw): void {
-  const m = podglad ?? znajdz(wczytaj().motyw);
-  const k = ciemny ? m.ciemny : m.jasny;
-  const root = document.documentElement;
-  root.dataset.theme = ciemny ? "dark" : "light";
-  root.dataset.wariant = m.wariant;
+/** Zmienne CSS motywu: nazwy DNA 2.0 (makieta) i aliasy widoków 1.x (Prosty, Ustawienia, panel). */
+export function zmienneCss(k: Tokeny): Record<string, string> {
   const slaby = (c: string, p: number) => `color-mix(in oklab, ${c} ${p}%, transparent)`;
-  const zmienne: Record<string, string> = {
-    "--tlo": k.tlo,
-    "--powierzchnia": k.karta,
-    "--powierzchnia-2": k.karta2,
-    "--powierzchnia-3": mix(k.karta2, k.tekst, 7),
-    "--obramowanie": k.linia,
-    "--obramowanie-mocne": slaby(k.tekst, 24),
+  return {
+    "--wglebienie": k.wglebienie,
+    "--panel": k.panel,
+    "--panel2": k.panel2,
+    "--panel3": k.panel3,
+    "--tx": k.tekst,
+    "--tx2": k.tekst2,
+    "--tx3": k.tekst3,
+    "--line": k.linia,
+    "--line2": k.linia2,
+    "--line3": k.linia3,
+    "--ak": k.akcent,
+    "--ak-na": k.naAkcencie,
+    "--ak-tx": k.akcentTekst,
+    "--ak-slaby": k.akcentSlaby,
+    "--ak-linia": k.akcentLinia,
+    "--ak-polka": k.akcentPolka,
+    "--ok": k.ok,
+    "--warn": k.uwaga,
+    "--bad": k.zle,
+    "--lcd-szklo": k.lcdTlo,
+    "--lcd-cyfry": k.lcd,
+    // widoki 1.x
+    "--tlo": k.wglebienie,
+    "--powierzchnia": k.panel,
+    "--powierzchnia-2": k.panel2,
+    "--powierzchnia-3": k.panel3,
+    "--obramowanie": k.linia2,
+    "--obramowanie-mocne": k.linia3,
     "--tekst": k.tekst,
     "--tekst-2": k.tekst2,
     "--tekst-3": k.tekst3,
-    "--akcent": k.akcent,
+    "--akcent": k.akcentTekst,
     "--akcent-tekst": k.naAkcencie,
     "--akcent-slaby": slaby(k.akcent, 15),
-    "--akcent-ciemny": k.akcentMocny,
-    "--akcent-2": k.pom2,
-    "--ok": k.ok,
+    "--akcent-ciemny": k.akcentPolka,
+    "--akcent-2": k.uwaga,
     "--ok-slaby": slaby(k.ok, 14),
-    "--uwaga": k.pom1,
-    "--uwaga-slaby": slaby(k.pom1, 14),
+    "--uwaga": k.uwaga,
+    "--uwaga-slaby": slaby(k.uwaga, 14),
     "--blad": k.zle,
     "--blad-slaby": slaby(k.zle, 12),
     "--pas-1": k.akcent,
-    "--pas-2": k.pom1,
-    "--pas-3": k.braz,
+    "--pas-2": k.uwaga,
+    "--pas-3": k.tekst3,
     "--lcd-tlo": k.lcdTlo,
     "--lcd": k.lcd,
-    "--wypelnienie": k.wypelnienie ?? `linear-gradient(90deg, ${k.akcent}, ${k.akcent})`,
+    "--wypelnienie": `linear-gradient(90deg, ${k.akcentPolka}, ${k.akcent})`,
   };
-  for (const [n, v] of Object.entries(zmienne)) root.style.setProperty(n, v);
+}
+
+/** Nakłada motyw na dokument. `podglad` pokazuje kolory bez zapisu (edycja „Własnego”). */
+export function naloz(ciemny: boolean, podglad?: StanWygladu): void {
+  const s = podglad ?? wczytaj();
+  const k = tokeny(s.motyw, ciemny, s.wlasny);
+  const root = document.documentElement;
+  root.dataset.theme = ciemny ? "dark" : "light";
+  root.dataset.motyw = s.motyw;
+  root.dataset.wariant = "a";
+  for (const [n, v] of Object.entries(zmienneCss(k))) root.style.setProperty(n, v);
+}
+
+/** Podgląd motywu na kaflu w Ustawieniach: tło, panel boczny i pasek akcentu. */
+export function probki(id: IdMotywu, ciemny: boolean, wlasny?: MotywWlasny | null): { tlo: string; bok: string; panel: string; akcent: string } {
+  const k = tokeny(id, ciemny, wlasny);
+  return { tlo: k.wglebienie, bok: k.panel, panel: k.panel2, akcent: k.akcent };
 }

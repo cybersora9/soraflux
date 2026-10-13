@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { check } from "@tauri-apps/plugin-updater";
@@ -12,7 +12,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import type {
   Info, InfoZadania, Konfig, Media, NoweZadanie, Pakiet, PodgladPlanu, Postep, PostepNarzedzia,
-  Preset, Profil, Sciezki, StanNarzedzi, Szacunek, PlikZFolderu, PodgladKlatki, ModelNapisow, PostepModelu, StanNapisow,
+  Preset, Profil, Sciezki, StanNarzedzi, Szacunek, PlikZFolderu, PodgladKlatki, ModelNapisow, PostepModelu, StanNapisow, Metryki,
 } from "./typy";
 import { atrapa } from "./atrapa";
 
@@ -77,6 +77,22 @@ export interface Api {
   naPostepNarzedzi(f: (p: PostepNarzedzia) => void): Odsubskrybuj;
   /** `null` = opuszczenie strefy, [] = najechanie, ścieżki = upuszczenie */
   naUpuszczenie(f: (sciezki: string[] | null, najechanie: boolean) => void): Odsubskrybuj;
+  // ---------- GUI 2.0 ----------
+  /** Skala 0,9–1,5: zoom WebView (Tauri `Webview::set_zoom`), zapis w konfigu. Zwraca skalę po poprawce. */
+  ustawSkale(skala: number): Promise<number>;
+  /** Pauza Taśmy: nowe zadania nie startują, trwające się kończą. */
+  kolejkaWstrzymaj(tak: boolean): Promise<boolean>;
+  kolejkaWstrzymana(): Promise<boolean>;
+  /** Eksport motywu „Własny” do .json (okno zapisu); `false` = anulowane. */
+  motywEksportuj(tresc: string, nazwa: string): Promise<boolean>;
+  /** Import .json motywu (okno otwierania); `null` = anulowane. */
+  motywImportuj(): Promise<string | null>;
+  /** Ta sama klatka z oryginału i wyniku (suwak A/B). */
+  porownajKlatke(oryginal: string, wynik: string, czas_s: number, przesuniecie_s?: number): Promise<PodgladKlatki>;
+  /** SSIM, VMAF (gdy ffmpeg ma libvmaf), głośność i rozmiar przed/po. */
+  porownajMetryki(oryginal: string, wynik: string): Promise<Metryki>;
+  /** Systemowe przeciąganie gotowego pliku do innej apki (przy wciśniętym przycisku myszy). */
+  przeciagnijWynik(sciezka: string): Promise<void>;
 }
 
 function nasluch<T>(nazwa: string, f: (x: T) => void): Odsubskrybuj {
@@ -163,6 +179,22 @@ const tauri: Api = {
   naPostep: (f) => nasluch("zadanie://postep", f),
   naStan: (f) => nasluch("zadanie://stan", f),
   naPostepNarzedzi: (f) => nasluch("narzedzia://postep", f),
+  ustawSkale: (skala) => invoke("ustaw_skale", { skala }),
+  kolejkaWstrzymaj: (tak) => invoke("kolejka_wstrzymaj", { tak }),
+  kolejkaWstrzymana: () => invoke("kolejka_wstrzymana"),
+  async motywEksportuj(tresc, nazwa) {
+    const sciezka = await save({ defaultPath: nazwa, filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!sciezka) return false;
+    await invoke("motyw_zapisz_plik", { sciezka, tresc });
+    return true;
+  },
+  async motywImportuj() {
+    const w = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
+    return typeof w === "string" ? invoke<string>("motyw_wczytaj_plik", { sciezka: w }) : null;
+  },
+  porownajKlatke: (oryginal, wynik, czasS, przesuniecieS) => invoke("porownaj_klatke", { oryginal, wynik, czasS, przesuniecieS: przesuniecieS ?? null }),
+  porownajMetryki: (oryginal, wynik) => invoke("porownaj_metryki", { oryginal, wynik }),
+  przeciagnijWynik: (sciezka) => invoke("przeciagnij_wynik", { sciezka }),
   naUpuszczenie(f) {
     const p = getCurrentWebview().onDragDropEvent((e) => {
       const d = e.payload;

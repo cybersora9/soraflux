@@ -1,24 +1,33 @@
 import "./tokeny.css";
 import "./style.css";
+import "./dna.css";
 import "./fonty";
-import { czyCiemny, naloz, ustawStan, zKonfigu } from "./motywy";
+import { czyCiemny, doKonfigu, ID_MOTYWOW, naloz, ustawStan, zKonfigu } from "./motywy";
 import { api } from "./api";
-import { h, ikona } from "./dom";
+import { h, ikona, zamien } from "./dom";
 import { IKONY } from "./ikony";
 import { jezyk, jezykSystemu, naZmianeJezyka, t, ustawJezyk } from "./i18n";
-import { formatujRozmiar, toObraz, zmianaRozmiaru } from "./logika";
+import { formatujRozmiar, zmianaRozmiaru } from "./logika";
 import { aktywneZadania, pokazDymek, sklep, trybApki, ZAKLADKI_TRYBU, type Zakladka } from "./sklep";
 import { rozstrzygnijTryb } from "./prosty";
 import { ustawTryb } from "./tryb";
+import { biezacaSkala, krokSkali, SKALE, skalaZKlawisza, ustawSkale } from "./skala";
 import { czyPokazacInformacje, pokazInformacje } from "./przegladarka";
 import { stworzWidokPlikowy, type WidokPlikowy } from "./widoki/plikowy";
 import { stworzWidokKolejki } from "./widoki/kolejka";
 import { stworzWidokUstawien } from "./widoki/ustawienia";
-import { stworzWidokPobierania, type WidokPobierania } from "./widoki/pobierz";
+import { stworzWidokPobierania } from "./widoki/pobierz";
 import { stworzWidokProsty, type Przekazanie, type WidokProsty } from "./widoki/prosty";
+import { stworzWidokTasmy, type WidokTasmy } from "./widoki/tasma";
+import { stworzWidokLinku, type WidokLinku } from "./widoki/link";
+import { stworzWidokPorownania } from "./widoki/porownaj";
+import { stworzWidokNarzedzi } from "./widoki/narzedzia";
+import { stworzWidokGotowe } from "./widoki/gotowe";
 import { pokazKreator } from "./widoki/kreator";
+import { otworzPalete, paletaOtwarta, type Polecenie } from "./komponenty/paleta";
+import { sprawdzAktualizacje } from "./aktualizacje";
 
-/** Zakładki paska w bieżącym trybie: Prosty ma trzy (decyzja 3), Pełny pięć jak dotąd. */
+/** Zakładki szyny w bieżącym trybie: Prosty ma trzy (decyzja 3), Pełny 2.0 = ekrany z makiety. */
 const zakladki = (): Zakladka[] => ZAKLADKI_TRYBU[trybApki()];
 
 interface Widok {
@@ -29,8 +38,16 @@ interface Widok {
 let widoki: Record<Zakladka, Widok> | null = null;
 
 function stworzWidoki(): Record<Zakladka, Widok> {
+  const tasma = stworzWidokTasmy();
+  const link = stworzWidokLinku();
+  const porownaj = stworzWidokPorownania();
+  tasma.naLink((url) => {
+    sklep.ustaw({ zakladka: "link" });
+    link.wstaw(url);
+  });
   return {
     prosty: stworzWidokProsty({ doPelnego }),
+    // widoki 1.4 trybu Pełnego: dostępne z palety (Ctrl K) jako zapas na czas testu 2.0
     konwertuj: stworzWidokPlikowy("konwertuj"),
     pobierz: stworzWidokPobierania(),
     // P3: wideo/audio upuszczone na Obrazy → przycisk w dymku przenosi je do Konwertuj
@@ -42,103 +59,169 @@ function stworzWidoki(): Record<Zakladka, Widok> {
     }),
     kolejka: stworzWidokKolejki(),
     ustawienia: stworzWidokUstawien(),
+    tasma,
+    link,
+    porownaj,
+    narzedzia: stworzWidokNarzedzi({
+      plikiTasmy: () => tasma.sciezki(),
+      doTasmyNapisy: () => {
+        sklep.ustaw({ zakladka: "tasma" });
+        pokazDymek(t("narzedzia2.napisy.wskazowka"));
+      },
+    }),
+    gotowe: stworzWidokGotowe({
+      porownaj: (id) => {
+        sklep.ustaw({ zakladka: "porownaj" });
+        porownaj.pokaz(id);
+      },
+    }),
   };
 }
 
-/** „Więcej ustawień (tryb Pełny)”: ten plik i ta akcja (te same struktury `Profil`) w zakładce Pełnego. */
+/** „Więcej ustawień (tryb Pełny)”: ten plik i ta akcja (te same struktury `Profil`) na Taśmie albo w Z linku. */
 function doPelnego(p: Przekazanie): void {
   if (!widoki) return;
   if (p.typ === "link") {
-    void ustawTryb("pelny", "pobierz");
-    (widoki.pobierz as WidokPobierania).wstaw(p.url, p.wybor);
+    void ustawTryb("pelny", "link");
+    (widoki.link as WidokLinku).wstaw(p.url);
     return;
   }
-  const cel: Zakladka = p.obrazy ? "obrazy" : "konwertuj";
-  void ustawTryb("pelny", cel);
-  const w = widoki[cel] as WidokPlikowy;
-  w.ustawProfil(p.profil);
-  void w.dodaj(p.sciezki, { zachowajCiecie: true });
+  void ustawTryb("pelny", "tasma");
+  void (widoki.tasma as WidokTasmy).dodaj(p.sciezki, { profil: p.profil });
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-const nawigacja = h("nav", { class: "nawigacja", "aria-label": t("app.nazwa") });
+app.classList.add("app2");
+const pasekT = h("header", { class: "pasek-t" });
+const szyna = h("nav", { class: "szyna", "aria-label": t("app.nazwa") });
 const tresc = h("main", { class: "tresc", id: "tresc" });
+const pasekStanu = h("footer", { class: "pasek-stanu" });
 const dymek = h("div", { class: "dymek", role: "status", "aria-live": "polite" });
 const nakladkaUpuszczania = h("div", { class: "nakladka-upuszczania", "aria-hidden": "true" });
-app.append(nawigacja, tresc, dymek, nakladkaUpuszczania);
+app.append(pasekT, szyna, tresc, pasekStanu, dymek, nakladkaUpuszczania);
 
-function rysujNawigacje(): void {
-  const aktywne = aktywneZadania(sklep.stan);
-  const tryb = trybApki();
-  const lista = zakladki();
-  nawigacja.replaceChildren(
-    h("div", { class: "marka" }, h("span", { class: "marka-znak", html: MARKA }), h("span", { class: "marka-nazwa" }, t("app.nazwa"))),
+// Logo SoraFlux zawsze karmazynowe na ciemnym kaflu (DNA rodziny), niezależnie od motywu i akcentu.
+const LOGO = `<svg class="kafel-logo" viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26" fill="#0e0e12"/><g transform="translate(12 12) scale(.8)"><path d="M18 26H38L72 60L38 94H18L52 60Z" fill="#f6f2f3"/><path d="M48 26H68L102 60L68 94H48L82 60Z" fill="#e11d33"/></g></svg>`;
+
+const IKONA_ZAKLADKI: Record<Zakladka, string> = {
+  prosty: IKONY.upusc, konwertuj: IKONY.konwertuj, pobierz: IKONY.pobierz, obrazy: IKONY.obrazy, kolejka: IKONY.kolejka, ustawienia: IKONY.ustawienia,
+  tasma: IKONY.tasma, link: IKONY.link, porownaj: IKONY.porownaj, narzedzia: IKONY.narzedzia, gotowe: IKONY.gotowe,
+};
+
+function rysujPasekT(): void {
+  pasekT.replaceChildren(
+    h("div", { class: "marka2" }, h("span", { html: LOGO, style: { display: "contents" } }), h("b", null, t("app.nazwa")), h("span", null, t("app.opis"))),
     h(
-      "div",
-      { class: "nawigacja-lista", role: "tablist", "aria-orientation": "vertical" },
-      lista.map((z) =>
-        h(
-          "button",
-          {
-            type: "button",
-            role: "tab",
-            "aria-selected": String(sklep.stan.zakladka === z),
-            tabindex: sklep.stan.zakladka === z ? "0" : "-1",
-            "aria-keyshortcuts": `Control+${lista.indexOf(z) + 1}`,
-            "aria-controls": "tresc",
-            class: "nawigacja-przycisk" + (sklep.stan.zakladka === z ? " aktywny" : ""),
-            "data-zakladka": z,
-            onclick: () => sklep.ustaw({ zakladka: z }),
-          },
-          ikona(z === "prosty" ? IKONY.upusc : IKONY[z]),
-          h("span", null, tryb === "prosty" && z === "kolejka" ? t("prosty.zakladka.kolejka") : t(`zakladka.${z}`)),
-          z === "kolejka" && aktywne > 0 ? h("span", { class: "plakietka plakietka-akcent" }, String(aktywne)) : null,
-        ),
-      ),
+      "button",
+      { type: "button", class: "szukaj-pill", "aria-keyshortcuts": "Control+K", "aria-haspopup": "dialog", onclick: () => paleta() },
+      ikona(IKONY.szukaj, "ikona ic m"),
+      h("span", null, t("paleta.pill")),
+      h("span", { class: "kbd" }, "Ctrl K"),
     ),
     h(
       "div",
-      { class: "nawigacja-stopka" },
+      { class: "prawo" },
       h(
         "div",
-        { class: "segmenty przelacznik-trybu", role: "radiogroup", "aria-label": t("tryb.etykieta") },
+        { class: "seg maly przelacznik-trybu", role: "radiogroup", "aria-label": t("tryb.etykieta") },
         (["prosty", "pelny"] as const).map((tr) =>
           h(
             "button",
             {
-              type: "button", role: "radio", class: "segment" + (tr === tryb ? " aktywny" : ""), "aria-checked": String(tr === tryb), "data-tryb": tr,
-              onclick: () => tr !== tryb && void ustawTryb(tr),
+              type: "button", role: "radio", "aria-checked": String(tr === trybApki()), "aria-pressed": String(tr === trybApki()), "data-tryb": tr,
+              onclick: () => tr !== trybApki() && void ustawTryb(tr),
             },
             t(`tryb.${tr}`),
           ),
         ),
       ),
-      h("span", null, t("app.lokalnie")),
     ),
   );
 }
 
-// Znak SoraFlux (08.10, cybersora-assets/logo/produkty/soraflux): dwa szewrony, z jednego w drugie.
-// Pierwszy w kolorze tekstu, drugi w akcencie motywu (wszystkie motywy w Ustawieniach).
-const MARKA = `<svg viewBox="12 20 96 80" aria-hidden="true"><path d="M18 26H38L72 60L38 94H18L52 60Z" fill="currentColor"/><path d="M48 26H68L102 60L68 94H48L82 60Z" fill="var(--akcent)"/></svg>`;
-
-// Klawiatura: strzałki w liście zakładek (jak w ARIA tablist), Ctrl+1…5, Ctrl+O (dodaj pliki).
-nawigacja.addEventListener("keydown", (e) => {
-  if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
-  if (!(e.target as HTMLElement).closest(".nawigacja-lista")) return;
+function rysujNawigacje(): void {
+  const aktywne = aktywneZadania(sklep.stan);
+  const tryb = trybApki();
   const lista = zakladki();
-  const i = lista.indexOf(sklep.stan.zakladka);
+  const przycisk = (z: Zakladka) =>
+    h(
+      "button",
+      {
+        type: "button",
+        role: "tab",
+        "aria-selected": String(sklep.stan.zakladka === z),
+        tabindex: sklep.stan.zakladka === z ? "0" : "-1",
+        "aria-keyshortcuts": `Control+${lista.indexOf(z) + 1}`,
+        "aria-controls": "tresc",
+        class: "nawigacja-przycisk" + (sklep.stan.zakladka === z ? " aktywny" : ""),
+        "data-zakladka": z,
+        title: tryb === "prosty" && z === "kolejka" ? t("prosty.zakladka.kolejka") : t(`zakladka.${z}`),
+        onclick: () => sklep.ustaw({ zakladka: z }),
+      },
+      ikona(IKONA_ZAKLADKI[z], "ikona ic"),
+      h("span", null, tryb === "prosty" && z === "kolejka" ? t("prosty.zakladka.kolejka") : t(`zakladka.${z}`)),
+      (z === "kolejka" || z === "gotowe") && aktywne > 0 ? h("span", { class: "licznik" }, String(aktywne)) : null,
+    );
+  szyna.replaceChildren(
+    h(
+      "div",
+      { class: "szyna-lista nawigacja-lista", role: "tablist", "aria-orientation": "vertical" },
+      lista.filter((z) => z !== "ustawienia").map(przycisk),
+      h("div", { class: "dol" }, przycisk("ustawienia")),
+    ),
+  );
+  // widok 1.4 otwarty z palety: żadna pozycja szyny nie jest zaznaczona, ale fokus ma dokąd wrócić
+  if (!lista.includes(sklep.stan.zakladka)) szyna.querySelector<HTMLElement>("[data-zakladka]")?.setAttribute("tabindex", "0");
+}
+
+function rysujPasekStanu(): void {
+  const aktywne = aktywneZadania(sklep.stan);
+  const n = sklep.stan.narzedzia;
+  zamien(pasekStanu,
+    h("span", { class: "lok" }, h("i"), t("app.lokalnie")),
+    aktywne ? h("span", null, t("stan.w_toku", { n: aktywne })) : null,
+    h(
+      "span",
+      { class: "prawo" },
+      n?.sprzet.length ? h("span", null, t("stan.karta", { nazwa: n.sprzet[0].split("_").pop()!.toUpperCase() })) : null,
+      h("span", { class: "mono", title: t("skala.tytul") }, `${Math.round(biezacaSkala() * 100)}%`),
+      n?.wersje.ffmpeg ? h("span", { class: "mono", title: "ffmpeg" }, `ffmpeg ${n.wersje.ffmpeg.split("-")[0]}`) : null,
+    ),
+  );
+}
+
+// Klawiatura: strzałki w szynie (jak w ARIA tablist), Ctrl+1…6, Ctrl+O, Ctrl+K, Ctrl + / − / 0, Ctrl+Enter.
+szyna.addEventListener("keydown", (e) => {
+  if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+  const lista = zakladki();
+  const i = Math.max(0, lista.indexOf(sklep.stan.zakladka));
   const n = lista.length;
   const j = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : e.key === "ArrowDown" || e.key === "ArrowRight" ? (i + 1) % n : (i - 1 + n) % n;
   e.preventDefault();
   sklep.ustaw({ zakladka: lista[j] });
-  nawigacja.querySelector<HTMLButtonElement>(`[data-zakladka="${lista[j]}"]`)?.focus();
+  szyna.querySelector<HTMLButtonElement>(`[data-zakladka="${lista[j]}"]`)?.focus();
 });
 window.addEventListener("keydown", (e) => {
+  if (paletaOtwarta()) return;
+  const skala = skalaZKlawisza(e, biezacaSkala());
+  if (skala !== null) {
+    e.preventDefault();
+    void ustawSkale(skala);
+    return;
+  }
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
   const nr = Number(e.key);
   const lista = zakladki();
-  if (nr >= 1 && nr <= lista.length) {
+  if (e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    paleta();
+  } else if (e.key === "Enter" && widoki && trybApki() === "pelny") {
+    const z = sklep.stan.zakladka;
+    if (z === "tasma" || z === "link") {
+      e.preventDefault();
+      void (z === "tasma" ? (widoki.tasma as WidokTasmy).start() : (widoki.link as WidokLinku).start());
+    }
+  } else if (nr >= 1 && nr <= lista.length) {
     e.preventDefault();
     sklep.ustaw({ zakladka: lista[nr - 1] });
   } else if (e.key.toLowerCase() === "o" && widoki && trybApki() === "prosty") {
@@ -147,13 +230,81 @@ window.addEventListener("keydown", (e) => {
     void (widoki.prosty as WidokProsty).wybierz();
   } else if (e.key.toLowerCase() === "o" && widoki) {
     e.preventDefault();
-    const cel: Zakladka = sklep.stan.zakladka === "obrazy" ? "obrazy" : "konwertuj";
-    sklep.ustaw({ zakladka: cel });
-    void api.wybierzPliki(cel === "obrazy").then((s) => {
-      if (s.length) void (widoki![cel] as WidokPlikowy).dodaj(s);
-    });
+    const z = sklep.stan.zakladka;
+    if (z === "konwertuj" || z === "obrazy") {
+      void api.wybierzPliki(z === "obrazy").then((s) => s.length && void (widoki![z] as WidokPlikowy).dodaj(s));
+      return;
+    }
+    sklep.ustaw({ zakladka: "tasma" });
+    void (widoki.tasma as WidokTasmy).wybierzPliki();
   }
 });
+
+/** Polecenia palety (Ctrl K): ekrany, akcje, wygląd, skala, tryb, widoki 1.4. */
+function polecenia(): Polecenie[] {
+  const L: Polecenie[] = [];
+  const idz = (z: Zakladka) => () => sklep.ustaw({ zakladka: z });
+  const lista = zakladki();
+  lista.forEach((z, i) => L.push({ id: `idz-${z}`, sekcja: t("paleta.sekcja.idz"), tekst: t(`zakladka.${z}`), ikona: IKONA_ZAKLADKI[z], skrot: `Ctrl ${i + 1}`, wykonaj: idz(z) }));
+  if (trybApki() === "pelny" && widoki) {
+    const tasma = widoki.tasma as WidokTasmy;
+    L.push({ id: "dodaj", sekcja: t("paleta.sekcja.akcje"), tekst: t("tasma.dodaj_pliki"), ikona: IKONY.upusc, skrot: "Ctrl O", wykonaj: () => (sklep.ustaw({ zakladka: "tasma" }), void tasma.wybierzPliki()) });
+    L.push({ id: "start", sekcja: t("paleta.sekcja.akcje"), tekst: t("paleta.start"), ikona: IKONY.start, skrot: "Ctrl ↵", wykonaj: () => (sklep.ustaw({ zakladka: "tasma" }), void tasma.start()) });
+    L.push({
+      id: "wklej", sekcja: t("paleta.sekcja.akcje"), tekst: t("paleta.wklej_link"), ikona: IKONY.link,
+      wykonaj: () => void api.czytajSchowek().then((x) => {
+        sklep.ustaw({ zakladka: "link" });
+        if (/https?:\/\//.test(x)) (widoki!.link as WidokLinku).wstaw(x.trim());
+      }),
+    });
+    for (const n of ["kontener", "sciezki", "polacz", "glosnosc", "kadr"] as const) {
+      L.push({ id: `narz-${n}`, sekcja: t("paleta.sekcja.narzedzia"), tekst: t(`narzedzia2.${n}`), ikona: IKONY.narzedzia, wykonaj: () => (sklep.ustaw({ zakladka: "narzedzia" }), (widoki!.narzedzia as unknown as { wybierz(n: string): void }).wybierz(n)) });
+    }
+  }
+  for (const id of ID_MOTYWOW) {
+    L.push({
+      id: `motyw-${id}`, sekcja: t("paleta.sekcja.wyglad"), tekst: t("paleta.motyw", { nazwa: t(`motyw2.${id}`) }), ikona: IKONY.paleta,
+      wykonaj: () => {
+        const k = sklep.stan.konfig;
+        if (!k) return;
+        const w = zKonfigu(k);
+        const konfig = { ...k, ...doKonfigu({ motyw: id, wlasny: id === "wlasny" ? w.wlasny ?? { akcent: "#ff7ac6", baza: "neon" } : w.wlasny }) };
+        void api.konfigZapisz(konfig);
+        sklep.ustaw({ konfig });
+      },
+    });
+  }
+  for (const [tr, ik] of [["system", IKONY.monitor], ["dark", IKONY.ksiezyc], ["light", IKONY.slonce]] as const) {
+    L.push({
+      id: `jasnosc-${tr}`, sekcja: t("paleta.sekcja.wyglad"), tekst: t("paleta.jasnosc", { tryb: t(`ustawienia.motyw.${tr === "dark" ? "ciemny" : tr === "light" ? "jasny" : "system"}`) }), ikona: ik,
+      wykonaj: () => {
+        const k = sklep.stan.konfig;
+        if (!k) return;
+        const konfig = { ...k, motyw: tr };
+        void api.konfigZapisz(konfig);
+        sklep.ustaw({ konfig });
+      },
+    });
+  }
+  for (const s of SKALE) {
+    L.push({ id: `skala-${s}`, sekcja: t("paleta.sekcja.wyglad"), tekst: t("paleta.skala", { p: Math.round(s * 100) }), ikona: IKONY.tekst, skrot: s === 1 ? "Ctrl 0" : undefined, wykonaj: () => void ustawSkale(s) });
+  }
+  L.push({ id: "skala+", sekcja: t("paleta.sekcja.wyglad"), tekst: t("paleta.skala_wieksza"), ikona: IKONY.tekst, skrot: "Ctrl +", wykonaj: () => void ustawSkale(krokSkali(biezacaSkala(), 1)) });
+  L.push({ id: "skala-", sekcja: t("paleta.sekcja.wyglad"), tekst: t("paleta.skala_mniejsza"), ikona: IKONY.tekst, skrot: "Ctrl −", wykonaj: () => void ustawSkale(krokSkali(biezacaSkala(), -1)) });
+  const inny = trybApki() === "prosty" ? "pelny" : "prosty";
+  L.push({ id: "tryb", sekcja: t("paleta.sekcja.apka"), tekst: t("paleta.tryb", { tryb: t(`tryb.${inny}`) }), ikona: IKONY.suwaki, wykonaj: () => void ustawTryb(inny) });
+  L.push({ id: "aktualizacje", sekcja: t("paleta.sekcja.apka"), tekst: t("aktualizacje.sprawdz"), ikona: IKONY.odswiez, wykonaj: () => void sprawdzAktualizacje(true) });
+  if (trybApki() === "pelny") {
+    for (const z of ["konwertuj", "obrazy", "pobierz", "kolejka"] as const) {
+      L.push({ id: `klasyczny-${z}`, sekcja: t("paleta.sekcja.klasyczne"), tekst: t("paleta.klasyczny", { nazwa: t(`zakladka.${z}`) }), ikona: IKONA_ZAKLADKI[z], wykonaj: idz(z) });
+    }
+  }
+  return L;
+}
+
+function paleta(): void {
+  otworzPalete(polecenia);
+}
 
 let pokazana: Zakladka | null = null;
 function pokazZakladke(): void {
@@ -166,6 +317,7 @@ function pokazZakladke(): void {
   const a = document.activeElement;
   if (a instanceof HTMLElement && tresc.contains(a)) a.blur();
   tresc.replaceChildren(widoki[z].el);
+  if (["gotowe", "porownaj", "narzedzia"].includes(z)) widoki[z].odswiez();
   tresc.scrollTop = 0;
 }
 
@@ -179,26 +331,34 @@ let ostatniTryb = trybApki();
 let ostatniKonfig = sklep.stan.konfig;
 let ostatniDymek = sklep.stan.dymek;
 let ostatnieAktywne = 0;
+let ostatnieNarzedzia = sklep.stan.narzedzia;
 sklep.subskrybuj((s) => {
   const aktywne = aktywneZadania(s);
   if (s.zakladka !== ostatniaZakladka || aktywne !== ostatnieAktywne) {
     ostatniaZakladka = s.zakladka;
     ostatnieAktywne = aktywne;
     rysujNawigacje();
+    rysujPasekStanu();
     pokazZakladke();
   }
   if (trybApki(s) !== ostatniTryb) {
     ostatniTryb = trybApki(s);
     rysujNawigacje();
+    rysujPasekT();
     pokazZakladke();
     // Kolejka i Ustawienia wyglądają trochę inaczej w każdym trybie
     widoki?.kolejka.odswiez();
     widoki?.ustawienia.odswiez();
   }
+  if (s.narzedzia !== ostatnieNarzedzia) {
+    ostatnieNarzedzia = s.narzedzia;
+    rysujPasekStanu();
+  }
   if (s.konfig !== ostatniKonfig) {
     const zmianaJezyka = s.konfig?.jezyk !== ostatniKonfig?.jezyk;
     ostatniKonfig = s.konfig;
     zastosujMotyw();
+    rysujPasekStanu();
     if (zmianaJezyka) ustawJezyk(s.konfig?.jezyk ?? jezykSystemu());
   }
   if (s.dymek !== ostatniDymek) {
@@ -212,7 +372,9 @@ sklep.subskrybuj((s) => {
 });
 
 naZmianeJezyka(() => {
+  rysujPasekT();
   rysujNawigacje();
+  rysujPasekStanu();
   if (widoki) Object.values(widoki).forEach((w) => w.odswiez());
 });
 
@@ -227,10 +389,10 @@ api.naUpuszczenie((sciezki, najechanie) => {
     void (widoki.prosty as WidokProsty).dodaj(sciezki);
     return;
   }
-  let cel: Zakladka = sklep.stan.zakladka;
-  if (cel !== "konwertuj" && cel !== "obrazy") cel = sciezki.every(toObraz) ? "obrazy" : "konwertuj";
-  sklep.ustaw({ zakladka: cel });
-  void (widoki[cel] as WidokPlikowy).dodaj(sciezki);
+  const cel: Zakladka = sklep.stan.zakladka;
+  if (cel === "konwertuj" || cel === "obrazy") return void (widoki[cel] as WidokPlikowy).dodaj(sciezki);
+  sklep.ustaw({ zakladka: "tasma" });
+  void (widoki.tasma as WidokTasmy).dodaj(sciezki);
 });
 
 // Pliki z Eksploratora („Konwertuj w SoraFlux”): przy starcie i do już otwartego okna.
@@ -241,9 +403,8 @@ function otworzPliki(sciezki: string[]): void {
     void (widoki.prosty as WidokProsty).dodaj(sciezki);
     return;
   }
-  const cel: Zakladka = sciezki.every(toObraz) ? "obrazy" : "konwertuj";
-  sklep.ustaw({ zakladka: cel });
-  void (widoki[cel] as WidokPlikowy).dodaj(sciezki);
+  sklep.ustaw({ zakladka: "tasma" });
+  void (widoki.tasma as WidokTasmy).dodaj(sciezki);
 }
 api.naOtworzPliki(otworzPliki);
 // Atrapa (podgląd w przeglądarce, zrzuty): „upuszczenie” ścieżek bez Tauri.
@@ -285,6 +446,12 @@ api.naPostep((p) => {
 async function start(): Promise<void> {
   let konfig = await api.konfigWczytaj();
   ustawJezyk(konfig.jezyk ?? jezykSystemu());
+  // DNA 2.0: motywy sprzed 2.0 (sora-a…jp-c, własne 1.x) przechodzą na najbliższy nowy, zapis od razu
+  const wyglad = zKonfigu(konfig);
+  if (wyglad.zmieniony) {
+    konfig = { ...konfig, ...doKonfigu(wyglad) };
+    await api.konfigZapisz(konfig);
+  }
   // Tryb (decyzja 2): nowa instalacja → Prosty; aktualizacja z 1.x → Pełny + podpowiedź raz. Zapis od razu,
   // bo po zamknięciu kreatora nowa instalacja wyglądałaby już jak aktualizacja.
   const tryb = rozstrzygnijTryb(konfig);
@@ -294,10 +461,14 @@ async function start(): Promise<void> {
   }
   ostatniTryb = tryb.tryb;
   const [presety, zadania] = await Promise.all([api.presetyLista(), api.listaZadan()]);
-  sklep.ustaw({ konfig, presety, zadania: new Map(zadania.map((z) => [z.id, z])), zakladka: tryb.tryb === "prosty" ? "prosty" : "konwertuj" });
+  sklep.ustaw({ konfig, presety, zadania: new Map(zadania.map((z) => [z.id, z])), zakladka: tryb.tryb === "prosty" ? "prosty" : "tasma" });
   zastosujMotyw();
+  // skala z konfigu: w Tauri zoom WebView ustawia już Rust przy starcie, tu tylko upewniamy się (i atrapa)
+  void api.ustawSkale(biezacaSkala()).catch(() => undefined);
   widoki = stworzWidoki();
+  rysujPasekT();
   rysujNawigacje();
+  rysujPasekStanu();
   pokazZakladke();
   const narzedzia = await api.narzedziaStan();
   sklep.ustaw({ narzedzia });
