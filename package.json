@@ -12,6 +12,7 @@
     "zrzuty": "node scripts/zrzuty.mjs",
     "zrzuty:en": "node -e \"process.env.ZRZUTY_JEZYK='en'; import('./scripts/zrzuty.mjs')\"",
     "uklad": "node scripts/uklad.mjs",
+    "gui2": "node scripts/gui2.mjs",
     "showcase": "node scripts/showcase.mjs",
     "tauri": "tauri",
     "bramka": "bash scripts/bramka.sh"

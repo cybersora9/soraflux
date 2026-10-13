@@ -569,6 +569,8 @@ export const atrapa: Api = {
     const s = Math.round(Math.min(1.5, Math.max(0.9, Number.isFinite(skala) ? skala : 1)) * 100) / 100;
     // przeglądarka: zoom CSS zamiast zoomu WebView (ten sam efekt dla układu)
     document.documentElement.style.setProperty("zoom", String(s));
+    // zoom CSS nie przelicza 100vh: wysokość okna apki dzielimy przez skalę (WebView w Tauri robi to sam)
+    document.documentElement.style.setProperty("--zoom-atrapy", String(s));
     konfig = { ...konfig, skala: s };
     return s;
   },

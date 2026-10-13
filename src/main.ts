@@ -110,7 +110,7 @@ const IKONA_ZAKLADKI: Record<Zakladka, string> = {
 
 function rysujPasekT(): void {
   pasekT.replaceChildren(
-    h("div", { class: "marka2" }, h("span", { html: LOGO, style: { display: "contents" } }), h("b", null, t("app.nazwa")), h("span", null, t("app.opis"))),
+    h("div", { class: "marka2" }, h("span", { html: LOGO, style: { display: "contents" } }), h("b", null, t("app.nazwa")), h("span", { title: t("app.opis") }, t("app.opis"))),
     h(
       "button",
       { type: "button", class: "szukaj-pill", "aria-keyshortcuts": "Control+K", "aria-haspopup": "dialog", onclick: () => paleta() },
@@ -407,8 +407,17 @@ function otworzPliki(sciezki: string[]): void {
   void (widoki.tasma as WidokTasmy).dodaj(sciezki);
 }
 api.naOtworzPliki(otworzPliki);
-// Atrapa (podgląd w przeglądarce, zrzuty): „upuszczenie” ścieżek bez Tauri.
-if (!api.wTauri) (window as unknown as { __dodajDoKonwertuj: typeof otworzPliki }).__dodajDoKonwertuj = otworzPliki;
+// Atrapa (podgląd w przeglądarce, zrzuty): „upuszczenie” ścieżek i przejście do widoku (także 1.4) bez Tauri.
+if (!api.wTauri) {
+  const okno = window as unknown as { __dodajDoKonwertuj: typeof otworzPliki; __zakladka: (z: Zakladka) => void };
+  okno.__dodajDoKonwertuj = (sciezki) => {
+    // klasyczny Konwertuj/Obrazy otwarty: tam (zrzuty 1.x), inaczej Taśma / Prosty
+    const z = sklep.stan.zakladka;
+    if (widoki && (z === "konwertuj" || z === "obrazy")) return void (widoki[z] as WidokPlikowy).dodaj(sciezki);
+    otworzPliki(sciezki);
+  };
+  okno.__zakladka = (z) => sklep.ustaw({ zakladka: z });
+}
 
 // Po zakończeniu kolejki: powiadomienie systemowe (gdy okno nie jest na wierzchu) z porównaniem rozmiaru.
 let bylyAktywne = 0;

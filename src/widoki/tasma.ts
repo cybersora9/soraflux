@@ -126,7 +126,7 @@ export function stworzWidokTasmy(): WidokTasmy {
     const wyniki: Record<string, number | null> = {};
     await Promise.all(
       przepisyDla(r).map(async (przepis) => {
-        const kopia = { ...p, przepis, profil: przepis === WLASNY ? p.profil : p.profil };
+        const kopia = { ...p, przepis };
         if (przepis === AKCJA_NAPISOW) return void (wyniki[przepis] = null);
         const prof = profilKoncowy(kopia);
         if (!prof) return void (wyniki[przepis] = null);

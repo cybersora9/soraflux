@@ -325,7 +325,7 @@ export function stworzWidokLinku(): WidokLinku {
           { class: "wiersz-op" },
           h("span", null, t("link.silnik")),
           y
-            ? h("span", { class: `pigu ${y.stary ? "uwaga" : "jest"}` }, ikona(y.stary ? IKONY.uwaga : IKONY.ok, "ikona ic m"), y.stary ? t("pobierz.wiek", { n: y.wiek_dni ?? "?" }) : t("link.silnik.aktualny", { w: y.wersja ?? "?" }))
+            ? h("span", { class: `pigu ${y.stary ? "uwaga" : "jest"}`, title: y.stary ? t("pobierz.wiek", { n: y.wiek_dni ?? "?" }) : t("link.silnik.aktualny", { w: y.wersja ?? "?" }) }, ikona(y.stary ? IKONY.uwaga : IKONY.ok, "ikona ic m"), y.stary ? t("pobierz.wiek", { n: y.wiek_dni ?? "?" }) : t("link.silnik.aktualny", { w: y.wersja ?? "?" }))
             : h("span", { class: "pigu zle" }, t("link.silnik.brak")),
         ),
         y?.stary ? h("button", { type: "button", class: "btn maly", disabled: aktualizuje, "data-fokus": "aktualizuj2", onclick: () => void aktualizuj() }, aktualizuje ? t("pobierz.aktualizuje") : t("pobierz.aktualizuj")) : null,
@@ -335,7 +335,7 @@ export function stworzWidokLinku(): WidokLinku {
         { class: "panel-d" },
         h(
           "button",
-          { type: "button", class: "btn-wcisk", style: { width: "100%" }, disabled: !info || sprawdzam, "data-fokus": "start", "aria-keyshortcuts": "Control+Enter", onclick: () => void start() },
+          { type: "button", class: "btn-wcisk", style: { width: "100%" }, disabled: !info || sprawdzam, "data-fokus": "start", "aria-keyshortcuts": "Control+Enter", title: t(s.playlista ? "link.start.playlista" : fr ? "link.start.klip" : "link.start"), onclick: () => void start() },
           ikona(IKONY.pobierzPlik, "ikona ic m"),
           t(s.playlista ? "link.start.playlista" : fr ? "link.start.klip" : "link.start"),
           h("span", { class: "kbd" }, "Ctrl ↵"),

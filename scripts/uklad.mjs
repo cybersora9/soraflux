@@ -43,6 +43,8 @@ async function strona(w, h, parametry) {
   s.on("pageerror", (e) => sprawdz(false, `błąd strony: ${e.message}`));
   await s.goto(`http://localhost:4175/?demo=1&tryb=pelny&jezyk=pl${parametry}`);
   await s.waitForSelector(".nawigacja-przycisk");
+  // GUI 2.0: tryb Pełny startuje na Taśmie; te zrzuty i pomiary dotyczą widoków 1.4 (Konwertuj itd.)
+  if (!parametry.includes("tryb=prosty") && !parametry.includes("kreator=1")) await s.evaluate(() => window.__zakladka("konwertuj"));
   await s.waitForTimeout(300);
   return s;
 }
@@ -53,7 +55,7 @@ for (const [w, h] of [[860, 600], [1180, 800]]) {
     // 1. pusta zakładka Konwertuj i Obrazy: strefa upuszczania i jej podpis nad paskiem
     for (const zakladka of ["konwertuj", "obrazy"]) {
       const s = await strona(w, h, folder);
-      await s.click(`[data-zakladka="${zakladka}"]`);
+      await s.evaluate((z) => window.__zakladka(z), zakladka);
       await s.waitForTimeout(300);
       const m = await pomiar(s);
       const podpisy = await s.evaluate(() =>
@@ -112,7 +114,7 @@ for (const [w, h] of [[860, 600], [1180, 800]]) {
     await s.context().close();
     // 5. Pobierz: ten sam pasek
     const p = await strona(w, h, folder);
-    await p.click('[data-zakladka="pobierz"]');
+    await p.evaluate(() => window.__zakladka("pobierz"));
     await p.waitForTimeout(300);
     m = await pomiar(p);
     sprawdz(m.jedenRzad && m.bezNakladania && m.wPasku && m.h <= 72, `${nazwa}, pobierz: pasek w jednym rzędzie (${Math.round(m.h)} px)`);

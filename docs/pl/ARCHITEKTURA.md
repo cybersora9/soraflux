@@ -96,6 +96,18 @@ Enumy z danymi są tagowane polem `typ` (w TS zwykłe unie). Mapa zgodności kon
 - Klawiatura: zakładki strzałkami (ARIA tablist), Ctrl+1…5, Ctrl+O; kafle motywów to radiogroup, strzałki tylko przesuwają fokus.
 - Migracja ze starej nazwy programu (v1.0): przy pierwszym starcie kopia `konfig.json` i `presety.json`, stary katalog zostaje.
 
+## GUI 2.0 (DNA z `docs/gui2/makieta.html`, kopia, bez zależności od sora-ui)
+- Powłoka (`main.ts`, `dna.css`): pasek z logo (zawsze karmazyn) i pigułką Ctrl K, szyna, treść, pasek stanu. Szyna trybu Pełnego: **Taśma** (`widoki/tasma.ts`, logika `tasma.ts`), **Z linku** (`widoki/link.ts`, `link.ts`), **Porównaj** (`widoki/porownaj.ts`), **Narzędzia** (`widoki/narzedzia.ts`, `obrobka.ts`), **Gotowe** (`widoki/gotowe.ts`), Ustawienia. Tryb Prosty (1.4) bez zmian. Widoki Pełnego 1.4 (Konwertuj, Obrazy, Pobierz, Kolejka) zostają w palecie poleceń jako zapas.
+- Motywy (`motywy.ts`): Blackwall, Kissaten, City Pop, MiniDisc, Neon noc, Własny (`<input type=color>` + baza, eksport/import `.json`), jasny/ciemny/system. Tokeny liczone do `#rrggbb` (mieszanie OKLab jak `color-mix`), kontrast WCAG AA testowany dla każdego motywu × trybu. Stare id (`sora-*`, `jp-*`, własne 1.x) migrują przy starcie na najbliższy nowy; `wlasne_motywy` zostaje nietknięte.
+- Skala 90–150% (`skala.ts`, Ctrl + / − / 0): komenda `ustaw_skale` → `Webview::set_zoom`, zapis `skala` w `konfig.json`, nakładana w `setup` przed pierwszym rysowaniem.
+- Taśma: przepis dla każdego pliku (akcje Prostego + Własny = panel ustawień 1.x w „Dostosuj szczegóły”), głośność −14 LUFS, karta graficzna, pasek transportu (suma przed/po, zapis, po zakończeniu, ile naraz, priorytet w tle, Start/Pauza = `kolejka_wstrzymaj`).
+- Z linku: `OpcjePobrania.fragment` → `--download-sections *a-b --force-keyframes-at-cuts`; playlisty: `--playlist-items`, `--download-archive <dane>/pobrane-archiwum.txt` („tylko nowe”); profil `potem` = pobierz → cel w jednym zadaniu.
+- Wyrównanie głośności zawsze 2-przebiegowe: pomiar (`argumenty_pomiaru`, loudnorm `print_format=json`) → `PomiarGlosnosci` → `Kontekst.pomiar_glosnosci` → drugi przebieg `linear=true`. Cel w `ProfilAudio.lufs` (domyślnie −16 jak w 1.x).
+- Narzędzia: zmiana kontenera, głośność, kadr/obrót/odbicie to zwykłe `Profil`; `RodzajZadania::Sciezki` (każdy strumień do osobnego pliku, jeden przebieg ffmpeg) i `RodzajZadania::Polacz` (concat demuxer przy zgodnych kodekach i parametrach, inaczej filtr `concat` z pasami i ciszą dla klipów bez dźwięku), czyste funkcje w `budowniczy/obrobka.rs`.
+- Porównaj: `porownaj_klatke` (ta sama klatka z oryginału i wyniku), `porownaj_metryki` (SSIM zawsze, VMAF tylko z `libvmaf`, głośność, rozmiar; pierwsza minuta).
+- Gotowe: `przeciagnij_wynik` (crate `drag`: OLE na Windows, GTK na Linuksie); tylko ścieżki gotowych zadań z kolejki.
+- Bramka: `npm run gui2` (Playwright: tekst nie wychodzi z ramki, wielokropek tylko z `title`, brak poziomego przewijania; zrzuty do `docs/zrzuty/gui2/`).
+
 ## Windows: instalator i Eksplorator
 - NSIS z bootstrapperem WebView2; `src-tauri/nsis/hooks.nsh` dopisuje (HKCU) i usuwa wpis „Konwertuj w SoraFlux” dla plików wideo, audio i obrazów.
 - Pliki z argumentów przy starcie (`pliki_startowe`), drugie uruchomienie → `tauri-plugin-single-instance` → zdarzenie `pliki://otworz` do otwartego okna.

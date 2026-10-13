@@ -223,7 +223,7 @@ export function stworzWidokNarzedzi(o: { plikiTasmy: () => string[]; doTasmyNapi
       h(
         "div",
         { class: "panel-d" },
-        h("button", { type: "button", class: "btn-wcisk", style: { width: "100%" }, disabled: !z.length, "data-fokus": "uruchom", onclick: () => void uruchom() },
+        h("button", { type: "button", class: "btn-wcisk", style: { width: "100%" }, disabled: !z.length, "data-fokus": "uruchom", title: t("narzedzia2.uruchom"), onclick: () => void uruchom() },
           ikona(IKONY.start, "ikona ic m"), z.length > 1 ? t("narzedzia2.uruchom_n", { n: z.length }) : t("narzedzia2.uruchom")),
       ),
     );
