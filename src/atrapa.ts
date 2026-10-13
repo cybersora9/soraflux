@@ -70,6 +70,8 @@ const tx = (pl: string, en: string) => (konfig.jezyk === "en" ? en : pl);
 const MINIATURA = new URL("./atrapa-miniatura.jpg", import.meta.url).href;
 
 const narzedziaZnalezione = parametry.get("kreator") !== "1";
+/** `karta=0`: brak enkodera sprzętowego (Taśma: pigułka „nie wykryto, koduje procesor”). */
+const bezKarty = parametry.get("karta") === "0";
 
 // Napisy: ?napisy=gotowe = model już pobrany, ?napisy=bez_whispera = brak whisper-cli.
 const napisyParam = parametry.get("napisy");
@@ -332,7 +334,8 @@ if (parametry.get("demo") === "1") {
 if (parametry.get("demo") === "1") {
   // GUI 2.0: wyniki z oryginałem (Gotowe: % oryginału, Porównaj: suwak A/B i liczby)
   const gotowe: [string, string, number, number, InfoZadania["rodzaj"], string[]?][] = [
-    [tx("C:/Wideo/wakacje-2026.mp4", "C:/Videos/holiday-2026.mp4"), tx("C:/Wideo/wakacje-2026 (do Discorda).mp4", "C:/Videos/holiday-2026 (for Discord).mp4"), 432_013_312, 9_856_000, "konwersja"],
+    // bardzo długa nazwa: panel „Werdykt” na Porównaj (test na żywo 1.4.2, błąd 2: etykiety łamane litera po literze)
+    [tx("C:/Wideo/wakacje-2026-pelne-nagranie-z-drona-i-telefonu-wersja-ostateczna-v7.mp4", "C:/Videos/holiday-2026-full-recording-from-drone-and-phone-final-version-v7.mp4"), tx("C:/Wideo/wakacje-2026-pelne-nagranie-z-drona-i-telefonu-wersja-ostateczna-v7 (do Discorda).mp4", "C:/Videos/holiday-2026-full-recording-from-drone-and-phone-final-version-v7 (for Discord).mp4"), 432_013_312, 9_856_000, "konwersja"],
     [tx("C:/Wideo/telefon-pion-hdr.mov", "C:/Videos/phone-vertical-hdr.mov"), tx("C:/Wideo/telefon-pion-hdr (na telefon).mp4", "C:/Videos/phone-vertical-hdr (for phone).mp4"), 96_000_000, 10_276_000, "konwersja"],
     [tx("C:/Muzyka/podcast-odc-14.wav", "C:/Music/podcast-ep-14.wav"), tx("C:/Muzyka/podcast-odc-14.mp3", "C:/Music/podcast-ep-14.mp3"), 630_194_000, 43_726_000, "konwersja"],
     [tx("C:/Wideo/koncert.mkv", "C:/Videos/concert.mkv"), tx("C:/Wideo/koncert.a1-pol.m4a", "C:/Videos/concert.a1-pol.m4a"), 1_240_000_000, 61_000_000, "sciezki", [tx("C:/Wideo/koncert.v1.mp4", "C:/Videos/concert.v1.mp4"), tx("C:/Wideo/koncert.a1-pol.m4a", "C:/Videos/concert.a1-pol.m4a"), tx("C:/Wideo/koncert.s1-eng.srt", "C:/Videos/concert.s1-eng.srt")]],
@@ -473,7 +476,7 @@ export const atrapa: Api = {
         ? { ffmpeg: "7.1-full_build-www.gyan.dev", ffprobe: "7.1-full_build-www.gyan.dev", ytdlp: ytdlpStary ? "2026.07.04" : "2026.10.01", deno: "2.5.1", whisper: "1.8.2" }
         : {},
       enkodery: ["libx264", "libx265", "libsvtav1", "libvpx-vp9", "mpeg4", "h264_nvenc", "hevc_nvenc", "aac", "libmp3lame", "libopus", "libvorbis", "flac", "pcm_s16le", "libwebp", "libaom-av1", "png", "mjpeg", "gif", "bmp"],
-      sprzet: narzedziaZnalezione ? ["h264_nvenc", "hevc_nvenc", "av1_nvenc"] : [],
+      sprzet: narzedziaZnalezione && !bezKarty ? ["h264_nvenc", "hevc_nvenc", "av1_nvenc"] : [],
       filtry: ["scale", "zscale", "tonemap", "fps", "palettegen", "paletteuse"],
       do_pobrania: ["ffmpeg", "ffmpeg_full", "ytdlp", "deno"],
       przenosny: false,

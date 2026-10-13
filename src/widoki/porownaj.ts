@@ -177,8 +177,8 @@ export function stworzWidokPorownania(): WidokPorownania {
         "div",
         { class: "panel-s" },
         h("p", { class: "tx3", style: { margin: "0", fontSize: "13px" } }, t(`porownaj.werdykt.${w}.opis`)),
-        z?.wyjscie ? h("div", { class: "wiersz-op" }, h("span", null, t("porownaj.wynik")), h("span", { class: "mono tnij", title: z.wyjscie }, nazwaPliku(z.wyjscie))) : null,
-        z?.wejscie ? h("div", { class: "wiersz-op" }, h("span", null, t("porownaj.oryginal")), h("span", { class: "mono tnij", title: z.wejscie }, nazwaPliku(z.wejscie))) : null,
+        z?.wyjscie ? h("div", { class: "wiersz-op" }, h("span", { class: "et-stala" }, t("porownaj.wynik")), h("span", { class: "mono tnij", title: z.wyjscie }, nazwaPliku(z.wyjscie))) : null,
+        z?.wejscie ? h("div", { class: "wiersz-op" }, h("span", { class: "et-stala" }, t("porownaj.oryginal")), h("span", { class: "mono tnij", title: z.wejscie }, nazwaPliku(z.wejscie))) : null,
       ),
       h(
         "div",

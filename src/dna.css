@@ -142,7 +142,10 @@
 .baner.zle > .ikona { color: var(--bad); }
 .baner > span { min-width: 0; overflow-wrap: anywhere; }
 .wiersz-op { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; min-width: 0; }
-.wiersz-op > span:first-child { color: var(--tx2); min-width: 0; overflow-wrap: anywhere; }
+/* etykieta nie schodzi poniżej najdłuższego słowa (bez min-width: 0 i „anywhere” łamała się litera po literze) */
+.wiersz-op > span:first-child { color: var(--tx2); overflow-wrap: break-word; }
+/* krótka etykieta przy nazwie pliku (Porównaj → Werdykt: „Wynik”, „Oryginał”): zawsze w jednej linii, nazwa z wielokropkiem */
+.wiersz-op > .et-stala { flex: none; white-space: nowrap; }
 .wiersz-zawijany { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; min-width: 0; }
 .pole-w { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--tx2); min-width: 0; }
 .pole-w.kolumna { flex-direction: column; align-items: stretch; gap: 8px; }
@@ -238,9 +241,10 @@
 .poz .usun { width: 28px; height: 28px; border-radius: 9px; border: 0; background: transparent; color: var(--tx3); display: grid; place-items: center; cursor: pointer; }
 .poz .usun:hover { background: var(--panel3); color: var(--tx); }
 /* zapytania względem .tresc: szeroko lista ma ~(treść − panel), wąsko (≤ 860) całą szerokość */
-@container (min-width: 861px) and (max-width: 940px) { .poz { grid-template-columns: 44px minmax(0, 1fr) auto 30px; } .poz .przepis { display: none; } .poz .min { width: 44px; } }
-@container (max-width: 640px) { .poz { grid-template-columns: 44px minmax(0, 1fr) auto 30px; } .poz .przepis { display: none; } .poz .min { width: 44px; } }
-@container (max-width: 460px) { .poz .lcd { display: none; } .poz { grid-template-columns: 44px minmax(0, 1fr) 30px; } }
+/* ciasno: z pigułki przepisu zostaje sama ikona (pełna nazwa w title), żeby przepis był widać w każdym wierszu */
+@container (min-width: 861px) and (max-width: 940px) { .poz { grid-template-columns: 44px minmax(0, 1fr) auto auto 30px; } .poz .przepis { width: 26px; padding: 0; justify-content: center; } .poz .przepis .tekst { display: none; } .poz .min { width: 44px; } }
+@container (max-width: 640px) { .poz { grid-template-columns: 44px minmax(0, 1fr) auto auto 30px; } .poz .przepis { width: 26px; padding: 0; justify-content: center; } .poz .przepis .tekst { display: none; } .poz .min { width: 44px; } }
+@container (max-width: 460px) { .poz .lcd { display: none; } .poz { grid-template-columns: 44px minmax(0, 1fr) auto 30px; } }
 .pusto2 { margin: 12px; padding: 28px 18px; border-radius: 18px; border: 1.5px dashed var(--line2); text-align: center; color: var(--tx3); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .pusto2 b { color: var(--tx); font-size: 15px; }
 .pusto2 .ikona { width: 32px; height: 32px; color: var(--ak-tx); }

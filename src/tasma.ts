@@ -140,6 +140,17 @@ export function pasujeDoFiltra(s: StanPozycji, b: Blokada | null, f: Filtr): boo
   return true;
 }
 
+/** Liczniki chipów filtra nad listą: „W toku” = tylko pozycje w kolejce (oczekuje / pauza) albo w trakcie. */
+export function liczbyFiltrow(pozycje: Pozycja[], zadania: Map<number, InfoZadania>): Record<Filtr, number> {
+  const n: Record<Filtr, number> = { wszystko: 0, w_toku: 0, bledy: 0 };
+  for (const p of pozycje) {
+    const s = stanPozycji(p, zadania);
+    const b = blokada(p);
+    for (const f of ["wszystko", "w_toku", "bledy"] as const) if (pasujeDoFiltra(s, b, f)) n[f]++;
+  }
+  return n;
+}
+
 /** Szacunek „po” dla pozycji: wynik zadania, gdy gotowe; inaczej szacunek przepisu. „Już się mieści” = bez zmian. */
 export function rozmiarPo(p: Pozycja, szacunek: number | null, zadania: Map<number, InfoZadania>): number | null {
   const z = p.zadanie !== null ? zadania.get(p.zadanie) : undefined;

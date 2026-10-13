@@ -2,8 +2,11 @@
 // Ekrany Taśma, Z linku, Porównaj, Narzędzia, Gotowe, Ustawienia (+ Prosty) × szerokość 1280/1024/800
 // × jasny/ciemny × skala 100/125% → docs/zrzuty/gui2/<ekran>-<szer>-<tryb>-<skala>.png.
 // Kontrola na każdym zrzucie: brak poziomego przewijania strony, żaden tekst nie wystaje poza swój element
-// (chyba że kończy się wielokropkiem, wtedy pełny tekst musi być w `title`), nic nie wychodzi poza okno.
+// (chyba że kończy się wielokropkiem, wtedy pełny tekst musi być w `title`), nic nie wychodzi poza okno,
+// żadne słowo nie łamie się w środku (etykieta ściśnięta do ~1 znaku: „W / yn / ik”, test na żywo 1.4.2).
+// Taśma w trybie ciemnym idzie bez karty graficznej (atrapa `karta=0`: pigułka „nie wykryto, koduje procesor”).
 // Użycie: npm run build && node scripts/gui2.mjs   (kod wyjścia 1 = coś wystaje)
+//         GUI2_EKRANY=tasma,porownaj GUI2_BEZ_ZRZUTOW=1 node scripts/gui2.mjs   (tylko wybrane ekrany, bez zapisu)
 import { preview } from "vite";
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
@@ -14,7 +17,9 @@ const ZRZUTY = process.env.GUI2_BEZ_ZRZUTOW !== "1";
 mkdirSync(WYJSCIE, { recursive: true });
 
 const ROZMIARY = [[1280, 800], [1024, 720], [800, 600]];
-const EKRANY = ["tasma", "link", "porownaj", "narzedzia", "gotowe", "ustawienia", "prosty"];
+const EKRANY = ["tasma", "link", "porownaj", "narzedzia", "gotowe", "ustawienia", "prosty"].filter(
+  (e) => !process.env.GUI2_EKRANY || process.env.GUI2_EKRANY.split(",").includes(e),
+);
 const PLIKI = [
   "C:/Wideo/wakacje-2026-pelne-nagranie-z-drona-i-telefonu-wersja-ostateczna-NAPRAWDE-ostateczna-v7.mp4",
   "C:/Wideo/telefon-pion-hdr.mov",
@@ -44,6 +49,18 @@ const kontrola = () => {
     if (r.width === 0 || r.height === 0) continue;
     // przewijane kontenery (lista, panel) mogą mieć treść poza widokiem: sprawdzamy tylko poziomo
     if (r.right > okno.right + 1 || r.left < okno.left - 1) problemy.push(`poza oknem: ${opis(e)}`);
+    // słowo (ciąg liter/cyfr) łamane w środku = więcej niż jedna linia dla jednego słowa
+    // (podgląd komendy ffmpeg w pre/code łamie się celowo)
+    for (const n of e.closest("pre, code") ? [] : e.childNodes) {
+      if (n.nodeType !== 3) continue;
+      for (const m of n.textContent.matchAll(/[\p{L}\p{N}]{2,24}/gu)) {
+        const zakres = document.createRange();
+        zakres.setStart(n, m.index);
+        zakres.setEnd(n, m.index + m[0].length);
+        const linie = new Set([...zakres.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top)));
+        if (linie.size > 1) problemy.push(`słowo łamane w środku („${m[0]}”, ${linie.size} linie): ${opis(e)}`);
+      }
+    }
     const wystaje = e.scrollWidth > e.clientWidth + 1 && st.overflowX !== "auto" && st.overflowX !== "scroll";
     if (!wystaje || ["INPUT", "SELECT", "TEXTAREA", "OPTION", "PRE", "CODE"].includes(e.tagName)) continue;
     if (st.textOverflow === "ellipsis" && st.overflowX === "hidden") {
@@ -65,7 +82,8 @@ async function zrob(ekran, [w, h], motyw, skala) {
     console.error(`BŁĄD STRONY (${nazwa}):`, e.message);
   });
   const tryb = ekran === "prosty" ? "prosty" : "pelny";
-  await s.goto(`http://localhost:4178/?demo=1&tryb=${tryb}&jezyk=pl&motyw=${motyw}&skala=${skala}`);
+  const karta = ekran === "tasma" && motyw === "dark" ? "&karta=0" : "";
+  await s.goto(`http://localhost:4178/?demo=1&tryb=${tryb}&jezyk=pl&motyw=${motyw}&skala=${skala}${karta}`);
   await s.waitForSelector(".szyna [data-zakladka]");
   await s.waitForTimeout(300);
   if (ekran === "tasma" || ekran === "narzedzia") {

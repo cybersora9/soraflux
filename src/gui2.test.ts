@@ -5,7 +5,7 @@ import { sklep } from "./sklep";
 import { t, ustawJezyk } from "./i18n";
 import { profilDla } from "./logika";
 import type { InfoZadania, Media, NoweZadanie } from "./typy";
-import { blokada, katalogPozycji, profilKoncowy, przepisyDla, sprzetZEnkoderow, stanPozycji, sumy, WLASNY, zadanieDla, type Pozycja } from "./tasma";
+import { blokada, katalogPozycji, liczbyFiltrow, profilKoncowy, przepisyDla, sprzetZEnkoderow, stanPozycji, sumy, WLASNY, zadanieDla, type Pozycja } from "./tasma";
 import { fragment, lancuch, opcjePobrania, profilCelu, stanPoczatkowy, wyborLinku, linkPlaylisty } from "./link";
 import { kopiaMozliwa, przyciecieDo, profilGlosnosci, profilKontenera, profilGeometrii } from "./obrobka";
 import { krokSkali, poprawSkale, skalaZKlawisza } from "./skala";
@@ -238,6 +238,30 @@ describe("widoki 2.0 na atrapie backendu", () => {
     w.el.querySelector<HTMLButtonElement>('[data-fokus="start"]')!.click();
     await czekaj(10);
     expect(pauza).toHaveBeenCalledWith(true);
+  });
+
+  it("Taśma: licznik „W toku” wraca do 0, gdy wszystkie zadania się skończą (test na żywo 1.4.2, błąd 1)", async () => {
+    const info = (id: number, stan: InfoZadania["stan"]): [number, InfoZadania] => [
+      id, { id, nazwa: `z${id}`, rodzaj: "konwersja", stan, procent: 0, wyjscie: null, rozmiar_wejscia: null, rozmiar_wyniku: null, awaria_sprzetu: false, ostrzezenie: null },
+    ];
+    const w = stworzWidokTasmy();
+    document.body.replaceChildren(w.el);
+    await w.dodaj(["C:/Wideo/wakacje.mp4", "C:/Wideo/telefon-pion-hdr.mov", "C:/Muzyka/podcast-odc-14.wav"]);
+    await czekaj(300);
+    await w.start();
+    expect(dodane[0]).toHaveLength(3);
+    const wToku = () => w.el.querySelector('[data-fokus="filtr-w_toku"] .n')!.textContent;
+    sklep.ustaw({ zadania: new Map([info(100, { typ: "trwa" }), info(101, { typ: "oczekuje" }), info(102, { typ: "oczekuje" })]) });
+    expect(wToku()).toBe("3");
+    sklep.ustaw({ zadania: new Map([info(100, { typ: "gotowe", wyjscie: "a" }), info(101, { typ: "trwa" }), info(102, { typ: "oczekuje" })]) });
+    expect(wToku()).toBe("2");
+    sklep.ustaw({ zadania: new Map([info(100, { typ: "gotowe", wyjscie: "a" }), info(101, { typ: "gotowe", wyjscie: "b" }), info(102, { typ: "pominiete", wyjscie: "c" })]) });
+    expect(w.el.querySelectorAll(".poz .status.ok")).toHaveLength(3);
+    expect(wToku()).toBe("0");
+    // czysta logika licznika: tylko oczekuje / trwa (pauza = oczekuje we wstrzymanej kolejce)
+    const zadania = new Map([info(1, { typ: "gotowe", wyjscie: "a" }), info(2, { typ: "anulowane" }), info(3, { typ: "blad", komunikat: "x" }), info(4, { typ: "oczekuje" })]);
+    const lista = [1, 2, 3, 4].map((n) => pozycja({ nr: n, zadanie: n }));
+    expect(liczbyFiltrow(lista, zadania)).toEqual({ wszystko: 4, w_toku: 1, bledy: 1 });
   });
 
   it("Z linku: fragment i cel w jednym zadaniu pobrania z konwersją potem", async () => {

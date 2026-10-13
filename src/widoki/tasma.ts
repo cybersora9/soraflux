@@ -13,7 +13,7 @@ import { uwagi, nazwaFolderu, podgladKomendy, dymekPominietych, dopiszOstatni } 
 import { klasyfikujUpuszczone } from "../upuszczanie";
 import { dymekDodano, pokazDymek, sklep } from "../sklep";
 import {
-  blokada, domyslnyPrzepis, LIMITY, pasujeDoFiltra, profilKoncowy, profilPrzepisu, przepisyDla, rodzajPozycji, rozmiarPo, sprzetZEnkoderow,
+  blokada, domyslnyPrzepis, liczbyFiltrow, LIMITY, pasujeDoFiltra, profilKoncowy, profilPrzepisu, przepisyDla, rodzajPozycji, rozmiarPo, sprzetZEnkoderow,
   stanPozycji, sumy, WLASNY, zadanieDla, type Blokada, type Filtr, type Pozycja, type RodzajPliku,
 } from "../tasma";
 import type { Media, Profil, StanNapisow } from "../typy";
@@ -250,9 +250,9 @@ export function stworzWidokTasmy(): WidokTasmy {
   }
 
   function naglowekListy(): HTMLElement {
-    const ile = (f: Filtr) => pozycje.filter((p) => pasujeDoFiltra(stanPozycji(p, sklep.stan.zadania), blokada(p), f)).length;
+    const ile = liczbyFiltrow(pozycje, sklep.stan.zadania);
     const chip = (f: Filtr) =>
-      h("button", { type: "button", class: "pil", "aria-pressed": String(filtr === f), "data-fokus": `filtr-${f}`, onclick: () => ((filtr = f), rysuj()) }, t(`tasma.filtr.${f}`), h("span", { class: "n" }, String(ile(f))));
+      h("button", { type: "button", class: "pil", "aria-pressed": String(filtr === f), "data-fokus": `filtr-${f}`, onclick: () => ((filtr = f), rysuj()) }, t(`tasma.filtr.${f}`), h("span", { class: "n", "data-filtr": f }, String(ile[f])));
     return h(
       "div",
       { class: "tasma-g" },
@@ -310,8 +310,16 @@ export function stworzWidokTasmy(): WidokTasmy {
     return "";
   }
 
+  /** Liczniki chipów na miejscu (bez przerysowania przycisków: fokus zostaje). Zdarzenia kolejki
+   *  przerysowują tylko listę, więc bez tego „W toku 3” zostawało po zakończeniu wszystkich zadań. */
+  function odswiezLiczniki() {
+    const ile = liczbyFiltrow(pozycje, sklep.stan.zadania);
+    for (const n of lewa.querySelectorAll<HTMLElement>(".tasma-g .n[data-filtr]")) n.textContent = String(ile[n.dataset.filtr as Filtr]);
+  }
+
   function rysujListe() {
     const zadania = sklep.stan.zadania;
+    odswiezLiczniki();
     if (!pozycje.length) {
       lista2.replaceChildren(
         h("div", { class: "pusto2" }, ikona(IKONY.upusc, "ikona"), h("b", null, t("tasma.pusto")), h("span", null, t("tasma.pusto.pomoc"))),
@@ -360,7 +368,12 @@ export function stworzWidokTasmy(): WidokTasmy {
           },
           h("span", { class: "min", style: { background: gradient(p.sciezka) } }, ikona(r ? IKONA_RODZAJU[r] : IKONY.plik, "ikona ic d")),
           h("span", { style: { minWidth: "0" } }, h("span", { class: "nazwa", title: p.sciezka }, nazwaPliku(p.sciezka)), meta),
-          r ? h("span", { class: "przepis", title: nazwaPrzepisu(r, p.przepis) }, ikona(IKONA_PRZEPISU[p.przepis] ?? IKONY.suwaki, "ikona ic m"), nazwaPrzepisu(r, p.przepis), p.przepis === "wyslij" ? ` · ${LIMITY[p.cel]} MB` : "") : h("span"),
+          r
+            ? (() => {
+                const nazwa = nazwaPrzepisu(r, p.przepis) + (p.przepis === "wyslij" ? ` · ${LIMITY[p.cel]} MB` : "");
+                return h("span", { class: "przepis", title: nazwa }, ikona(IKONA_PRZEPISU[p.przepis] ?? IKONY.suwaki, "ikona ic m"), h("span", { class: "tekst tnij" }, nazwa));
+              })()
+            : h("span"),
           h("span", { class: "lcd" }, h("span", { class: "sz" }, `${przed ? formatujRozmiar(przed, jezyk()) : "—"} →`), " ", po !== null ? `${s === "gotowe" ? "" : "~"}${formatujRozmiar(po, jezyk())}` : "—"),
           status ?? h("button", { type: "button", class: "usun", "aria-label": t("tasma.usun", { nazwa: nazwaPliku(p.sciezka) }), title: t("tasma.usun", { nazwa: nazwaPliku(p.sciezka) }), onclick: (e: Event) => (e.stopPropagation(), usun(p)) }, ikona(IKONY.x, "ikona ic m")),
           h("span", { class: "tor", style: { width: `${s === "czeka" ? 0 : procent}%` } }),

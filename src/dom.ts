@@ -30,6 +30,9 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     }
   }
   dolacz(el, dzieci);
+  // Pigułka ma max-width i wielokropek (np. „nie wykryto, koduje procesor” przy skali 120%):
+  // pełny tekst zawsze w `title`, żeby ucięta dało się odczytać.
+  if (el.classList.contains("pigu") && !el.hasAttribute("title") && el.textContent?.trim()) el.title = el.textContent.trim();
   return el;
 }
 
