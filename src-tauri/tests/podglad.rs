@@ -89,8 +89,14 @@ async fn p4_odsluch_5s_z_ustawieniami() {
     let we = film(tmp.path());
     let m = media(&we);
     let mut p = Profil::dla(Kontener::Mp4);
-    p.audio =
-        Some(ProfilAudio { kodek: KodekAudio::Aac, kbps: 8, hz: Some(16000), kanaly: Some(1), normalizacja: false });
+    p.audio = Some(ProfilAudio {
+        kodek: KodekAudio::Aac,
+        kbps: 8,
+        hz: Some(16000),
+        kanaly: Some(1),
+        normalizacja: false,
+        lufs: None,
+    });
     let d = odsluch_z(Path::new("ffmpeg"), &we, &m, &p, 0.5, &Kontekst::default()).await.unwrap();
     assert!(d.starts_with("data:audio/mp4;base64,"));
     let plik = tmp.path().join("o.m4a");

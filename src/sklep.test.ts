@@ -6,9 +6,9 @@ describe("dymek po dodaniu zadań (usterka 6)", () => {
   it("odmiana: 1 zadanie, 2–4 zadania, 5+ zadań", () => {
     expect([1, 2, 4, 5, 12, 14, 22, 25, 102].map(forma)).toEqual(["1", "kilka", "kilka", "wiele", "wiele", "wiele", "kilka", "wiele", "kilka"]);
   });
-  it("„Dodano 2 zadania do kolejki · Pokaż” przenosi do Kolejki", () => {
+  it("„Dodano 2 zadania do kolejki · Pokaż” przenosi do Kolejki (tryb Prosty)", () => {
     ustawJezyk("pl");
-    sklep.ustaw({ zakladka: "konwertuj" });
+    sklep.ustaw({ zakladka: "prosty", konfig: { tryb: "prosty" } as never });
     dymekDodano(2, t);
     expect(sklep.stan.dymek?.tekst).toBe("Dodano 2 zadania do kolejki");
     expect(sklep.stan.dymek?.akcja?.etykieta).toBe("Pokaż");
@@ -16,5 +16,12 @@ describe("dymek po dodaniu zadań (usterka 6)", () => {
     expect(sklep.stan.zakladka).toBe("kolejka");
     dymekDodano(5, t);
     expect(sklep.stan.dymek?.tekst).toBe("Dodano 5 zadań do kolejki");
+  });
+  it("GUI 2.0: w trybie Pełnym „Pokaż” przenosi do Gotowe (tam są też zadania w toku)", () => {
+    sklep.ustaw({ zakladka: "tasma", konfig: { tryb: "pelny" } as never });
+    dymekDodano(1, t);
+    sklep.stan.dymek!.akcja!.zrob();
+    expect(sklep.stan.zakladka).toBe("gotowe");
+    sklep.ustaw({ konfig: null });
   });
 });

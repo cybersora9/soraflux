@@ -48,6 +48,8 @@ export interface ProfilAudio {
   hz: number | null;
   kanaly: number | null;
   normalizacja: boolean;
+  /** Cel normalizacji (LUFS); brak = −16 jak w 1.x. Normalizacja idzie w 2 przebiegach (pomiar + liniowo). */
+  lufs?: number | null;
 }
 
 export type Petla = { typ: "nieskonczona" } | { typ: "razy"; n: number } | { typ: "brak" };
@@ -209,12 +211,22 @@ export interface OpcjePobrania {
   rozdzialy: boolean;
   playlista: boolean;
   tytul: string | null;
+  /** „Klip z linku”: tylko fragment od–do (s), `--download-sections`. */
+  fragment?: { od: number; do_: number } | null;
+  /** Zakres playlisty `5-20` (`--playlist-items`). */
+  zakres_playlisty?: string | null;
+  /** Tylko nowe pozycje playlisty/kanału (`--download-archive` w danych apki). */
+  tylko_nowe?: boolean;
 }
 
 export type RodzajZadania =
   | { typ: "konwersja"; wejscie: string; profil: Profil }
   | { typ: "pobranie"; url: string; opcje: OpcjePobrania; potem: Profil | null }
-  | { typ: "napisy"; wejscie: string; opcje: OpcjeNapisow };
+  | { typ: "napisy"; wejscie: string; opcje: OpcjeNapisow }
+  /** Narzędzie: każdy strumień do osobnego pliku, bez kodowania. */
+  | { typ: "sciezki"; wejscie: string }
+  /** Narzędzie: połącz klipy (kopią, gdy się da). */
+  | { typ: "polacz"; wejscia: string[]; kontener: Kontener };
 
 // ---------- napisy (S5, whisper.cpp; kształt jak src-tauri/src/napisy/mod.rs) ----------
 export type JezykNapisow = "auto" | "pl" | "en";
@@ -303,7 +315,7 @@ export type Stan =
 export interface InfoZadania {
   id: number;
   nazwa: string;
-  rodzaj: "konwersja" | "pobranie" | "napisy";
+  rodzaj: "konwersja" | "pobranie" | "napisy" | "sciezki" | "polacz";
   stan: Stan;
   procent: number;
   wyjscie: string | null;
@@ -315,6 +327,23 @@ export interface InfoZadania {
   ostrzezenie: OstrzezenieWyniku | null;
   /** Zadanie napisów: język, kwestie, zapisane pliki. */
   napisy?: WynikNapisow;
+  /** Plik źródłowy (Porównaj). */
+  wejscie?: string | null;
+  /** Wszystkie pliki wyniku (Wyodrębnij ścieżki). */
+  wyniki?: string[];
+  /** Połącz klipy: bez kodowania (kopia strumieni). */
+  bez_kodowania?: boolean;
+}
+
+/** Porównaj: liczby przed / po (analiza pierwszej minuty). VMAF tylko z libvmaf w ffmpeg. */
+export interface Metryki {
+  rozmiar_przed: number | null;
+  rozmiar_po: number | null;
+  ssim: number | null;
+  vmaf: number | null;
+  lufs_przed: number | null;
+  lufs_po: number | null;
+  analiza_s: number;
 }
 
 export type OstrzezenieWyniku =
@@ -402,6 +431,10 @@ export interface Konfig {
   tryb: "prosty" | "pelny" | null;
   /** Jednorazowa podpowiedź „Wypróbuj tryb Prosty” już pokazana. */
   podpowiedz_prosty_pokazana: boolean;
+  /** GUI 2.0: skala 0,9–1,5 (zoom WebView). */
+  skala?: number;
+  /** GUI 2.0: motyw „Własny” (akcent + baza, motywy.ts). */
+  motyw_wlasny?: { akcent: string; baza: string } | null;
 }
 
 export interface Preset {

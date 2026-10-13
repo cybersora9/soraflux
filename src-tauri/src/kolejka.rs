@@ -4,7 +4,7 @@
 //! dzienniku, żeby po awarii apki sprzątnąć je przy następnym starcie.
 
 use crate::blad;
-use crate::budowniczy::{self, Kontekst};
+use crate::budowniczy::{self, obrobka, Kontekst};
 use crate::napisy::plan::{self as plan_napisow, Etap};
 use crate::napisy::{format as format_napisow, OpcjeNapisow, Uklad, WynikNapisow};
 use crate::narzedzia::{self, Sciezki};
@@ -13,7 +13,7 @@ use crate::postep::{self, LiniaYtdlp, ParserFfmpeg, Postep};
 use crate::procesy::{self, Drzewo};
 use crate::sonda::{self, Media};
 use crate::szacunek;
-use crate::ustawienia::{JakoscWideo, Profil};
+use crate::ustawienia::{JakoscWideo, Kontener, Profil};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::ffi::{OsStr, OsString};
@@ -68,6 +68,15 @@ pub enum RodzajZadania {
         #[serde(default)]
         opcje: OpcjeNapisow,
     },
+    /// Narzędzie „Wyodrębnij ścieżki”: każdy strumień do osobnego pliku, bez kodowania.
+    Sciezki {
+        wejscie: PathBuf,
+    },
+    /// Narzędzie „Połącz klipy”: kopią, gdy się da (te same kodeki i parametry), inaczej z kodowaniem.
+    Polacz {
+        wejscia: Vec<PathBuf>,
+        kontener: Kontener,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -104,6 +113,14 @@ pub struct InfoZadania {
     /// Zadanie napisów: język, liczba kwestii, wszystkie zapisane pliki.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub napisy: Option<WynikNapisow>,
+    /// Plik źródłowy (Porównaj: oryginał obok wyniku). Pobranie: `None`.
+    pub wejscie: Option<PathBuf>,
+    /// Wszystkie pliki wyniku, gdy jest ich kilka (Wyodrębnij ścieżki).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub wyniki: Vec<PathBuf>,
+    /// Połącz klipy: `true` = bez kodowania (kopia strumieni).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bez_kodowania: Option<bool>,
 }
 
 /// „Gotowe z ostrzeżeniem”.
@@ -121,6 +138,9 @@ pub enum OstrzezenieWyniku {
     /// klatkach kluczowych wynik trwa wyraźnie dłużej (02–05 → 5,09 s; 06–20 na 8 s → cały plik).
     NiedokladneCiecie { wynik_s: f64, oczekiwane_s: f64 },
 }
+
+/// Archiwum pobranych z playlist („tylko nowe”, `--download-archive`), w katalogu danych apki.
+pub const PLIK_ARCHIWUM: &str = "pobrane-archiwum.txt";
 
 /// Tolerancja długości cięcia bez ponownego kodowania (sekundy). Mniejsze przesunięcia to normalna cena
 /// cięcia na klatce kluczowej; większe użytkownik musi zobaczyć.
@@ -200,6 +220,8 @@ struct Wewn {
     zarezerwowane: HashSet<PathBuf>,
     /// Niepełne pliki w toku (dziennik na wypadek awarii).
     w_toku: BTreeSet<PathBuf>,
+    /// „Pauza” Taśmy: trwające zadania kończą się normalnie, nowe nie startują do wznowienia.
+    wstrzymana: bool,
 }
 
 #[derive(Clone)]
@@ -220,6 +242,24 @@ fn nazwa_zadania(r: &RodzajZadania) -> String {
             wejscie.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
         }
         RodzajZadania::Pobranie { url, opcje, .. } => opcje.tytul.clone().unwrap_or_else(|| url.clone()),
+        RodzajZadania::Sciezki { wejscie } => {
+            wejscie.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+        }
+        RodzajZadania::Polacz { wejscia, .. } => {
+            let pierwszy = wejscia.first().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
+            format!("{} + {}", pierwszy.unwrap_or_default(), wejscia.len().saturating_sub(1))
+        }
+    }
+}
+
+/// Plik źródłowy zadania (do porównania przed/po).
+fn wejscie_zadania(r: &RodzajZadania) -> Option<PathBuf> {
+    match r {
+        RodzajZadania::Konwersja { wejscie, .. }
+        | RodzajZadania::Napisy { wejscie, .. }
+        | RodzajZadania::Sciezki { wejscie } => Some(wejscie.clone()),
+        RodzajZadania::Polacz { wejscia, .. } => wejscia.first().cloned(),
+        RodzajZadania::Pobranie { .. } => None,
     }
 }
 
@@ -231,6 +271,9 @@ fn zadanie_wideo(r: &RodzajZadania) -> bool {
         RodzajZadania::Pobranie { .. } => false,
         // whisper zajmuje procesor (albo GPU) jak kodowanie wideo
         RodzajZadania::Napisy { .. } => true,
+        // kopia strumieni czeka na dysk, ale łączenie może kodować: liczymy jako wideo
+        RodzajZadania::Sciezki { .. } => false,
+        RodzajZadania::Polacz { .. } => true,
     }
 }
 
@@ -265,6 +308,7 @@ impl Kolejka {
                 zadania: BTreeMap::new(),
                 zarezerwowane: HashSet::new(),
                 w_toku: BTreeSet::new(),
+                wstrzymana: false,
             })),
             nadajnik,
             sciezki,
@@ -298,6 +342,8 @@ impl Kolejka {
                     RodzajZadania::Konwersja { .. } => "konwersja",
                     RodzajZadania::Pobranie { .. } => "pobranie",
                     RodzajZadania::Napisy { .. } => "napisy",
+                    RodzajZadania::Sciezki { .. } => "sciezki",
+                    RodzajZadania::Polacz { .. } => "polacz",
                 },
                 stan: Stan::Oczekuje,
                 procent: 0.0,
@@ -307,6 +353,9 @@ impl Kolejka {
                 awaria_sprzetu: false,
                 ostrzezenie: None,
                 napisy: None,
+                wejscie: wejscie_zadania(&nowe.rodzaj),
+                wyniki: Vec::new(),
+                bez_kodowania: None,
             };
             let wideo = zadanie_wideo(&nowe.rodzaj);
             w.zadania.insert(id, Wpis { info: info.clone(), nowe, anuluj: Arc::new(Notify::new()), wideo });
@@ -335,6 +384,18 @@ impl Kolejka {
     pub fn ustaw_opcje(&self, o: Opcje) {
         self.wewn.lock().unwrap().opcje = popraw(o);
         self.pompuj();
+    }
+
+    /// Wstrzymuje (`true`) albo wznawia start kolejnych zadań. Trwających nie przerywa.
+    pub fn wstrzymaj(&self, tak: bool) {
+        self.wewn.lock().unwrap().wstrzymana = tak;
+        if !tak {
+            self.pompuj();
+        }
+    }
+
+    pub fn wstrzymana(&self) -> bool {
+        self.wewn.lock().unwrap().wstrzymana
     }
 
     pub fn anuluj(&self, id: u64) {
@@ -391,7 +452,7 @@ impl Kolejka {
         loop {
             let start = {
                 let mut w = self.wewn.lock().unwrap();
-                if w.trwajace >= w.opcje.limit {
+                if w.wstrzymana || w.trwajace >= w.opcje.limit {
                     return;
                 }
                 // Pierwsze oczekujące, które mieści się w limitach (obraz może wyprzedzić wideo).
@@ -519,6 +580,18 @@ impl Kolejka {
                 let _ = std::fs::remove_dir_all(&tmp);
                 w.map(|p| (p, None))
             }
+            RodzajZadania::Sciezki { wejscie } => {
+                self.sciezki(id, &wejscie, nowe.katalog.as_deref(), &anuluj).await.map(|p| (p, None))
+            }
+            RodzajZadania::Polacz { wejscia, kontener } => {
+                let tmp = katalog_zadania(id);
+                let _ = std::fs::create_dir_all(&tmp);
+                let w = self
+                    .polacz(id, &wejscia, kontener, nowe.katalog.as_deref(), nowe.dopisek.as_deref(), &tmp, &anuluj)
+                    .await;
+                let _ = std::fs::remove_dir_all(&tmp);
+                w.map(|p| (p, None))
+            }
         }
     }
 
@@ -568,7 +641,11 @@ impl Kolejka {
         let ffprobe =
             s.ffprobe.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffprobe")])))?;
         let media = sonda::sonduj(&ffprobe, wejscie).await.map_err(Przerwanie::Blad)?;
-        let kt = Kontekst { zscale: self.zscale.load(Ordering::Relaxed), katalog_tmp: Some(tmp.to_path_buf()) };
+        let kt = Kontekst {
+            zscale: self.zscale.load(Ordering::Relaxed),
+            katalog_tmp: Some(tmp.to_path_buf()),
+            pomiar_glosnosci: None,
+        };
         // Szybki test profilu, zanim cokolwiek zarezerwujemy.
         budowniczy::plan_z(&media, profil, wejscie, Path::new("x"), &kt).map_err(blad_profilu)?;
 
@@ -623,14 +700,25 @@ impl Kolejka {
     ) -> Result<(), Przerwanie> {
         let czas = media.czas_wyniku(profil.ciecie.as_ref(), profil.predkosc);
         let mut profil = profil.clone();
+        let mut kt = kt.clone();
+        // Wyrównanie głośności: najpierw pomiar (przebieg 1), potem kodowanie z pomiarem (liniowo, EBU R128).
+        // Nieudany pomiar (np. cisza) = jeden przebieg jak w 1.x, bez błędu.
+        let pomiar = budowniczy::argumenty_pomiaru(media, &profil, wejscie);
+        let dodatkowy = u8::from(pomiar.is_some());
+        if let Some(args) = &pomiar {
+            let n =
+                budowniczy::plan_z(media, &profil, wejscie, czesc, &kt).map(|p| p.przebiegi.len()).unwrap_or(1) as u8;
+            let ogon = self.uruchom_ffmpeg(id, ffmpeg, args, czas, 1, n + 1, anuluj).await?;
+            kt.pomiar_glosnosci = budowniczy::PomiarGlosnosci::z_tekstu(&ogon);
+        }
         let mut proba = 0;
         loop {
             let plan =
-                budowniczy::plan_z(media, &profil, wejscie, czesc, kt).map_err(|e| Przerwanie::Blad(e.to_string()))?;
-            let n = plan.przebiegi.len() as u8;
-            let mut wynik = Ok(());
+                budowniczy::plan_z(media, &profil, wejscie, czesc, &kt).map_err(|e| Przerwanie::Blad(e.to_string()))?;
+            let n = plan.przebiegi.len() as u8 + dodatkowy;
+            let mut wynik = Ok(String::new());
             for (i, args) in plan.przebiegi.iter().enumerate() {
-                wynik = self.uruchom_ffmpeg(id, ffmpeg, args, czas, i as u8 + 1, n, anuluj).await;
+                wynik = self.uruchom_ffmpeg(id, ffmpeg, args, czas, i as u8 + 1 + dodatkowy, n, anuluj).await;
                 if wynik.is_err() {
                     break;
                 }
@@ -651,7 +739,7 @@ impl Kolejka {
                     return Err(Przerwanie::Blad(e));
                 }
                 Err(e) => return Err(e),
-                Ok(()) => {}
+                Ok(_) => {}
             }
             // Docelowy rozmiar: jeśli koder przestrzelił, poprawka bitrate (maks. 2 razy).
             let Some(JakoscWideo::RozmiarMb { mb }) = profil.wideo.as_ref().map(|w| w.jakosc.clone()) else {
@@ -680,7 +768,7 @@ impl Kolejka {
         przebieg: u8,
         przebiegi: u8,
         anuluj: &Notify,
-    ) -> Result<(), Przerwanie> {
+    ) -> Result<String, Przerwanie> {
         let niski = self.opcje().niski_priorytet;
         let mut dziecko = procesy::komenda_z(ffmpeg, niski)
             .args(args)
@@ -717,7 +805,7 @@ impl Kolejka {
         };
         let ogon = stderr.await.unwrap_or_default();
         match status {
-            Ok(s) if s.success() => Ok(()),
+            Ok(s) if s.success() => Ok(ogon),
             Ok(s) => Err(Przerwanie::Blad(blad::z_ogonem("ffmpeg_kod", &[("kod", &s.code().unwrap_or(-1))], &ogon))),
             Err(e) => Err(Przerwanie::Blad(e.to_string())),
         }
@@ -738,7 +826,9 @@ impl Kolejka {
             s.ytdlp.clone().ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"yt-dlp")])))?;
         let katalog = katalog.map(Path::to_path_buf).unwrap_or_else(pobieracz::katalog_domyslny);
         upewnij_katalog(&katalog)?;
-        let args = pobieracz::argumenty_pobrania(url, opcje, &katalog, &s);
+        // archiwum „tylko nowe” obok dziennika w toku (dane apki albo `portable/`)
+        let archiwum = self.dziennik.as_deref().and_then(Path::parent).map(|k| k.join(PLIK_ARCHIWUM));
+        let args = pobieracz::argumenty_pobrania_z(url, opcje, &katalog, &s, archiwum.as_deref());
         let niski = self.opcje().niski_priorytet;
         let mut dziecko = procesy::komenda_z(&ytdlp, niski)
             .args(&args)
@@ -802,6 +892,143 @@ impl Kolejka {
             ))),
             Err(e) => Err(Przerwanie::Blad(e.to_string())),
         }
+    }
+
+    /// Wyodrębnij ścieżki: każdy strumień do `nazwa.v1.mp4`, `nazwa.a1-pl.m4a`, `nazwa.s1.srt`…
+    /// Jeden przebieg ffmpeg, wyniki jako `*.part.*`, zmiana nazw po sukcesie.
+    async fn sciezki(
+        &self,
+        id: u64,
+        wejscie: &Path,
+        katalog: Option<&Path>,
+        anuluj: &Notify,
+    ) -> Result<PathBuf, Przerwanie> {
+        let katalog =
+            katalog.map(Path::to_path_buf).or_else(|| wejscie.parent().map(Path::to_path_buf)).unwrap_or_default();
+        upewnij_katalog(&katalog)?;
+        let s = czytaj(&self.sciezki);
+        let ffmpeg = s.ffmpeg.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffmpeg")])))?;
+        let ffprobe =
+            s.ffprobe.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffprobe")])))?;
+        let media = sonda::sonduj(&ffprobe, wejscie).await.map_err(Przerwanie::Blad)?;
+        let strumienie = obrobka::strumienie_do_wyodrebnienia(&media);
+        if strumienie.is_empty() {
+            return Err(Przerwanie::Blad(blad::kod("sciezki_brak", &[])));
+        }
+        sprawdz_miejsce_b(media.rozmiar_b.unwrap_or(0), &katalog)?;
+        let rdzen = wejscie.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
+        let mut wyjscia = Vec::new();
+        for st in strumienie {
+            let mut r = rdzen.clone();
+            r.push(format!(".{}", st.dopisek));
+            let p = self.zarezerwuj(&katalog, &r, st.rozszerzenie, wejscie);
+            wyjscia.push((st, p));
+        }
+        let gotowe: Vec<PathBuf> = wyjscia.iter().map(|(_, p)| p.clone()).collect();
+        let czesci: Vec<_> = wyjscia.iter().map(|(st, p)| (st.clone(), sciezka_czesci(p))).collect();
+        let rozmiar_wejscia = std::fs::metadata(wejscie).ok().map(|m| m.len());
+        self.ustaw(id, |i| {
+            i.wyjscie = gotowe.first().cloned();
+            i.rozmiar_wejscia = rozmiar_wejscia;
+        });
+        for (_, c) in &czesci {
+            self.w_toku(c, true);
+        }
+        let args = obrobka::plan_sciezek(wejscie, &czesci);
+        let mut wynik = self.uruchom_ffmpeg(id, &ffmpeg, &args, media.czas_s, 1, 1, anuluj).await.map(|_| ());
+        if wynik.is_ok() {
+            for ((_, c), p) in czesci.iter().zip(&gotowe) {
+                if let Err(e) = std::fs::rename(c, p) {
+                    wynik = Err(Przerwanie::Blad(blad::kod("zapis_wyniku", &[("blad", &e)])));
+                    break;
+                }
+            }
+        }
+        for (_, c) in &czesci {
+            if wynik.is_err() {
+                usun_z_ponowieniem(c).await;
+            }
+            self.w_toku(c, false);
+        }
+        for p in &gotowe {
+            self.zwolnij(p);
+        }
+        // pliki przemianowane przed błędem kolejnej zmiany nazwy zostają: są kompletne
+        wynik?;
+        let suma: u64 = gotowe.iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
+        self.ustaw(id, |i| {
+            i.wyniki = gotowe.clone();
+            i.rozmiar_wyniku = Some(suma);
+        });
+        gotowe.first().cloned().ok_or_else(|| Przerwanie::Blad(blad::kod("sciezki_brak", &[])))
+    }
+
+    /// Połącz klipy w kolejności z listy. Kopia strumieni (concat demuxer), gdy wszystkie pliki mają te
+    /// same kodeki i parametry; inaczej filtr `concat` z kodowaniem (H.264/AAC, WebM: VP9/Opus).
+    #[allow(clippy::too_many_arguments)]
+    async fn polacz(
+        &self,
+        id: u64,
+        wejscia: &[PathBuf],
+        kontener: Kontener,
+        katalog: Option<&Path>,
+        dopisek: Option<&str>,
+        tmp: &Path,
+        anuluj: &Notify,
+    ) -> Result<PathBuf, Przerwanie> {
+        if wejscia.len() < 2 {
+            return Err(Przerwanie::Blad(blad::kod("polacz_za_malo", &[])));
+        }
+        if kontener.obraz() {
+            return Err(Przerwanie::Blad(blad::kod("polacz_kontener", &[])));
+        }
+        let wejscia: Vec<PathBuf> =
+            wejscia.iter().map(|p| std::path::absolute(p).unwrap_or_else(|_| p.clone())).collect();
+        let pierwszy = &wejscia[0];
+        let katalog =
+            katalog.map(Path::to_path_buf).or_else(|| pierwszy.parent().map(Path::to_path_buf)).unwrap_or_default();
+        upewnij_katalog(&katalog)?;
+        let s = czytaj(&self.sciezki);
+        let ffmpeg = s.ffmpeg.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffmpeg")])))?;
+        let ffprobe =
+            s.ffprobe.ok_or_else(|| Przerwanie::Blad(blad::kod("brak_narzedzia", &[("nazwa", &"ffprobe")])))?;
+        let mut media = Vec::new();
+        for w in &wejscia {
+            media.push(sonda::sonduj(&ffprobe, w).await.map_err(Przerwanie::Blad)?);
+        }
+        let rozmiar_wejscia: u64 = media.iter().filter_map(|m| m.rozmiar_b).sum();
+        sprawdz_miejsce_b(rozmiar_wejscia, &katalog)?;
+        let kopia = obrobka::polacz_bez_kodowania(&media, kontener);
+        let mut rdzen = pierwszy.file_stem().map(OsStr::to_os_string).unwrap_or_else(|| OsString::from("wynik"));
+        let d = dopisek.map(czysty_dopisek).filter(|d| !d.is_empty()).unwrap_or_else(|| "+".into());
+        rdzen.push(format!(" ({d})"));
+        let wyjscie = self.zarezerwuj(&katalog, &rdzen, kontener.rozszerzenie(), pierwszy);
+        self.ustaw(id, |i| {
+            i.wyjscie = Some(wyjscie.clone());
+            i.rozmiar_wejscia = Some(rozmiar_wejscia);
+            i.bez_kodowania = Some(kopia);
+        });
+        let czesc = sciezka_czesci(&wyjscie);
+        let args = if kopia {
+            let lista = tmp.join("lista.txt");
+            std::fs::write(&lista, obrobka::lista_concat(&wejscia))
+                .map_err(|e| Przerwanie::Blad(blad::kod("zapis_wyniku", &[("blad", &e)])))?;
+            obrobka::plan_polaczenia_kopia(&lista, &czesc, kontener)
+        } else {
+            obrobka::plan_polaczenia_kodowanie(&media, &wejscia, &czesc, kontener)
+                .map_err(|e| Przerwanie::Blad(e.to_string()))?
+        };
+        let czas: Option<f64> = media.iter().map(|m| m.czas_s).sum();
+        self.w_toku(&czesc, true);
+        let wynik = self.uruchom_ffmpeg(id, &ffmpeg, &args, czas, 1, 1, anuluj).await.and_then(|_| {
+            std::fs::rename(&czesc, &wyjscie).map_err(|e| Przerwanie::Blad(blad::kod("zapis_wyniku", &[("blad", &e)])))
+        });
+        if wynik.is_err() {
+            usun_z_ponowieniem(&czesc).await;
+        }
+        self.w_toku(&czesc, false);
+        wynik?;
+        Ok(wyjscie)
     }
 
     fn zwolnij(&self, p: &Path) {

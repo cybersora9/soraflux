@@ -3,10 +3,10 @@ import { api } from "./api";
 import type { Tryb } from "./prosty";
 import { sklep, ZAKLADKI_TRYBU, type Zakladka } from "./sklep";
 
-/** Zakładka po zmianie trybu: Prosty ↔ Konwertuj, wspólne (Kolejka, Ustawienia) zostają. */
+/** Zakładka po zmianie trybu: Prosty ↔ Taśma, wspólne (Ustawienia) zostają. */
 export function zakladkaWTrybie(z: Zakladka, tryb: Tryb): Zakladka {
   if (ZAKLADKI_TRYBU[tryb].includes(z)) return z;
-  return tryb === "prosty" ? "prosty" : "konwertuj";
+  return tryb === "prosty" ? "prosty" : "tasma";
 }
 
 /** Zapis trybu w konfigu od razu i przejście na pasującą zakładkę. */

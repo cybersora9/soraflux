@@ -49,64 +49,48 @@ describe("kontrast WCAG AA", () => {
   });
 });
 
-// v1.2: każdy z 6 motywów (motywy.ts) w obu trybach. Te same progi co tokeny E30:
-// tekst, tekst-2, tekst-3, akcent, ok, ostrzeżenie (pom1), błąd ≥ 4,5:1 na tle i kartach,
-// tekst na akcencie ≥ 4,5:1. Kolory z color-mix() (pochodne) liczone są osobno w motywy.ts.
-import { WBUDOWANE } from "./motywy";
+// GUI 2.0 (DNA z makiety): każdy motyw × tryb, także „Własny” z kilkoma akcentami. Progi WCAG 2.1 AA:
+// tekst, tekst2, tekst3, akcent jako tekst, ok/uwaga/błąd ≥ 4,5:1 na wgłębieniu, panelu i panelu 2;
+// tekst i tekst2 także na panelu 3 (przycisk pod kursorem, wciśnięty segment) i na zaznaczonym kaflu;
+// tekst na akcencie ≥ 4,5:1; cyfry LCD ≥ 4,5:1; akcent jako ikona na zaznaczonym kaflu ≥ 3:1 (WCAG 1.4.11).
+import { BAZY, ID_MOTYWOW, SZYBKIE_AKCENTY, tokeny, type MotywWlasny } from "./motywy";
 
-describe("kontrast WCAG AA motywów", () => {
-  for (const m of WBUDOWANE) {
-    for (const tryb of ["jasny", "ciemny"] as const) {
-      it(`${m.nazwa} (${tryb})`, () => {
-        const k = m[tryb];
-        const slabe: string[] = [];
-        for (const [nt, tlo] of [["tlo", k.tlo], ["karta", k.karta], ["karta2", k.karta2]] as const) {
-          for (const [nx, x] of [["tekst", k.tekst], ["tekst2", k.tekst2], ["tekst3", k.tekst3], ["akcent", k.akcent], ["ok", k.ok], ["pom1", k.pom1], ["zle", k.zle]] as const) {
-            const w = kontrast(x, tlo);
-            if (w < 4.5) slabe.push(`${nx} na ${nt}: ${w.toFixed(2)}`);
-          }
-        }
-        const p = kontrast(k.naAkcencie, k.akcent);
-        if (p < 4.5) slabe.push(`naAkcencie na akcent: ${p.toFixed(2)}`);
-        expect(slabe).toEqual([]);
-      });
-    }
+const WLASNE: MotywWlasny[] = [
+  ...SZYBKIE_AKCENTY.map((akcent, i) => ({ akcent, baza: BAZY[i % BAZY.length] })),
+  { akcent: "#ffff00", baza: "kissaten" },
+  { akcent: "#101010", baza: "blackwall" },
+  { akcent: "#808080", baza: "citypop" },
+];
+
+function sprawdz(k: ReturnType<typeof tokeny>): string[] {
+  const slabe: string[] = [];
+  const prog = (nazwa: string, x: string, tlo: string, nt: string, p = 4.5) => {
+    const w = kontrast(x, tlo);
+    if (w < p) slabe.push(`${nazwa} na ${nt}: ${w.toFixed(2)}`);
+  };
+  for (const [nt, tlo] of [["wglebienie", k.wglebienie], ["panel", k.panel], ["panel2", k.panel2]] as const) {
+    for (const [nx, x] of [["tekst", k.tekst], ["tekst2", k.tekst2], ["tekst3", k.tekst3], ["akcentTekst", k.akcentTekst], ["ok", k.ok], ["uwaga", k.uwaga], ["zle", k.zle]] as const) prog(nx, x, tlo, nt);
   }
-});
-
-// S4 tryb Prosty: zaznaczony kafel (akcent 15% na karcie; tekst ≥ 4,5:1, ikony w akcencie i gwiazdka „najczęściej”
-// w kolorze ok ≥ 3:1 jak elementy nietekstowe, WCAG 1.4.11), karta „gotowe z uwagą”
-// (pom1 ~8% na karcie) i LCD z wynikiem. Mieszanie w sRGB: przybliżenie color-mix(in oklab), przy 8–15% różnica
-// jest w setnych części kontrastu, więc próg zostaje 4,5:1.
-function domieszka(tlo: string, kolor: string, procent: number): string {
-  const kanal = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
-  return "#" + [1, 3, 5].map((i) => Math.round(kanal(tlo, i) * (1 - procent / 100) + kanal(kolor, i) * (procent / 100)).toString(16).padStart(2, "0")).join("");
+  for (const [nx, x] of [["tekst", k.tekst], ["tekst2", k.tekst2]] as const) {
+    prog(nx, x, k.panel3, "panel3");
+    prog(nx, x, k.akcentSlaby, "zaznaczonym kaflu");
+  }
+  prog("akcentTekst (ikona)", k.akcentTekst, k.akcentSlaby, "zaznaczonym kaflu", 3);
+  prog("ok (gwiazdka)", k.ok, k.akcentSlaby, "zaznaczonym kaflu", 3);
+  prog("naAkcencie", k.naAkcencie, k.akcent, "akcencie");
+  prog("lcd", k.lcd, k.lcdTlo, "szkle LCD");
+  return slabe;
 }
 
-describe("kontrast WCAG AA trybu Prostego", () => {
-  for (const m of WBUDOWANE) {
-    for (const tryb of ["jasny", "ciemny"] as const) {
-      it(`${m.nazwa} (${tryb})`, () => {
-        const k = m[tryb];
-        const slabe: string[] = [];
-        const kafel = domieszka(k.karta, k.akcent, 15);
-        for (const [nx, x] of [["tekst", k.tekst], ["tekst2", k.tekst2]] as const) {
-          const w = kontrast(x, kafel);
-          if (w < 4.5) slabe.push(`${nx} na zaznaczonym kaflu: ${w.toFixed(2)}`);
-        }
-        for (const [nx, x] of [["akcent (ikona)", k.akcent], ["ok (gwiazdka)", k.ok]] as const) {
-          const w = kontrast(x, kafel);
-          if (w < 3) slabe.push(`${nx} na zaznaczonym kaflu: ${w.toFixed(2)}`);
-        }
-        const uwaga = domieszka(k.karta, k.pom1, 9);
-        for (const [nx, x] of [["tekst", k.tekst], ["pom1", k.pom1], ["tekst3", k.tekst3]] as const) {
-          const w = kontrast(x, uwaga);
-          if (w < 4.5) slabe.push(`${nx} na karcie uwagi: ${w.toFixed(2)}`);
-        }
-        const lcd = kontrast(k.lcd, k.lcdTlo);
-        if (lcd < 4.5) slabe.push(`lcd: ${lcd.toFixed(2)}`);
-        expect(slabe).toEqual([]);
-      });
+describe("kontrast WCAG AA motywów 2.0", () => {
+  for (const id of ID_MOTYWOW) {
+    for (const ciemny of [true, false]) {
+      const wlasne = id === "wlasny" ? WLASNE : [null];
+      for (const w of wlasne) {
+        it(`${id}${w ? ` ${w.akcent}/${w.baza}` : ""} (${ciemny ? "ciemny" : "jasny"})`, () => {
+          expect(sprawdz(tokeny(id, ciemny, w))).toEqual([]);
+        });
+      }
     }
   }
 });

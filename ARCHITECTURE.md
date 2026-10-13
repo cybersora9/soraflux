@@ -126,6 +126,18 @@ Enums with data are tagged with a `typ` field (plain unions in TS). The containe
 - Keyboard: tabs with arrow keys (ARIA tablist), Ctrl+1…5, Ctrl+O; the theme tiles are a radiogroup, arrows only move focus.
 - Migration from the old program name (v1.0): on first start `konfig.json` and `presety.json` are copied, the old directory stays.
 
+## GUI 2.0 (DNA from `docs/gui2/makieta.html`, copied, no dependency on sora-ui)
+- Shell (`main.ts`, `dna.css`): title strip with the always-crimson logo and the Ctrl K pill, a rail, the content and a status bar. Full mode rail: **Tape** (`widoki/tasma.ts`, logic `tasma.ts`), **From link** (`widoki/link.ts`, `link.ts`), **Compare** (`widoki/porownaj.ts`), **Tools** (`widoki/narzedzia.ts`, `obrobka.ts`), **Done** (`widoki/gotowe.ts`), Settings. Simple mode (1.4) keeps its three items. The 1.4 Full views (Convert, Images, Download, Queue) stay reachable from the command palette as a fallback.
+- Themes (`motywy.ts`): Blackwall, Kissaten, City Pop, MiniDisc, Neon night and Custom (`<input type=color>` + base, `.json` export/import via `motyw_zapisz_plik`/`motyw_wczytaj_plik`), light/dark/system. All tokens are computed to `#rrggbb` (OKLab mixing like CSS `color-mix`) and tested for WCAG AA per theme × mode (`kontrast.test.ts`). Old ids (`sora-*`, `jp-*`, 1.x custom themes) migrate to the nearest new theme at start; `wlasne_motywy` is left untouched.
+- Scale 90–150% (`skala.ts`, Ctrl + / − / 0): Rust command `ustaw_skale` → `Webview::set_zoom`, stored in `konfig.json` (`skala`), applied in `setup` before the first paint.
+- Tape: one recipe per file (Simple-mode actions + Custom = the 1.x settings panel under “Adjust details”), loudness −14 LUFS, hardware encoder switch, transport bar (sum before/after, save folder, after finishing, jobs at once, background priority, Start/Pause = `kolejka_wstrzymaj`).
+- From link: `OpcjePobrania.fragment` → `--download-sections *a-b --force-keyframes-at-cuts`; playlists: `--playlist-items`, `--download-archive <data>/pobrane-archiwum.txt` (“only new”); `potem` profile = download → target in one queue job.
+- Loudness normalisation is now always two-pass: `budowniczy::argumenty_pomiaru` (loudnorm `print_format=json`) → `PomiarGlosnosci` → `Kontekst.pomiar_glosnosci` → `linear=true` second pass. Target LUFS in `ProfilAudio.lufs` (default −16 as in 1.x).
+- Tools: container change / loudness / crop-rotate-flip are plain `Profil`s; `RodzajZadania::Sciezki` (each stream to its own file, one ffmpeg run) and `RodzajZadania::Polacz` (concat demuxer when codecs and parameters match, otherwise the `concat` filter with letterboxing and silence for clips without audio), pure builders in `budowniczy/obrobka.rs`.
+- Compare: `porownaj_klatke` (same frame from source and result) and `porownaj_metryki` (SSIM always, VMAF only when ffmpeg has `libvmaf`, loudness, size; first 60 s).
+- Done: `przeciagnij_wynik` starts an OS drag of a finished output (crate `drag`: OLE on Windows, GTK on Linux); only paths of finished queue jobs are accepted.
+- Gate additions: `npm run gui2` (Playwright: no text outside its frame, ellipsis only with `title`, no horizontal scroll; screenshots to `docs/zrzuty/gui2/`).
+
 ## Windows: installer and Explorer
 - NSIS with the WebView2 bootstrapper; `src-tauri/nsis/hooks.nsh` adds (HKCU) and removes the "Convert with SoraFlux" entry for video, audio and image files.
 - Files passed as arguments at startup (`pliki_startowe`); a second launch → `tauri-plugin-single-instance` → a `pliki://otworz` event to the open window.

@@ -47,6 +47,7 @@ sterowników producenta karty.
 | ureq (+ rustls, rustls-native-certs) | MIT OR Apache-2.0 (rustls: Apache-2.0 OR ISC OR MIT) |
 | sha2 | MIT OR Apache-2.0 |
 | zip | MIT |
+| drag (CrabNebula; GUI 2.0: przeciąganie gotowego pliku do innej apki / drag a finished file into another app) + windows, windows-core (Windows) | Apache-2.0 OR MIT |
 
 Full list of transitive dependencies: `cargo tree` in `src-tauri/`
 (all under permissive licenses: MIT, Apache-2.0, ISC, BSD, Zlib, Unicode-3.0).
@@ -75,3 +76,29 @@ TypeScript (Apache-2.0), Vitest (MIT), jsdom (MIT), playwright-core
 Only the latin and latin-ext subsets are included (covers Polish characters), and nothing is loaded from Google Fonts, so the app works offline. License text: https://openfontlicense.org
 
 Dołączamy tylko podzbiory latin i latin-ext (polskie znaki), bez Google Fonts: program działa offline.
+
+### Ikony / Icons
+
+Ikony interfejsu GUI 2.0 to ścieżki SVG z zestawu **Lucide** (<https://lucide.dev>), wpisane w
+`src/ikony.ts` (bez pakietu npm). Licencja ISC:
+
+GUI 2.0 interface icons are SVG paths from **Lucide** (<https://lucide.dev>), copied into
+`src/ikony.ts` (no npm package). ISC license:
+
+```
+ISC License
+
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without
+fee is hereby granted, provided that the above copyright notice and this permission notice appear
+in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS
+SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+OF THIS SOFTWARE.
+```

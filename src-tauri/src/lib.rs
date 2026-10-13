@@ -91,6 +91,14 @@ pub fn komendy_apki<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bo
         komendy::napisy_stan,
         komendy::napisy_pobierz_model,
         komendy::napisy_anuluj_model,
+        komendy::ustaw_skale,
+        komendy::kolejka_wstrzymaj,
+        komendy::kolejka_wstrzymana,
+        komendy::motyw_zapisz_plik,
+        komendy::motyw_wczytaj_plik,
+        komendy::porownaj_klatke,
+        komendy::porownaj_metryki,
+        komendy::przeciagnij_wynik,
     ]
 }
 
@@ -136,6 +144,10 @@ pub fn run() {
                 );
             }
             let k = konfig::wczytaj(&katalog_konfiguracji);
+            // Skala GUI 2.0 od pierwszej klatki (zoom WebView), zanim front cokolwiek narysuje.
+            if let Some(okno) = app.get_webview_window("main") {
+                let _ = okno.set_zoom(konfig::skala_poprawna(k.skala));
+            }
             let plik_w_toku = katalog_danych.join("w_toku.json");
             for p in kolejka::sprzatnij_po_awarii(&plik_w_toku) {
                 dziennik::zapisz(&katalog_danych, &format!("po awarii usunięto niepełny plik {}", p.display()));

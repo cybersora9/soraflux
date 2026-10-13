@@ -71,18 +71,6 @@ export function stworzWidokUstawien(): { el: HTMLElement; odswiez(): void } {
                 (v) => void zapisz({ jezyk: v }),
               ),
             ),
-            pole(
-              t("ustawienia.motyw"),
-              wybor<Konfig["motyw"]>(
-                [
-                  { wartosc: "dark", etykieta: t("ustawienia.motyw.ciemny") },
-                  { wartosc: "light", etykieta: t("ustawienia.motyw.jasny") },
-                  { wartosc: "system", etykieta: t("ustawienia.motyw.system") },
-                ],
-                k.motyw,
-                (v) => void zapisz({ motyw: v }),
-              ),
-            ),
           ),
           sekcjaMotywow(),
         ),

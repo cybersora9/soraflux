@@ -1,120 +1,87 @@
-// Ustawienia → Wygląd: kafle motywów (wbudowane + własne), edytor własnego motywu z podglądem na żywo,
-// eksport do schowka i import z pliku .json. Zapis w konfigu (Rust), nie w localStorage.
-// Motyw zmienia się TYLKO kliknięciem kafla (pointer) albo Enterem/spacją na kaflu, który
-// użytkownik sam wybrał klawiaturą; patrz `aktywujKafel` (usterka 5 z testów 07.10).
+// Ustawienia → Wygląd (DNA 2.0): kafle motywów rodziny (Blackwall, Kissaten, City Pop, MiniDisc, Neon noc,
+// Własny), „Własny” z <input type=color> na wybranej bazie, eksport/import .json, tryb jasny/ciemny/system
+// i skala 90–150%. Zapis w konfigu (Rust), nie w localStorage.
+// Motyw zmienia się TYLKO kliknięciem kafla albo Enterem/spacją na kaflu; strzałki tylko przesuwają fokus
+// (usterka 5 z testów 07.10, P8: przyciski z aria-pressed, nie radio).
 import { api } from "../api";
-import { h, ikona } from "../dom";
+import { h, ikona, zamien } from "../dom";
 import { IKONY } from "../ikony";
 import { t, tekstBledu } from "../i18n";
 import {
-  EDYTOWALNE,
-  WBUDOWANE,
-  czyCiemny,
-  kontrast,
-  naloz,
-  doKonfigu,
-  nowyId,
-  ustawStan,
-  wczytaj,
-  zImportu,
-  znajdz,
-  type Edytowalny,
-  type Kolory,
-  type Motyw,
-  type MotywWlasny,
-  type StanWygladu,
+  BAZY, ID_MOTYWOW, SZYBKIE_AKCENTY, czyCiemny, doKonfigu, doPliku, naloz, probki, ustawStan, wczytaj, zPliku,
+  type Baza, type IdMotywu, type MotywWlasny, type StanWygladu,
 } from "../motywy";
+import { biezacaSkala, SKALE, ustawSkale } from "../skala";
 import { pokazDymek, sklep } from "../sklep";
-import { pole, przycisk, uwaga, wybor } from "./pola";
+import type { Konfig } from "../typy";
+import { przycisk } from "./pola";
 
-const OPISY_WARIANTOW: Record<Motyw["wariant"], string> = {
-  a: "motyw.wariant_a",
-  b: "motyw.wariant_b",
-  c: "motyw.wariant_c",
-};
+const DOMYSLNY_WLASNY: MotywWlasny = { akcent: "#ff7ac6", baza: "neon" };
 
-const ETYKIETY: Record<Edytowalny, string> = {
-  tlo: "motyw.kolor.tlo",
-  karta: "motyw.kolor.karta",
-  tekst: "motyw.kolor.tekst",
-  akcent: "motyw.kolor.akcent",
-  pom1: "motyw.kolor.pom1",
-  pom2: "motyw.kolor.pom2",
-};
-
-/** Kolor do pola <input type=color>: tylko #rrggbb, inaczej przybliżenie z bazy. */
-function doPola(v: string, zapas: string): string {
-  return /^#[0-9a-f]{6}$/i.test(v) ? v : /^#[0-9a-f]{6}$/i.test(zapas) ? zapas : "#808080";
+/** Przełącznik w stylu makiety: segmenty z aria-pressed. */
+function seg<T extends string | number>(opcje: { v: T; e: string; ikona?: string }[], wartosc: T, zmiana: (v: T) => void, etykieta: string, klasa = ""): HTMLElement {
+  return h(
+    "div",
+    { class: `seg ${klasa}`.trim(), role: "group", "aria-label": etykieta },
+    opcje.map((o) =>
+      h("button", { type: "button", "aria-pressed": String(o.v === wartosc), "data-wartosc": String(o.v), onclick: () => o.v !== wartosc && zmiana(o.v) }, o.ikona ? ikona(o.ikona, "ikona ic m") : null, o.e),
+    ),
+  );
 }
 
 export function sekcjaMotywow(): HTMLElement {
-  const el = h("div", { class: "kolumna" });
+  const el = h("div", { class: "wyglad2" });
   let stan: StanWygladu = wczytaj();
-  let edycja: MotywWlasny | null = null;
   const ciemno = () => czyCiemny(sklep.stan.konfig?.motyw);
-  const plik = h("input", { type: "file", accept: ".json,application/json", class: "ukryty-plik" }) as HTMLInputElement;
+
+  async function zapiszKonfig(zmiana: Partial<Konfig>) {
+    const k = sklep.stan.konfig;
+    if (!k) return;
+    const konfig = { ...k, ...zmiana };
+    sklep.ustaw({ konfig });
+    await api.konfigZapisz(konfig).catch((e) => pokazDymek(tekstBledu(e), "blad"));
+  }
 
   function utrwal(nowy: StanWygladu) {
     stan = nowy;
     ustawStan(stan);
     naloz(ciemno());
     rysuj();
-    const k = sklep.stan.konfig;
-    if (!k) return;
-    const konfig = { ...k, ...doKonfigu(stan) };
-    sklep.ustaw({ konfig });
-    void api.konfigZapisz(konfig).catch((e) => pokazDymek(tekstBledu(e), "blad"));
+    void zapiszKonfig(doKonfigu(stan));
   }
 
-  function wybierz(id: string) {
-    edycja = null;
-    utrwal({ ...stan, motyw: id });
+  function wybierz(id: IdMotywu) {
+    utrwal({ motyw: id, wlasny: id === "wlasny" ? stan.wlasny ?? { ...DOMYSLNY_WLASNY } : stan.wlasny });
   }
 
-  function podglad() {
-    if (!edycja) return;
-    const baza = WBUDOWANE.find((m) => m.id === edycja!.baza) ?? WBUDOWANE[0];
-    const tymczasowy = znajdz(edycja.id, { motyw: edycja.id, wlasne: [edycja] });
-    naloz(ciemno(), { ...tymczasowy, wariant: baza.wariant });
-  }
-
-  function kafel(m: Motyw, wlasny: boolean) {
-    const k = ciemno() ? m.ciemny : m.jasny;
-    const aktywny = stan.motyw === m.id;
-    // P8 (test 1.4.0): przyciski przełączające z aria-pressed, nie radio. Radio obiecuje wybór strzałkami,
-    // a tu strzałki celowo tylko przesuwają fokus (usterka 5: przypadkowe klawisze nie zmieniają wyglądu).
+  function kafel(id: IdMotywu) {
+    const aktywny = stan.motyw === id;
+    const p = probki(id, ciemno(), id === "wlasny" ? stan.wlasny ?? DOMYSLNY_WLASNY : null);
     return h(
       "button",
       {
         type: "button",
-        class: `motyw-kafel${aktywny ? " aktywny" : ""}`,
+        class: `kafel-n kafel-motywu${aktywny ? " aktywny" : ""}`,
         "aria-pressed": String(aktywny),
-        // jeden kafel w kolejności Tab (roving tabindex), reszta strzałkami
         tabindex: aktywny ? "0" : "-1",
-        "data-motyw": m.id,
-        onclick: () => wybierz(m.id),
+        "data-motyw": id,
+        onclick: () => wybierz(id),
       },
-
       h(
         "span",
-        { class: "motyw-probki", "aria-hidden": "true" },
-        [k.tlo, k.karta, k.akcent, k.pom1, k.tekst].map((c) => h("span", { style: { background: c } })),
+        { class: "motyw-podglad", "aria-hidden": "true", style: { background: p.tlo } },
+        h("i", { style: { background: p.bok } }),
+        h("i", { style: { background: p.panel } }, h("i", { class: "motyw-pasek", style: { background: p.akcent } })),
       ),
-      h(
-        "span",
-        { class: "motyw-nazwa" },
-        m.nazwa,
-        // wybrany widać nie tylko po kolorze ramki: znacznik ✓ „Wybrany” (czytnik ma to z aria-pressed)
-        aktywny ? h("span", { class: "motyw-wybrany", "aria-hidden": "true" }, ikona(IKONY.ok), t("motyw.wybrany")) : null,
-      ),
-      h("span", { class: "motyw-opis" }, wlasny ? t("motyw.wlasny") : t(OPISY_WARIANTOW[m.wariant])),
+      h("b", { class: "tnij", title: t(`motyw2.${id}`) }, t(`motyw2.${id}`)),
+      h("small", null, t(`motyw2.${id}.opis`)),
+      aktywny ? h("span", { class: "wybrany-znak" }, ikona(IKONY.ok, "ikona ic m"), t("motyw.wybrany")) : null,
     );
   }
 
-  /** Strzałki w siatce kafli TYLKO przesuwają fokus; motyw zmienia klik albo Enter/spacja.
-   *  (Dlatego to grupa przycisków z aria-pressed, a nie radiogroup, w którym strzałka od razu wybiera.) */
+  /** Strzałki w siatce kafli TYLKO przesuwają fokus; motyw zmienia klik albo Enter/spacja. */
   function klawiszeKafli(e: KeyboardEvent) {
-    const kafle = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(".motyw-kafel")];
+    const kafle = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(".kafel-motywu")];
     const i = kafle.indexOf(document.activeElement as HTMLButtonElement);
     if (i < 0) return;
     const n = kafle.length;
@@ -130,144 +97,84 @@ export function sekcjaMotywow(): HTMLElement {
     kafle[j].focus();
   }
 
-  function edytor(e: MotywWlasny) {
-    const tryb: "jasny" | "ciemny" = ciemno() ? "ciemny" : "jasny";
-    const baza = WBUDOWANE.find((m) => m.id === e.baza) ?? WBUDOWANE[0];
-    const bazowe: Kolory = baza[tryb];
-    const biezace = { ...bazowe, ...e[tryb] };
-    const ostrzezenia: string[] = [];
-    const kt = kontrast(doPola(biezace.tekst, bazowe.tekst), doPola(biezace.tlo, bazowe.tlo));
-    if (kt !== null && kt < 4.5) ostrzezenia.push(t("motyw.kontrast_tekst", { k: kt.toFixed(1) }));
-    const ktk = kontrast(doPola(biezace.tekst, bazowe.tekst), doPola(biezace.karta, bazowe.karta));
-    if (ktk !== null && ktk < 4.5) ostrzezenia.push(t("motyw.kontrast_karta", { k: ktk.toFixed(1) }));
-
-    const nazwa = h("input", { class: "tekst", value: e.nazwa, maxlength: "40", oninput: (ev: Event) => (e.nazwa = (ev.target as HTMLInputElement).value) }) as HTMLInputElement;
+  function wlasny(w: MotywWlasny): HTMLElement {
+    const ustaw = (z: Partial<MotywWlasny>) => utrwal({ motyw: "wlasny", wlasny: { ...w, ...z } });
+    const kolor = h("input", { type: "color", class: "kolor-akcentu", value: w.akcent, "aria-label": t("motyw2.akcent") }) as HTMLInputElement;
+    // podgląd na żywo przy przeciąganiu, zapis po puszczeniu
+    kolor.addEventListener("input", () => naloz(ciemno(), { motyw: "wlasny", wlasny: { ...w, akcent: kolor.value } }));
+    kolor.addEventListener("change", () => ustaw({ akcent: kolor.value }));
+    const baza = h(
+      "select",
+      { class: "wybor", "aria-label": t("motyw2.baza"), onchange: (e: Event) => ustaw({ baza: (e.target as HTMLSelectElement).value as Baza }) },
+      BAZY.map((b) => h("option", { value: b, selected: b === w.baza }, t(`motyw2.${b}`))),
+    );
     return h(
       "div",
-      { class: "edytor-motywu" },
+      { class: "grupa-d" },
+      h("div", { class: "sekcja-g" }, h("h3", null, t("motyw2.wlasny")), h("span", null, t("motyw2.wlasny.pomoc"))),
       h(
         "div",
-        { class: "siatka-pol" },
-        pole(t("motyw.nazwa"), nazwa),
-        pole(
-          t("motyw.baza"),
-          wybor(
-            WBUDOWANE.map((m) => ({ wartosc: m.id, etykieta: m.nazwa })),
-            e.baza,
-            (v) => {
-              e.baza = v;
-              podglad();
-              rysuj();
-            },
-          ),
-          t("motyw.baza_pomoc"),
-        ),
-      ),
-      h("p", { class: "pole-pomoc" }, t(tryb === "ciemny" ? "motyw.edytujesz_ciemny" : "motyw.edytujesz_jasny")),
-      h(
-        "div",
-        { class: "edytor-kolory" },
-        EDYTOWALNE.map((klucz) =>
-          h(
-            "label",
-            { class: "kolor-pole" },
-            h("input", {
-              type: "color",
-              value: doPola(biezace[klucz] ?? "", bazowe[klucz] ?? ""),
-              oninput: (ev: Event) => {
-                e[tryb] = { ...e[tryb], [klucz]: (ev.target as HTMLInputElement).value };
-                podglad();
-              },
-              onchange: () => rysuj(),
-            }),
-            t(ETYKIETY[klucz]),
+        { class: "wiersz-zawijany" },
+        h("label", { class: "pole-w" }, t("motyw2.akcent"), kolor),
+        h("label", { class: "pole-w" }, t("motyw2.baza"), baza),
+        h(
+          "div",
+          { class: "szybkie-akcenty", role: "group", "aria-label": t("motyw2.szybkie") },
+          SZYBKIE_AKCENTY.map((c) =>
+            h("button", { type: "button", class: "kropka-akcentu", style: { background: c }, "aria-label": t("motyw2.akcent_x", { kolor: c }), "aria-pressed": String(c === w.akcent), onclick: () => ustaw({ akcent: c }) }),
           ),
         ),
-      ),
-      ostrzezenia.length ? uwaga("uwaga", ostrzezenia.join(" ")) : null,
-      h(
-        "div",
-        { class: "motyw-akcje" },
-        przycisk(t("motyw.zapisz"), () => {
-          e.nazwa = e.nazwa.trim() || t("motyw.bez_nazwy");
-          const wlasne = stan.wlasne.some((m) => m.id === e.id) ? stan.wlasne.map((m) => (m.id === e.id ? e : m)) : [...stan.wlasne, e];
-          edycja = null;
-          utrwal({ motyw: e.id, wlasne });
-          pokazDymek(t("motyw.zapisano", { nazwa: e.nazwa }));
-        }, "przycisk-maly"),
-        przycisk(t("motyw.przywroc_kolory"), () => {
-          e[tryb] = {};
-          podglad();
-          rysuj();
-        }, "przycisk-maly przycisk-drugorzedny"),
-        przycisk(t("motyw.anuluj"), () => {
-          edycja = null;
-          naloz(ciemno());
-          rysuj();
-        }, "przycisk-maly przycisk-drugorzedny"),
+        przycisk([ikona(IKONY.pobierzPlik, "ikona ic m"), t("motyw2.eksportuj")], async () => {
+          try {
+            if (await api.motywEksportuj(doPliku(w), "soraflux-motyw.json")) pokazDymek(t("motyw2.wyeksportowano"));
+          } catch (e) {
+            pokazDymek(tekstBledu(e), "blad");
+          }
+        }, "btn"),
+        przycisk([ikona(IKONY.upusc, "ikona ic m"), t("motyw2.importuj")], async () => {
+          try {
+            const tekst = await api.motywImportuj();
+            if (tekst === null) return;
+            const m = zPliku(tekst);
+            if (!m) throw new Error(t("motyw.import_blad"));
+            utrwal({ motyw: "wlasny", wlasny: m });
+            pokazDymek(t("motyw2.zaimportowano"));
+          } catch (e) {
+            pokazDymek(e instanceof Error ? e.message : tekstBledu(e), "blad");
+          }
+        }, "btn cichy"),
       ),
     );
   }
 
   function rysuj() {
-    if (!edycja) stan = wczytaj();
-    const aktywnyWlasny = stan.wlasne.find((m) => m.id === stan.motyw) ?? null;
-    el.replaceChildren(
-      h("span", { class: "pole-etykieta" }, t("motyw.tytul")),
-      h(
-        "div",
-        { class: "motywy", role: "group", "aria-label": t("motyw.tytul"), onkeydown: klawiszeKafli },
-        WBUDOWANE.map((m) => kafel(m, false)),
-        stan.wlasne.map((w) => kafel(znajdz(w.id, stan), true)),
+    stan = wczytaj();
+    const k = sklep.stan.konfig;
+    const skala = biezacaSkala();
+    zamien(
+      el,
+      h("div", { class: "pole-w kolumna" }, h("span", { class: "etyk-s" }, t("motyw.tytul")),
+        h("div", { class: "motywy siatka-n trzy", role: "group", "aria-label": t("motyw.tytul"), onkeydown: klawiszeKafli }, ID_MOTYWOW.map(kafel)),
       ),
-      h(
-        "div",
-        { class: "motyw-akcje" },
-        przycisk(t("motyw.nowy"), () => {
-          const baza = WBUDOWANE.find((m) => m.id === stan.motyw)?.id ?? aktywnyWlasny?.baza ?? WBUDOWANE[0].id;
-          edycja = { id: nowyId(), nazwa: t("motyw.moj"), baza, jasny: {}, ciemny: {} };
-          podglad();
-          rysuj();
-        }, "przycisk-maly"),
-        aktywnyWlasny
-          ? przycisk(t("motyw.edytuj"), () => {
-              edycja = JSON.parse(JSON.stringify(aktywnyWlasny)) as MotywWlasny;
-              rysuj();
-            }, "przycisk-maly przycisk-drugorzedny")
-          : null,
-        aktywnyWlasny
-          ? przycisk(t("motyw.usun"), () => {
-              utrwal({ motyw: aktywnyWlasny.baza, wlasne: stan.wlasne.filter((m) => m.id !== aktywnyWlasny.id) });
-              pokazDymek(t("motyw.usunieto", { nazwa: aktywnyWlasny.nazwa }));
-            }, "przycisk-maly przycisk-drugorzedny")
-          : null,
-        aktywnyWlasny
-          ? przycisk(t("motyw.eksport"), async () => {
-              const { id: _id, ...dane } = aktywnyWlasny;
-              await api.piszSchowek(JSON.stringify({ soraconverter_motyw: 1, ...dane }, null, 2));
-              pokazDymek(t("motyw.eksport_gotowy"));
-            }, "przycisk-maly przycisk-drugorzedny")
-          : null,
-        przycisk(t("motyw.import"), () => plik.click(), "przycisk-maly przycisk-drugorzedny"),
-        plik,
+      stan.motyw === "wlasny" ? wlasny(stan.wlasny ?? DOMYSLNY_WLASNY) : null,
+      h("div", { class: "pole-w kolumna" }, h("span", { class: "etyk-s" }, t("ustawienia.motyw")),
+        seg<Konfig["motyw"]>(
+          [
+            { v: "system", e: t("ustawienia.motyw.system"), ikona: IKONY.monitor },
+            { v: "dark", e: t("ustawienia.motyw.ciemny"), ikona: IKONY.ksiezyc },
+            { v: "light", e: t("ustawienia.motyw.jasny"), ikona: IKONY.slonce },
+          ],
+          k?.motyw ?? "system",
+          (v) => void zapiszKonfig({ motyw: v }),
+          t("ustawienia.motyw"),
+          "tryb-jasnosci",
+        ),
       ),
-      ...(edycja ? [edytor(edycja)] : []),
+      h("div", { class: "pole-w kolumna" }, h("span", { class: "etyk-s" }, t("skala.tytul"), " ", h("span", { class: "tx3" }, t("skala.skroty"))),
+        seg<number>(SKALE.map((s) => ({ v: s, e: `${Math.round(s * 100)}%` })), skala, (v) => void ustawSkale(v), t("skala.tytul"), "skala-seg"),
+      ),
     );
   }
-
-  plik.addEventListener("change", async () => {
-    const f = plik.files?.[0];
-    plik.value = "";
-    if (!f) return;
-    try {
-      const m = zImportu(JSON.parse(await f.text()));
-      if (!m) throw new Error("zly");
-      utrwal({ motyw: m.id, wlasne: [...stan.wlasne, m] });
-      pokazDymek(t("motyw.zaimportowano", { nazwa: m.nazwa }));
-    } catch {
-      pokazDymek(t("motyw.import_blad"), "blad");
-    }
-  });
 
   rysuj();
   return el;

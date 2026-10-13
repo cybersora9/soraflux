@@ -141,7 +141,8 @@ fn konfig_presety_i_sciezki() {
         "katalog_pobierania": null, "schowek": true,
         "sciezki": { "ffmpeg": null, "ffprobe": null, "ytdlp": null, "deno": null, "whisper": null }, "kreator_zakonczony": true,
         "motyw_wyglad": "jp-c", "wlasne_motywy": [{ "id": "wlasny-1", "nazwa": "Mój", "baza": "sora-b", "jasny": { "akcent": "#123456" }, "ciemny": {} }],
-        "ostatnie_foldery": ["C:/Wideo/Gotowe"], "tryb": "prosty", "podpowiedz_prosty_pokazana": true
+        "ostatnie_foldery": ["C:/Wideo/Gotowe"], "tryb": "prosty", "podpowiedz_prosty_pokazana": true,
+        "skala": 1.25, "motyw_wlasny": { "akcent": "#ff7ac6", "baza": "neon" }
     });
     wywolaj(&okno, "konfig_zapisz", json!({ "konfig": k })).unwrap();
     assert_eq!(wywolaj(&okno, "konfig_wczytaj", json!({})).unwrap(), k);

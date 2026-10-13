@@ -10,7 +10,7 @@ const JEZYK = process.env.ZRZUTY_JEZYK ?? "pl";
 const SLOWNIK = JSON.parse(readFileSync(`src/i18n/${JEZYK}.json`, "utf8"));
 const WYJSCIE = JEZYK === "pl" ? "zrzuty" : `zrzuty/${JEZYK}`;
 const PREFIKS = "v1_2";
-const MOTYWY = ["sora-a", "sora-b", "sora-c", "jp-a", "jp-b", "jp-c"];
+const MOTYWY = ["blackwall", "kissaten", "citypop", "minidisc", "neon"];
 mkdirSync(WYJSCIE, { recursive: true });
 
 const serwer = await preview({ preview: { port: 4174, strictPort: true }, logLevel: "warn" });
@@ -27,11 +27,14 @@ async function strona(motyw, parametry = "", jezyk = JEZYK) {
   });
   await s.goto(`${adres}?motyw=${motyw}&jezyk=${jezyk}${parametry}`);
   await s.waitForSelector(".nawigacja-przycisk");
+  // GUI 2.0: tryb Pełny startuje na Taśmie; te zrzuty i pomiary dotyczą widoków 1.4 (Konwertuj itd.)
+  if (!parametry.includes("tryb=prosty") && !parametry.includes("kreator=1")) await s.evaluate(() => window.__zakladka("konwertuj"));
   await s.waitForTimeout(400);
   return s;
 }
 
-const zakladka = (s, z) => s.click(`[data-zakladka="${z}"]`);
+// GUI 2.0: widoki 1.4 (Konwertuj, Pobierz, Obrazy, Kolejka) nie są na szynie, otwiera je paleta / atrapa
+const zakladka = (s, z) => s.evaluate((x) => window.__zakladka(x), z);
 const zdj = async (s, nazwa) => {
   // poczekaj na szacunek (atrapa ma opóźnienia jak prawdziwy ffprobe)
   await s.waitForFunction(() => [...document.querySelectorAll(".szacunek-wartosc")].every((e) => e.textContent !== "—" || !document.querySelector(".plik")), null, { timeout: 3000 }).catch(() => {});
@@ -90,10 +93,10 @@ for (const motyw of ["dark", "light"]) {
   await s.evaluate(() => document.querySelector(".zadanie-ostrzezenie")?.scrollIntoView({ block: "end" }));
   await zdj(s, `kolejka-${motyw}`);
 
-  // Ustawienia → Wygląd z edytorem własnego motywu
+  // Ustawienia → Wygląd z motywem „Własny” (DNA 2.0: akcent + baza, eksport .json)
   await zakladka(s, "ustawienia");
-  await s.click(`text=${SLOWNIK["motyw.nowy"]}`);
-  await s.waitForSelector(".edytor-motywu");
+  await s.click('[data-motyw="wlasny"]');
+  await s.waitForSelector(".wyglad2 .grupa-d");
   await s.evaluate(() => document.querySelector(".motywy").scrollIntoView({ block: "start" }));
   await zdj(s, `ustawienia-wyglad-${motyw}`);
   await s.context().close();
