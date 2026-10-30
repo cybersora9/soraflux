@@ -1,7 +1,7 @@
 <p align="center"><img src="src-tauri/icons/128x128@2x.png" width="96" height="96" alt=""></p>
 <h1 align="center">SoraFlux</h1>
 
-<p align="center"><b>Konwertuj i pobieraj wideo, dźwięk, obrazy i GIF-y. Na swoim komputerze, bez wysyłania plików.</b><br>
+<p align="center"><b>Konwertuj wideo, dźwięk, obrazy i GIF-y. Na swoim komputerze, bez wysyłania plików.</b><br>
 Za darmo i otwarty kod (MIT). Bez limitów, reklam i telemetrii.</p>
 
 <p align="center"><b>Polski</b> · <a href="README.md">English</a></p>
@@ -16,7 +16,7 @@ Za darmo i otwarty kod (MIT). Bez limitów, reklam i telemetrii.</p>
 
 ## Dlaczego SoraFlux
 
-- **Tryb Prosty dla każdego.** Wrzucasz plik albo wklejasz link, wybierasz jedną z 3–4 gotowych akcji („Do wysłania: zmieści się w mailu”, „Tylko dźwięk (MP3)”, „Do internetu”) i naciskasz jeden przycisk, który mówi, co się stanie. Bez kodeków i liczb; tryb Pełny jest jeden klik dalej.
+- **Tryb Prosty dla każdego.** Wrzucasz plik, wybierasz jedną z 3–4 gotowych akcji („Do wysłania: zmieści się w mailu”, „Tylko dźwięk (MP3)”, „Do internetu”) i naciskasz jeden przycisk, który mówi, co się stanie. Bez kodeków i liczb; tryb Pełny jest jeden klik dalej.
 - **Bez uploadu i limitów.** Pliki nie opuszczają komputera. Film 4 GB działa tak samo jak 4 MB, ile chcesz.
 - **Pełna kontrola jakości.** Akcje jednym kliknięciem („Zmniejsz do 10 MB”, „Na telefon”, „Zrób GIF”), potem rozdzielczość, FPS, CRF, bitrate albo dokładny rozmiar w MB, z podglądem przed/po.
 - **6 motywów i własne.** Kissaten, City Pop i MiniDisc w dwóch paletach, jasne i ciemne (kontrast WCAG AA), plus edytor własnych motywów.
@@ -35,7 +35,6 @@ Za darmo i otwarty kod (MIT). Bez limitów, reklam i telemetrii.</p>
 
 ## Co umie
 
-- **Pobieranie** (yt-dlp): większość popularnych serwisów z wideo i muzyką oraz bezpośrednie linki; szybkie akcje „Tylko dźwięk MP3” i „Najlepsza jakość”, napisy, miniatura, metadane, rozdziały, playlisty, „po pobraniu przekonwertuj”. Apka pilnuje wieku yt-dlp: stary z systemu (np. z pipa) zastępuje własną, aktualną kopią, a przycisk „Aktualizuj yt-dlp” odświeża tylko tę kopię.
 - **Motywy**: Kissaten, City Pop i MiniDisc w palecie cybersora albo japońskiej, każdy jasny i ciemny (kontrast WCAG AA), plus własne motywy z edytorem, eksportem i importem. Fonty wbudowane, działa offline.
 - **Szybkie akcje jednym kliknięciem**: „Zmniejsz do X MB”, „Wyciągnij dźwięk (MP3)”, „Zrób GIF”, „Na telefon (480p 25 fps)”, „Wytnij fragment” (bez ponownego kodowania: sekundy zamiast minut, bez straty jakości; albo „Dokładnie (ponowne kodowanie)” co do klatki). Potem można wszystko dopracować w panelu.
 - **Podgląd przed/po**: jedna klatka wyniku z dokładnie tymi ustawieniami, z wybranego suwakiem momentu, porównanie suwakiem dzielącym obraz. Przy dźwięku: odsłuch 5 s wyniku (np. jak naprawdę brzmi AAC 8 kb/s).
@@ -66,8 +65,8 @@ Sześć motywów, każdy jasny i ciemny. Wybierasz w Ustawienia → Wygląd, tam
 
 | | |
 |---|---|
-| ![Pobierz](zrzuty/v1_2-pobierz-dark.png) | ![Kolejka z ostrzeżeniem o uciętym pliku](zrzuty/v1_2-kolejka-dark.png) |
-| ![Podgląd przed/po](zrzuty/v1_2-podglad-przed-po-light.png) | ![Obrazy](zrzuty/v1_2-obrazy-light.png) |
+| ![Kolejka z ostrzeżeniem o uciętym pliku](zrzuty/v1_2-kolejka-dark.png) | ![Podgląd przed/po](zrzuty/v1_2-podglad-przed-po-light.png) |
+| ![Obrazy](zrzuty/v1_2-obrazy-light.png) | |
 
 Wszystkie zrzuty są w [`zrzuty/`](zrzuty/) (polski interfejs) i [`zrzuty/en/`](zrzuty/en/) (angielski), robione na atrapie backendu ze zmyślonymi danymi (`npm run zrzuty`).
 
@@ -96,9 +95,8 @@ Możesz też kliknąć prawym przyciskiem plik wideo, audio albo obraz w Eksplor
 
 1. **Pierwsze uruchomienie**: kreator sprawdza, czy masz ffmpeg i ffprobe. Brakujące pobierzesz przyciskiem (Windows: oficjalnie polecany build z gyan.dev, suma SHA256 sprawdzana) albo wskażesz ręcznie.
 2. **Konwertuj**: upuść pliki albo folder (albo kliknij strefę, albo Ctrl+O, albo w Eksploratorze „Konwertuj w SoraFlux”). Kliknij szybką akcję albo wybierz format, rozdzielczość, FPS i jakość; resztę znajdziesz w „Zaawansowane”. Kliknij plik na liście, żeby zobaczyć jego kartę informacji; „Podgląd przed / po” pokaże wynik, zanim zaczniesz.
-3. **Pobierz**: wklej link (albo kilka), „Sprawdź”, wybierz jakość albo szybką akcję, „Pobierz”. Pobieraj tylko to, do czego masz prawa; SoraFlux nie obchodzi DRM.
-4. **Obrazy**: upuść obrazy, wybierz format i rozmiar (W×H albo %), jakość.
-5. **Kolejka**: postęp, ETA, anulowanie, „Pokaż w folderze”, porównanie rozmiaru.
+3. **Obrazy**: upuść obrazy, wybierz format i rozmiar (W×H albo %), jakość.
+4. **Kolejka**: postęp, ETA, anulowanie, „Pokaż w folderze”, porównanie rozmiaru.
 
 Wynik trafia obok źródła (albo do wybranego folderu) i **nigdy nie nadpisuje oryginału**: przy kolizji powstaje `nazwa (1).mp4`. W trakcie pracy plik nazywa się `nazwa.part.mp4`, docelową nazwę dostaje dopiero po sukcesie; niepełne pliki po awarii są sprzątane przy następnym starcie.
 
@@ -113,12 +111,6 @@ Nie. Konwersja dzieje się na Twoim komputerze przez ffmpeg. Apka łączy się z
 **Dlaczego Windows pokazuje „System Windows ochronił ten komputer”?**
 Instalator nie jest jeszcze podpisany (podpis przez SignPath w toku). Kliknij „Więcej informacji” → „Uruchom mimo to”, a jeśli chcesz, porównaj SHA256 z `SHA256SUMS.txt` z wydania.
 
-**Z jakich stron mogę pobierać?**
-Z większości popularnych serwisów z wideo i muzyką (ponad 1000, przez yt-dlp) i z bezpośrednich linków do plików. Pobieraj tylko to, do czego masz prawa; SoraFlux nie obchodzi zabezpieczeń DRM.
-
-**Dlaczego „Najlepsza jakość” w MP4 to na części stron tylko 1080p?**
-MP4 to H.264 + AAC, które odtworzy wszystko (telefon, telewizor, WhatsApp). Część serwisów daje 4K tylko w VP9 albo AV1. Po 4K wybierz kontener MKV.
-
 **Mac albo Linux?**
 Kod buduje się na Linuksie (tam też idą testy CI), ale wydania są na razie tylko na Windows.
 
@@ -126,7 +118,6 @@ Kod buduje się na Linuksie (tam też idą testy CI), ale wydania są na razie t
 
 | Problem | Co zrobić |
 |---|---|
-| Pobieranie: „Serwis zablokował pobieranie” (403) | Kliknij „Aktualizuj yt-dlp” w zakładce Pobierz i spróbuj jeszcze raz. Serwisy często zmieniają strony, a yt-dlp starszy niż ~30 dni przestaje działać. Apka używa własnej kopii yt-dlp, nie tej z pipa. |
 | „Brak ffmpeg” | Ustawienia → Narzędzia → „Pobierz” (Windows) albo `sudo apt install ffmpeg` / `brew install ffmpeg`, potem „Wykryj ponownie”. Możesz też wskazać `ffmpeg.exe` ręcznie. |
 | Windows: „System Windows ochronił ten komputer” | Instalator nie jest jeszcze podpisany: „Więcej informacji” → „Uruchom mimo to”. Sumę SHA256 porównasz z `SHA256SUMS.txt` z wydania. Podpis: [docs/pl/PODPIS.md](docs/pl/PODPIS.md). |
 | Kolory po konwersji z iPhone'a/Androida wyblakłe | To nagrania HDR. Apka sama zamienia je na SDR, jeśli ffmpeg ma filtr `zscale` (build z gyan.dev ma). Bez niego zobaczysz podpowiedź: pobierz ffmpeg z Ustawień. |

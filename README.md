@@ -1,7 +1,7 @@
 <p align="center"><img src="src-tauri/icons/128x128@2x.png" width="96" height="96" alt=""></p>
 <h1 align="center">SoraFlux</h1>
 
-<p align="center"><b>Convert and download video, audio, images and GIFs. On your computer, no uploads.</b><br>
+<p align="center"><b>Convert video, audio, images and GIFs. On your computer, no uploads.</b><br>
 Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 <p align="center"><b>English</b> · <a href="README.pl.md">Polski</a></p>
@@ -16,7 +16,7 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 ## Why SoraFlux
 
-- **Simple mode for everyone.** Drop a file or paste a link, pick one of 3–4 ready-made actions ("To send: fits in an email", "Audio only (MP3)", "For the web"), press one button that says what will happen. No codecs, no numbers; Full mode is one click away.
+- **Simple mode for everyone.** Drop a file, pick one of 3–4 ready-made actions ("To send: fits in an email", "Audio only (MP3)", "For the web"), press one button that says what will happen. No codecs, no numbers; Full mode is one click away.
 - **No upload, no limits.** Your files never leave your computer. A 4 GB video works the same as a 4 MB one, as many as you like.
 - **Full control over quality.** One-click actions ("Shrink to 10 MB", "For phones", "Make a GIF"), then resolution, frame rate, CRF, bitrate or an exact target size in MB, with a before/after preview.
 - **6 themes, plus your own.** Kissaten, City Pop and MiniDisc in two palettes, light and dark (WCAG AA contrast), and an editor for your own themes.
@@ -35,7 +35,6 @@ Free and open source (MIT). No limits, no ads, no telemetry.</p>
 
 ## Features
 
-- **Downloads** (yt-dlp): most popular video and music sites plus direct links; quick actions "Audio only MP3" and "Best quality", subtitles, thumbnail, metadata, chapters, playlists, "convert after download". The app watches yt-dlp's age: an old system copy (e.g. from pip) is replaced by the app's own current copy, and "Update yt-dlp" only ever updates that copy.
 - **Themes**: Kissaten, City Pop and MiniDisc in a cybersora or Japanese palette, each light and dark (WCAG AA contrast), plus your own themes with an editor, export and import. Bundled fonts, works offline.
 - **One-click quick actions**: "Shrink to X MB", "Extract audio (MP3)", "Make a GIF", "For phones (480p 25 fps)", "Cut a clip" (without re-encoding: seconds instead of minutes, no quality loss; or "Accurate (re-encode)" for a frame-accurate cut). Fine-tune everything afterwards in the panel.
 - **Before/after preview**: one frame of the result with exactly your settings, at a moment picked with a slider, compared with a split slider. For audio: play 5 s of the result (hear what AAC at 8 kbps really sounds like).
@@ -66,8 +65,8 @@ Six themes, each light and dark. Pick one in Settings → Appearance, or make yo
 
 | | |
 |---|---|
-| ![Download](zrzuty/en/v1_2-pobierz-dark.png) | ![Queue with a truncated-file warning](zrzuty/en/v1_2-kolejka-dark.png) |
-| ![Before/after preview](zrzuty/en/v1_2-podglad-przed-po-light.png) | ![Images](zrzuty/en/v1_2-obrazy-light.png) |
+| ![Queue with a truncated-file warning](zrzuty/en/v1_2-kolejka-dark.png) | ![Before/after preview](zrzuty/en/v1_2-podglad-przed-po-light.png) |
+| ![Images](zrzuty/en/v1_2-obrazy-light.png) | |
 
 All screenshots are in [`zrzuty/en/`](zrzuty/en/) (English UI) and [`zrzuty/`](zrzuty/) (Polish UI), generated from a mock backend with made-up data (`npm run zrzuty:en`).
 
@@ -96,9 +95,8 @@ You can also right-click a video, audio or image file in Explorer and pick **Con
 
 1. **First run**: the wizard checks for ffmpeg and ffprobe. Download what's missing with one click (Windows: the officially recommended gyan.dev build, SHA256 verified) or pick the files yourself.
 2. **Convert**: drop files or a folder (or click the drop zone, press Ctrl+O, or use "Convert with SoraFlux" in Explorer). Click a quick action or choose format, resolution, frame rate and quality; everything else is under "Advanced". Click a file in the list to see its info card; "Before / after preview" shows the result before you start.
-3. **Download**: paste a link (or several), "Check", pick a quality or a quick action, "Download". Only download what you have the rights to; SoraFlux does not circumvent DRM.
-4. **Images**: drop images, choose a format and size (W×H or %), quality.
-5. **Queue**: progress, ETA, cancel, "Show in folder", size comparison.
+3. **Images**: drop images, choose a format and size (W×H or %), quality.
+4. **Queue**: progress, ETA, cancel, "Show in folder", size comparison.
 
 Output goes next to the source (or to a folder you choose) and **never overwrites the original**: a name clash produces `name (1).mp4`. While working the file is called `name.part.mp4` and gets its final name only on success; partial files from a crash are cleaned up on the next start.
 
@@ -113,12 +111,6 @@ No. Converting happens on your computer with ffmpeg. The app only goes online wh
 **Why does Windows say "Windows protected your PC"?**
 The installer isn't code-signed yet (signing through SignPath is in progress). Click "More info" → "Run anyway", and if you want, compare the SHA256 with `SHA256SUMS.txt` from the release.
 
-**Which sites can I download from?**
-Most popular video and music sites (over 1000, through yt-dlp) and direct links to files. Only download what you have the rights to; SoraFlux does not circumvent DRM.
-
-**Why is "Best quality" in MP4 only 1080p on some sites?**
-MP4 means H.264 + AAC, which plays everywhere (phones, TVs, WhatsApp). Some sites only offer 4K in VP9 or AV1. For 4K, choose MKV as the container.
-
 **Mac or Linux?**
 The code builds on Linux (CI tests run there), but releases are Windows-only for now.
 
@@ -126,7 +118,6 @@ The code builds on Linux (CI tests run there), but releases are Windows-only for
 
 | Problem | What to do |
 |---|---|
-| Download: "The site blocked the download" (403) | Click "Update yt-dlp" on the Download tab and try again. Sites change often and a yt-dlp older than ~30 days stops working. The app uses its own yt-dlp copy, not the one from pip. |
 | "ffmpeg is missing" | Settings → Tools → "Download" (Windows) or `sudo apt install ffmpeg` / `brew install ffmpeg`, then "Detect again". You can also pick `ffmpeg.exe` manually. |
 | Windows: "Windows protected your PC" | The installer isn't signed yet: "More info" → "Run anyway". Compare the SHA256 with `SHA256SUMS.txt` from the release. Signing: [docs/SIGNING.md](docs/SIGNING.md). |
 | Washed-out colors after converting iPhone/Android videos | Those are HDR recordings. The app converts them to SDR when ffmpeg has the `zscale` filter (the gyan.dev build does). Without it you'll see a hint: download ffmpeg from Settings. |
